@@ -698,7 +698,7 @@ async function handleGoogleCredential(response) {
   // Get school+year from URL params or localStorage
   const usp    = new URLSearchParams(location.search);
   const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
-  const year   = usp.get('year')   || lsGet('portal_plan')?.year       || '';
+  const year   = usp.get('year')   || lsGet('portal_plan')?.year       || new Date().getFullYear().toString();
 
   try {
     const res  = await fetch(
@@ -882,7 +882,7 @@ window.smCheckPassword = function() {
     if (val === atob(_smK)) {
       const adminSession = {
         portalRole:'system_admin', email:'admin@system',
-        name:'מנהל מערכת', picture:'', school: PS.school, year: PS.year,
+        name:'מנהל מערכת', picture:'', school: PS.school, year: PS.year || new Date().getFullYear().toString(),
       };
       setPortalSession(adminSession);
       document.getElementById('smPasswordModal').style.display = 'none';
