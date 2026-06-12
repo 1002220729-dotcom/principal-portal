@@ -1,0 +1,15 @@
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/tknyt.html
+  Cache-Control: no-cache
+
+/gantt.html
+  Cache-Control: no-cache
+
+/mtss.html
+  Cache-Control: no-cache
