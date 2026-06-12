@@ -295,6 +295,23 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 .sup-save-btn{background:#01696f;color:#fff;border:none;border-radius:8px;padding:9px 22px;font-family:var(--font);font-size:.88rem;font-weight:700;cursor:pointer;transition:background .15s;}
 .sup-save-btn:hover{background:#015e63;}
 .perm-add-row{background:none;border:1px dashed var(--teal);color:var(--teal);border-radius:7px;padding:7px 16px;font-family:var(--font);font-size:.82rem;cursor:pointer;margin-bottom:14px;}
+.sm-tab {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 600;
+  background: #fff;
+  color: #64748b;
+  font-family: var(--font);
+  transition: all .15s;
+}
+.sm-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
 </style>
 </head>
 <body>
@@ -519,11 +536,32 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <button class="sup-modal-close" onclick="closeStaffPermissions()">✕</button>
       </div>
       <div class="sup-modal-body">
-        <button class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
-        <table class="perm-table" id="staffPermTable">
-          <tbody id="staffPermTbody"></tbody>
-        </table>
-        <button class="sup-save-btn" onclick="saveStaffPermissions()">💾 שמור הרשאות</button>
+        <div id="smTabs" style="display:flex;gap:8px;margin-bottom:18px;">
+          <button class="sm-tab active" onclick="switchSMTab('staff',this)">👥 צוות</button>
+          <button class="sm-tab" onclick="switchSMTab('principals',this)">🏫 מנהלים</button>
+        </div>
+        <div id="smPanelStaff">
+          <button class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
+          <table class="perm-table" id="staffPermTable">
+            <tbody id="staffPermTbody"></tbody>
+          </table>
+          <button class="sup-save-btn" onclick="saveStaffPermissions()">💾 שמור הרשאות</button>
+        </div>
+        <div id="smPanelPrincipals" style="display:none;">
+          <button class="perm-add-row" onclick="addPrincipalRow()">+ הוסף מנהל</button>
+          <table class="perm-table" id="principalsTable">
+            <thead>
+              <tr>
+                <th style="text-align:right;padding:8px;font-size:.8rem">אימייל</th>
+                <th style="text-align:right;padding:8px;font-size:.8rem">שם</th>
+                <th style="text-align:right;padding:8px;font-size:.8rem">בית ספר</th>
+                <th style="text-align:right;padding:8px;font-size:.8rem"></th>
+              </tr>
+            </thead>
+            <tbody id="principalsTbody"></tbody>
+          </table>
+          <button class="sup-save-btn" style="margin-top:14px" onclick="savePrincipals()">💾 שמור מנהלים</button>
+        </div>
       </div>
     </div>
   </div>
@@ -995,6 +1033,67 @@ async function saveStaffPermissions() {
   }
   toast(`✅ ${ok} הרשאות נשמרו${fail?` · ❌ ${fail} נכשלו`:''}`, ok>0?'ok':'err');
   closeStaffPermissions();
+}
+
+// SM TAB SWITCHING
+function switchSMTab(tab, btn) {
+  document.querySelectorAll('.sm-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('smPanelStaff').style.display = tab === 'staff' ? '' : 'none';
+  document.getElementById('smPanelPrincipals').style.display = tab === 'principals' ? '' : 'none';
+  if (tab === 'principals') loadPrincipals();
+}
+
+// PRINCIPALS
+let principalRows = [];
+
+async function loadPrincipals() {
+  try {
+    const res = await fetch(WORKER_URL_AUTH + '/api/principals/list', { cache: 'no-store' });
+    const data = await res.json();
+    principalRows = Array.isArray(data) ? data : [];
+  } catch { principalRows = []; }
+  renderPrincipals();
+}
+
+function renderPrincipals() {
+  const tbody = document.getElementById('principalsTbody');
+  if (!tbody) return;
+  if (principalRows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;font-size:.85rem">אין מנהלים רשומים</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = principalRows.map((row, i) => `
+    <tr>
+      <td style="padding:6px 8px"><input type="email" value="${esc(row.email || '')}" placeholder="email@school.com" onchange="principalRows[${i}].email=this.value" class="perm-input perm-email" /></td>
+      <td style="padding:6px 8px"><input type="text" value="${esc(row.name || '')}" placeholder="שם מלא" onchange="principalRows[${i}].name=this.value" class="perm-input" /></td>
+      <td style="padding:6px 8px"><input type="text" value="${esc(row.school || '')}" placeholder="שם בית הספר" onchange="principalRows[${i}].school=this.value" class="perm-input" /></td>
+      <td style="padding:6px 8px"><button class="perm-del" onclick="principalRows.splice(${i},1);renderPrincipals()" title="מחק">🗑️</button></td>
+    </tr>
+  `).join('');
+}
+
+function addPrincipalRow() {
+  principalRows.push({ email: '', name: '', school: '' });
+  renderPrincipals();
+}
+
+async function savePrincipals() {
+  let ok = 0, fail = 0;
+  // Delete removed rows (not in current list)
+  // Add/update all current rows
+  for (const row of principalRows) {
+    if (!row.email) continue;
+    try {
+      const res = await fetch(WORKER_URL_AUTH + '/api/principals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: row.email, name: row.name, school: row.school })
+      });
+      if (res.ok) ok++; else fail++;
+    } catch { fail++; }
+  }
+  toast(fail ? `⚠️ ${fail} שגיאות, ${ok} נשמרו` : `✅ ${ok} מנהלים נשמרו`, fail ? 'err' : 'ok');
 }
 
 // ═══════════════════════════════════════════════════════
