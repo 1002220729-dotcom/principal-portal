@@ -1,0 +1,3266 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>לוח גאנט — ניהול בית ספר יסודי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+.year-nav-btn {
+  background: var(--color-surface-2); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); color: var(--color-text-muted);
+  cursor: pointer; font-size: 1.1rem; font-weight: 700;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.year-nav-btn:hover { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+:root {
+  --font-body: 'Heebo', sans-serif;
+  --text-xs: clamp(0.7rem, 0.65rem + 0.25vw, 0.8rem);
+  --text-sm: clamp(0.8rem, 0.75rem + 0.25vw, 0.9rem);
+  --text-base: clamp(0.9rem, 0.85rem + 0.25vw, 1rem);
+  --text-lg: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);
+  --text-xl: clamp(1.2rem, 1rem + 1vw, 1.6rem);
+  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
+  --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem;
+  --space-8: 2rem; --space-10: 2.5rem; --space-12: 3rem;
+  --radius-sm: 0.375rem; --radius-md: 0.5rem;
+  --radius-lg: 0.75rem; --radius-xl: 1rem; --radius-full: 9999px;
+  --transition: 180ms cubic-bezier(0.16,1,0.3,1);
+  --color-bg: #f7f6f2; --color-surface: #ffffff; --color-surface-2: #f3f0ec;
+  --color-border: #e0ddd8; --color-text: #28251d; --color-text-muted: #7a7974;
+  --color-text-faint: #bab9b4; --color-primary: #01696f; --color-primary-hover: #0c4e54;
+  --color-primary-light: #e0eeec;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.07); --shadow-md: 0 4px 12px rgba(0,0,0,0.09);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.12);
+}
+[data-theme="dark"] {
+  --color-bg: #171614; --color-surface: #1c1b19; --color-surface-2: #22211f;
+  --color-border: #393836; --color-text: #cdccca; --color-text-muted: #797876;
+  --color-text-faint: #5a5957; --color-primary: #4f98a3; --color-primary-light: #1e3a3d;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.25); --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+body { font-family: var(--font-body); font-size: var(--text-base); color: var(--color-text); background: var(--color-bg); min-height: 100dvh; }
+
+/* HEADER */
+.app-header {
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-6); position: sticky; top: 0; z-index: 100;
+  box-shadow: var(--shadow-sm); display: flex; align-items: center;
+  justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;
+}
+.header-brand { display: flex; align-items: center; gap: var(--space-3); }
+.header-logo { width: 36px; height: 36px; flex-shrink: 0; }
+.header-titles h1 { font-size: var(--text-lg); font-weight: 800; color: var(--color-text); line-height: 1.2; }
+.header-titles p { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
+.header-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.year-badge {
+  background: var(--color-primary-light); color: var(--color-primary);
+  font-weight: 700; font-size: var(--text-sm); padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full); border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+.today-btn {
+  background: var(--color-primary); color: #fff; border: none; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  transition: background var(--transition); display: flex; align-items: center; gap: var(--space-2);
+}
+.today-btn:hover { background: var(--color-primary-hover); }
+.save-btn {
+  background: #2563a8; color: #fff; border: none; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  transition: all var(--transition); display: flex; align-items: center; gap: var(--space-2);
+}
+.save-btn:hover { background: #1d4e8f; }
+.save-btn:disabled { opacity: 0.5; cursor: default; }
+.save-btn.is-dirty {
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22);
+  position: relative;
+}
+.save-btn.is-dirty::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  background: #f59e0b;
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+.add-event-btn {
+  background: var(--color-surface-2); color: var(--color-primary);
+  border: 1px solid var(--color-primary); cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  transition: all var(--transition); display: flex; align-items: center; gap: var(--space-2);
+}
+.add-event-btn:hover { background: var(--color-primary-light); }
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: var(--radius-md); border: 1px solid var(--color-border);
+  background: var(--color-surface-2); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--color-text-muted); transition: all var(--transition);
+}
+.theme-toggle:hover { background: var(--color-border); color: var(--color-text); }
+
+/* MAIN */
+.app-main { padding: var(--space-6); max-width: 1400px; margin: 0 auto; }
+
+/* CONTEXT BAR */
+.context-bar {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-5); display: flex; align-items: center; gap: var(--space-4);
+  font-size: var(--text-sm); flex-wrap: wrap;
+}
+.context-bar-item { display: flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); }
+.context-bar-item strong { color: var(--color-text); }
+
+/* TODAY STRIP */
+.today-strip {
+  background: var(--color-primary-light);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border-radius: var(--radius-lg); padding: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-5); display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-sm);
+}
+.today-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--color-primary); flex-shrink: 0; animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 50%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+.today-label { font-weight: 700; color: var(--color-primary); }
+.today-period { color: var(--color-text-muted); }
+
+/* GANTT TABLE */
+.gantt-container {
+  background: var(--color-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-md);
+  overflow: hidden; border: 1px solid var(--color-border); margin-bottom: var(--space-8);
+}
+.gantt-table { width: 100%; border-collapse: collapse; }
+.gantt-header-row { background: var(--color-surface-2); }
+.gantt-th {
+  padding: var(--space-3) var(--space-4); font-size: var(--text-xs); font-weight: 700;
+  color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 2px solid var(--color-border); white-space: nowrap;
+}
+.gantt-th.col-period { width: 120px; text-align: center; }
+.gantt-th.col-dates { width: 140px; }
+.gantt-th.col-bar { min-width: 200px; }
+.gantt-th.col-actions { width: 340px; }
+.gantt-th.col-level { width: 90px; text-align: center; }
+.gantt-row { border-bottom: 1px solid var(--color-border); transition: background var(--transition); cursor: pointer; }
+.gantt-row:last-child { border-bottom: none; }
+.gantt-row:hover { background: var(--color-surface-2); }
+.gantt-row.is-current { background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface)); }
+.gantt-row.is-current:hover { background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface)); }
+.gantt-row.is-holiday { opacity: 0.55; }
+.gantt-td { padding: var(--space-3) var(--space-4); vertical-align: middle; }
+.gantt-td.col-period { text-align: center; }
+.period-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: var(--space-1) var(--space-2); border-radius: var(--radius-md);
+  font-size: var(--text-xs); font-weight: 700; white-space: nowrap; min-width: 80px;
+}
+.bar-wrap { position: relative; height: 28px; border-radius: var(--radius-sm); overflow: hidden; background: var(--color-surface-2); }
+.bar-fill {
+  height: 100%; border-radius: var(--radius-sm);
+  display: flex; align-items: center; padding: 0 var(--space-3);
+  font-size: var(--text-xs); font-weight: 600; color: #fff; position: relative;
+  transition: opacity var(--transition);
+}
+.bar-fill.is-past { filter: saturate(0.5); opacity: 0.6; }
+.bar-progress { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.2); border-radius: var(--radius-sm); }
+.date-range { font-size: var(--text-xs); color: var(--color-text-muted); white-space: nowrap; }
+.date-range strong { color: var(--color-text); font-weight: 600; }
+.action-preview {
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; line-height: 1.5;
+}
+.action-count {
+  display: inline-block; margin-top: var(--space-1); background: var(--color-surface-2);
+  border: 1px solid var(--color-border); border-radius: var(--radius-full);
+  font-size: 10px; font-weight: 600; color: var(--color-text-muted); padding: 1px 6px;
+}
+.dynamic-count {
+  display: inline-block; margin-top: var(--space-1); margin-right: 4px;
+  background: color-mix(in srgb, #2563a8 15%, transparent);
+  border: 1px solid #2563a840; border-radius: var(--radius-full);
+  font-size: 10px; font-weight: 600; color: #2563a8; padding: 1px 6px;
+}
+.level-dots { display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; }
+.level-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; cursor: help; transition: transform var(--transition); }
+.level-dot:hover { transform: scale(1.6); }
+.status-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 2px 7px; border-radius: var(--radius-full);
+}
+.status-chip.upcoming { background: color-mix(in srgb, var(--color-primary) 10%, transparent); color: var(--color-primary); }
+.status-chip.current { background: #dcfce7; color: #15803d; }
+[data-theme="dark"] .status-chip.current { background: #14532d; color: #86efac; }
+.status-chip.past { background: var(--color-surface-2); color: var(--color-text-faint); }
+.status-chip.holiday { background: #f3f4f6; color: #9ca3af; }
+[data-theme="dark"] .status-chip.holiday { background: #1f2937; color: #6b7280; }
+
+/* DETAIL PANEL */
+.detail-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200;
+  display: flex; align-items: flex-end; justify-content: center; padding: var(--space-4);
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+}
+.detail-overlay.open { opacity: 1; pointer-events: auto; }
+.detail-panel {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) var(--radius-lg) var(--radius-lg);
+  max-width: 760px; width: 100%; max-height: 82vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg); transform: translateY(40px);
+  transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); direction: rtl;
+}
+.detail-overlay.open .detail-panel { transform: translateY(0); }
+.detail-header {
+  padding: var(--space-5) var(--space-6) var(--space-4); border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4);
+  position: sticky; top: 0; background: var(--color-surface); z-index: 10;
+}
+.detail-title-block h2 { font-size: var(--text-xl); font-weight: 800; color: var(--color-text); line-height: 1.2; }
+.detail-title-block .detail-dates { font-size: var(--text-sm); color: var(--color-text-muted); margin-top: var(--space-1); }
+.detail-close {
+  width: 32px; height: 32px; border-radius: var(--radius-md); border: 1px solid var(--color-border);
+  background: var(--color-surface-2); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--color-text-muted); font-size: 1rem; flex-shrink: 0; transition: all var(--transition);
+}
+.detail-close:hover { background: var(--color-border); color: var(--color-text); }
+.detail-body { padding: var(--space-5) var(--space-6); }
+.detail-section { margin-bottom: var(--space-6); }
+.detail-section-title {
+  font-size: var(--text-sm); font-weight: 700; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: var(--space-3);
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.detail-section-title::before { content: ''; display: block; width: 3px; height: 14px; border-radius: 2px; background: currentColor; }
+.action-cards { display: flex; flex-direction: column; gap: var(--space-2); }
+.action-card {
+  background: var(--color-surface-2); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm); line-height: 1.6; color: var(--color-text);
+  display: flex; gap: var(--space-3); align-items: flex-start;
+}
+.action-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+/* Dynamic event cards */
+.dynamic-event-card {
+  background: color-mix(in srgb, #2563a8 6%, var(--color-surface));
+  border: 1px solid #2563a830; border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4); font-size: var(--text-sm); line-height: 1.6;
+  color: var(--color-text); display: flex; gap: var(--space-3); align-items: flex-start;
+}
+.evt-actions { display: flex; gap: 6px; margin-right: auto; flex-shrink: 0; }
+.evt-btn {
+  background: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  color: var(--color-text-muted); cursor: pointer; font-size: 11px; padding: 2px 7px;
+  font-family: var(--font-body); transition: all var(--transition);
+}
+.evt-btn:hover { background: var(--color-border); color: var(--color-text); }
+.evt-btn.delete:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+.type-badge {
+  font-size: 10px; font-weight: 700; padding: 1px 6px;
+  border-radius: var(--radius-full); flex-shrink: 0; margin-top: 3px;
+}
+.type-general { background: #f3f4f6; color: #6b7280; }
+.type-school { background: #dbeafe; color: #1d4ed8; }
+.type-blueprint { background: #fce7f3; color: #9d174d; }
+
+
+
+/* SELECTED ACTIONS */
+.action-card.is-selected {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface));
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+.action-card { cursor: pointer; transition: background var(--transition), border-color var(--transition), box-shadow var(--transition); }
+.action-card:hover { border-color: var(--color-primary); }
+
+/* Priority tags in action cards */
+.pri-tag {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  flex-shrink: 0; margin-top: 2px; white-space: nowrap;
+}
+.pri-חובה   { background: #fee2e2; color: #991b1b; }
+.pri-מומלץ  { background: #dcfce7; color: #166534; }
+.pri-רשות   { background: #f3f4f6; color: #6b7280; }
+.action-select-hint {
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  margin-bottom: var(--space-3); display: flex; align-items: center; gap: var(--space-2);
+  background: var(--color-surface-2); border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3); border: 1px dashed var(--color-border);
+}
+.selected-count-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  color: var(--color-primary); border-radius: var(--radius-full);
+  font-size: 10px; font-weight: 700; padding: 1px 7px; margin-right: 6px;
+}
+
+/* EVENT STATUS COLORS */
+.dynamic-event-card.status-open {
+  background: color-mix(in srgb, #16a34a 8%, var(--color-surface));
+  border-color: #16a34a50;
+}
+.dynamic-event-card.status-closed {
+  background: color-mix(in srgb, #dc2626 6%, var(--color-surface));
+  border-color: #dc262640;
+  opacity: 0.82;
+}
+.dynamic-event-card.status-cancelled {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+  opacity: 0.55;
+}
+
+/* Progress summary */
+.progress-summary {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3); margin-bottom: var(--space-6);
+}
+.progress-card {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--space-4); box-shadow: var(--shadow-sm); text-align: center;
+}
+.progress-card .p-num { font-size: var(--text-xl); font-weight: 800; line-height: 1; margin-bottom: var(--space-1); }
+.progress-card .p-label { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+/* Calendar hint */
+.calendar-hint {
+  background: var(--color-surface); border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+  font-size: var(--text-sm); color: var(--color-text-muted);
+  display: flex; align-items: flex-start; gap: var(--space-3); margin-top: var(--space-4);
+}
+.calendar-hint-icon { font-size: 1.4rem; flex-shrink: 0; }
+
+/* EDIT MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300;
+  display: flex; align-items: center; justify-content: center; padding: var(--space-4);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+}
+.modal-overlay.open { opacity: 1; pointer-events: auto; }
+.modal-panel {
+  background: var(--color-surface); border-radius: var(--radius-xl);
+  max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto;
+  box-shadow: var(--shadow-lg); transform: scale(0.95);
+  transition: transform 0.25s cubic-bezier(0.16,1,0.3,1); direction: rtl;
+}
+.modal-overlay.open .modal-panel { transform: scale(1); }
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { transform: scale(0.93); } to { transform: scale(1); } }
+.modal-header {
+  padding: var(--space-5) var(--space-6) var(--space-4); border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; background: var(--color-surface); z-index: 10;
+}
+.modal-header h3 { font-size: var(--text-lg); font-weight: 800; }
+.modal-body { padding: var(--space-5) var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); }
+.modal-footer {
+  padding: var(--space-4) var(--space-6); border-top: 1px solid var(--color-border);
+  display: flex; justify-content: flex-end; gap: var(--space-3);
+}
+.form-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.form-group label { font-size: var(--text-sm); font-weight: 600; color: var(--color-text); }
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface-2); color: var(--color-text);
+  font-family: var(--font-body); font-size: var(--text-sm); transition: border-color var(--transition);
+}
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+  outline: none; border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+.form-group textarea { resize: vertical; min-height: 80px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.btn-primary {
+  background: var(--color-primary); color: #fff; border: none; cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-5); border-radius: var(--radius-md); transition: background var(--transition);
+}
+.btn-primary:hover { background: var(--color-primary-hover); }
+.btn-secondary {
+  background: var(--color-surface-2); color: var(--color-text); border: 1px solid var(--color-border);
+  cursor: pointer; font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-5); border-radius: var(--radius-md); transition: all var(--transition);
+}
+.btn-secondary:hover { background: var(--color-border); }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: #1a1a1a; color: #fff;
+  padding: var(--space-3) var(--space-5); border-radius: var(--radius-full);
+  font-size: var(--text-sm); font-weight: 600; box-shadow: var(--shadow-lg);
+  z-index: 500; opacity: 0; white-space: nowrap;
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.success { background: #15803d; }
+.toast.error { background: #dc2626; }
+
+/* VIEW TOGGLE */
+.view-toggle-btn {
+  background: var(--color-surface-2); color: var(--color-text-muted);
+  border: 1px solid var(--color-border); cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  transition: all var(--transition); display: flex; align-items: center; gap: var(--space-2);
+}
+.view-toggle-btn:hover { background: var(--color-border); color: var(--color-text); }
+.view-toggle-btn.cal-active {
+  background: var(--color-primary); color: #fff; border-color: var(--color-primary);
+}
+.view-toggle-btn.hol-active {
+  background: #fef3c7; color: #92400e; border-color: #f59e0b;
+}
+
+/* Holiday label on day */
+.cal-holiday-label {
+  font-size: 9px; font-weight: 700; color: #6b7280;
+  background: #f3f4f6; border-radius: 2px;
+  padding: 0 3px; line-height: 14px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  display: none;
+}
+[data-theme="dark"] .cal-holiday-label { background: #374151; color: #9ca3af; }
+.holidays-visible .cal-holiday-label { display: block; }
+
+/* Cal month header clickable */
+.cal-month-header { cursor: pointer; }
+.cal-month-header:hover .cal-month-name { color: var(--color-primary); text-decoration: underline; }
+
+/* Cal toolbar */
+.cal-toolbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-bottom: var(--space-2); flex-wrap: wrap;
+  font-size: var(--text-xs); color: var(--color-text-muted);
+}
+
+/* Month zoom overlay */
+.month-zoom-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  z-index: 280; display: flex; align-items: center; justify-content: center;
+  padding: var(--space-3); opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.month-zoom-overlay.open { opacity: 1; pointer-events: auto; }
+.month-zoom-panel {
+  background: var(--color-surface); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  width: min(96vw, 1100px);
+  height: min(94vh, 860px);
+  display: flex; flex-direction: column;
+  overflow: hidden; direction: rtl;
+  transform: scale(0.95); transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
+}
+.month-zoom-overlay.open .month-zoom-panel { transform: scale(1); }
+.mz-header {
+  flex-shrink: 0;
+  background: var(--color-surface); z-index: 5;
+  padding: var(--space-3) var(--space-6); border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.mz-title { font-size: var(--text-xl); font-weight: 800; }
+.mz-nav { display: flex; gap: 8px; align-items: center; }
+.mz-nav-btn {
+  width: 32px; height: 32px; border-radius: var(--radius-md);
+  border: 1px solid var(--color-border); background: var(--color-surface-2);
+  cursor: pointer; font-size: 1rem; font-weight: 700;
+  color: var(--color-text-muted); display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.mz-nav-btn:hover { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.mz-weekdays {
+  flex-shrink: 0;
+  display: grid; grid-template-columns: repeat(7,1fr);
+  background: var(--color-surface-2); border-bottom: 1px solid var(--color-border);
+  padding: 0 var(--space-4);
+}
+.mz-wd {
+  text-align: center; font-size: var(--text-xs); font-weight: 700;
+  color: var(--color-text-faint); padding: var(--space-2) 0;
+}
+.mz-wd.wd-fri, .mz-wd.wd-sat { color: color-mix(in srgb, var(--color-primary) 60%, transparent); }
+.mz-days {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: repeat(7,1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: 3px; padding: var(--space-3);
+}
+.mz-day {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  padding: 4px 5px; display: flex; flex-direction: column; gap: 2px;
+  transition: background var(--transition); overflow: hidden; min-height: 0;
+}
+.mz-day:hover { background: var(--color-surface-2); }
+.mz-day.other-month { opacity: 0.2; pointer-events: none; }
+.mz-day.is-today { border-color: var(--color-primary) !important; background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface)); }
+.mz-day.is-holiday { background: color-mix(in srgb, #9ca3af 10%, var(--color-surface)); }
+.mz-day.is-shabbat .mz-day-top { color: color-mix(in srgb, var(--color-primary) 70%, transparent); }
+.mz-day-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  font-size: var(--text-sm); font-weight: 700; color: var(--color-text-muted); margin-bottom: 1px;
+  flex-shrink: 0;
+}
+.mz-day.is-today .mz-day-num-badge {
+  background: var(--color-primary); color: #fff;
+  border-radius: 50%; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+}
+.mz-hol-name {
+  font-size: 10px; font-weight: 700; color: #6b7280;
+  background: #f3f4f6; border-radius: 3px; padding: 1px 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%;
+}
+[data-theme="dark"] .mz-hol-name { background: #374151; color: #9ca3af; }
+.mz-event {
+  border-radius: 4px; padding: 2px 5px;
+  font-size: 10px; font-weight: 600; line-height: 1.35; color: #fff;
+  cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 0;
+}
+.mz-event:hover { opacity: 0.85; }
+.mz-more { font-size: 10px; color: var(--color-primary); cursor: pointer; font-weight: 600; flex-shrink: 0; }
+
+/* CALENDAR GRID */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+@media (max-width: 900px) { .cal-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 560px) { .cal-grid { grid-template-columns: 1fr; } }
+
+.cal-month {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-sm);
+}
+.cal-month-header {
+  padding: var(--space-3) var(--space-4);
+  display: flex; align-items: center; justify-content: space-between;
+  font-weight: 700; font-size: var(--text-sm); border-bottom: 1px solid var(--color-border);
+}
+.cal-month-name { color: var(--color-text); }
+.cal-month-period-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.cal-weekdays {
+  display: grid; grid-template-columns: repeat(7,1fr);
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+}
+.cal-wd {
+  text-align: center; font-size: 10px; font-weight: 700; color: var(--color-text-faint);
+  padding: var(--space-1) 0; letter-spacing: 0.04em;
+}
+.cal-wd.wd-fri, .cal-wd.wd-sat { color: color-mix(in srgb, var(--color-primary) 60%, transparent); }
+.cal-days {
+  display: grid; grid-template-columns: repeat(7,1fr);
+  padding: var(--space-2);
+  gap: 1px;
+}
+.cal-day {
+  height: 72px; min-height: unset; border-radius: var(--radius-sm);
+  padding: 2px 3px; position: relative;
+  font-size: 11px; display: flex; flex-direction: column; gap: 2px;
+  transition: background var(--transition); overflow: hidden;
+}
+.cal-day:hover { background: var(--color-surface-2); }
+.cal-day.other-month { opacity: 0.25; }
+.cal-day.is-today .cal-day-num {
+  background: var(--color-primary); color: #fff;
+  border-radius: 50%; width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; margin: 0 auto;
+}
+.cal-day.is-holiday { background: color-mix(in srgb, #9ca3af 8%, var(--color-surface)); }
+.cal-day.is-holiday .cal-day-num { color: var(--color-text-faint); }
+.cal-day.is-shabbat .cal-day-num { color: color-mix(in srgb, var(--color-primary) 70%, transparent); }
+.cal-day-num {
+  font-size: 11px; font-weight: 600; color: var(--color-text-muted);
+  text-align: center; line-height: 20px;
+}
+.cal-event {
+  border-radius: 3px; padding: 1px 4px;
+  font-size: 10px; font-weight: 600; line-height: 1.4;
+  color: #fff; cursor: pointer; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis;
+  transition: opacity var(--transition);
+}
+.cal-event:hover { opacity: 0.85; }
+.cal-event.is-holiday-evt {
+  background: #e5e7eb; color: #6b7280; font-weight: 500;
+}
+.cal-event.multiday-start { border-radius: 3px 0 0 3px; }
+.cal-event.multiday-mid   { border-radius: 0; margin: 0 -1px; }
+.cal-event.multiday-end   { border-radius: 0 3px 3px 0; }
+.cal-event.period-band {
+  opacity: 0.25; pointer-events: none;
+  font-size: 9px; letter-spacing: 0.03em;
+}
+.cal-overflow {
+  font-size: 9px; color: var(--color-text-faint); text-align: center;
+  cursor: pointer; padding: 1px 0;
+}
+.cal-overflow:hover { color: var(--color-primary); }
+
+/* תאריך עברי — תצוגה קטנה (מתחת למספר) */
+.cal-heb-day {
+  font-size: 9px; color: var(--color-primary); font-weight: 700;
+  text-align: center; line-height: 1; opacity: 0.75; letter-spacing: 0.02em;
+}
+
+/* תאריך עברי — תצוגת זום (משמאל למספר) */
+.mz-heb-day {
+  font-size: 11px; color: var(--color-primary); font-weight: 700;
+  opacity: 0.8; margin-right: 5px; letter-spacing: 0.02em;
+}
+
+/* LEGEND */
+.cal-legend {
+  display: flex; gap: var(--space-3); flex-wrap: wrap;
+  margin-bottom: var(--space-4); font-size: var(--text-xs); align-items: center;
+}
+.cal-legend-item {
+  display: flex; align-items: center; gap: 5px; color: var(--color-text-muted);
+}
+.cal-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* DAY POPUP */
+.cal-day-popup {
+  position: fixed; z-index: 250; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: var(--space-4); min-width: 240px; max-width: 320px;
+  direction: rtl; animation: scaleIn 0.15s cubic-bezier(0.16,1,0.3,1);
+}
+.cal-day-popup h4 { font-size: var(--text-sm); font-weight: 700; margin-bottom: var(--space-3); }
+.cal-popup-evt {
+  display: flex; gap: var(--space-2); align-items: flex-start;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  margin-bottom: 4px; font-size: var(--text-xs); line-height: 1.5; cursor: pointer;
+}
+.cal-popup-evt:hover { background: var(--color-surface-2); }
+.cal-popup-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+
+@media (max-width: 768px) {
+  .app-main { padding: var(--space-4); }
+  .gantt-th.col-bar, .gantt-td.col-bar { display: none; }
+  .gantt-th.col-level, .gantt-td.col-level { display: none; }
+  .detail-panel { max-height: 90vh; }
+  .form-row { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════
+   DATE PICKER MODAL
+═══════════════════════════════════════════ */
+@keyframes datemodalIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.datemodal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 2000;
+  display: flex; align-items: center; justify-content: center; padding: var(--space-4);
+}
+.datemodal-box {
+  background: var(--color-surface); border-radius: 10px;
+  max-width: 480px; width: 100%; padding: 28px;
+  box-shadow: var(--shadow-lg); direction: rtl;
+  animation: datemodalIn 200ms cubic-bezier(0.16,1,0.3,1) both;
+}
+.datemodal-title {
+  font-size: var(--text-lg); font-weight: 800; color: var(--color-text);
+  margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-2);
+}
+.datemodal-task-name {
+  font-size: var(--text-sm); color: var(--color-primary); font-weight: 600;
+  background: var(--color-primary-light); border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3); margin-bottom: var(--space-5);
+  line-height: 1.5; border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+.datemodal-fields {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.datemodal-fields .form-group label { font-size: var(--text-sm); font-weight: 600; }
+.datemodal-preview {
+  background: var(--color-surface-2); border: 1px solid var(--color-border);
+  border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5); min-height: 52px;
+}
+.datemodal-preview-label {
+  font-size: var(--text-xs); color: var(--color-text-muted); font-weight: 600;
+  margin-bottom: var(--space-2); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.datemodal-chips {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+}
+.datemodal-chip {
+  display: inline-flex; align-items: center;
+  background: var(--color-primary-light); color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  border-radius: var(--radius-full); font-size: var(--text-xs); font-weight: 700;
+  padding: 3px 10px;
+}
+.datemodal-footer {
+  display: flex; justify-content: flex-end; gap: var(--space-3);
+}
+.btn-danger {
+  background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5;
+  border-radius: var(--radius-md); cursor: pointer;
+  font-family: var(--font-body); font-size: var(--text-sm); font-weight: 600;
+  padding: var(--space-2) var(--space-4); transition: all var(--transition);
+  margin-left: auto;
+}
+.btn-danger:hover { background: #dc2626; color: #fff; border-color: #dc2626; }
+
+/* ═══════════════════════════════════════════
+   יומן פעולות (Action Journal)
+═══════════════════════════════════════════ */
+.action-journal {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl); box-shadow: var(--shadow-md);
+  padding: var(--space-5) var(--space-6); margin-bottom: var(--space-8);
+}
+.action-journal-title {
+  font-size: var(--text-base); font-weight: 800; color: var(--color-text);
+  margin-bottom: var(--space-4); display: flex; align-items: center; gap: var(--space-2);
+}
+.action-journal-empty {
+  font-size: var(--text-sm); color: var(--color-text-faint); text-align: center;
+  padding: var(--space-6) 0;
+}
+.journal-entry {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-md);
+  background: var(--color-surface-2); border: 1px solid var(--color-border);
+  margin-bottom: var(--space-2); font-size: var(--text-sm);
+}
+.journal-entry:last-child { margin-bottom: 0; }
+.journal-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 5px; background: var(--color-primary);
+}
+.journal-entry-body { flex: 1; line-height: 1.5; }
+.journal-entry-name { font-weight: 700; color: var(--color-text); }
+.journal-entry-meta {
+  font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px;
+}
+.journal-entry-dates {
+  font-size: var(--text-xs); color: var(--color-primary); font-weight: 600;
+  white-space: nowrap; flex-shrink: 0; align-self: center;
+}
+
+/* Gantt action card date badge */
+.action-card-dates {
+  font-size: 10px; color: var(--color-primary); font-weight: 600;
+  background: var(--color-primary-light); border-radius: var(--radius-full);
+  padding: 1px 7px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+  display: inline-block;
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-brand">
+    <svg class="header-logo" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#01696f"/>
+      <rect x="7" y="14" width="22" height="3" rx="1.5" fill="white" opacity="0.9"/>
+      <rect x="7" y="20" width="16" height="3" rx="1.5" fill="white" opacity="0.6"/>
+      <rect x="7" y="8" width="10" height="3" rx="1.5" fill="white"/>
+      <circle cx="27" cy="9.5" r="3.5" fill="#fbbf24"/>
+    </svg>
+    <div class="header-titles">
+      <h1>לוח גאנט — ניהול בית ספר יסודי</h1>
+      <p>תכנון שנתי מלא | כלי עבודה למנהל/ת וצוות הניהול</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="year-nav-btn" onclick="changeYear(-1)">‹</button>
+    <span class="year-badge" id="yearBadge">...</span>
+    <button class="year-nav-btn" onclick="changeYear(1)">›</button>
+    <button class="view-toggle-btn" id="holidayToggleBtn" onclick="toggleHolidayLabels()" style="display:none;" title="הצג/הסתר שמות חגים">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      חגים
+    </button>
+    <button class="view-toggle-btn" id="hebrewDateToggleBtn" onclick="toggleHebrewDates()" style="display:none;" title="הצג תאריכים עבריים">
+      א׳
+    </button>
+    <button class="view-toggle-btn" id="viewToggleBtn" onclick="toggleView()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      לוח שנה
+    </button>
+    <button class="add-event-btn" onclick="openAddModal()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      הוסף אירוע
+    </button>
+    <button class="save-btn" id="saveBtn" onclick="requestSave()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      שמור
+    </button>
+    <button class="today-btn" onclick="scrollToToday()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      היום
+    </button>
+    <button class="theme-toggle" data-theme-toggle aria-label="החלף מצב תצוגה">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="app-main">
+  <div class="context-bar" id="contextBar" style="display:none;">
+    <div class="context-bar-item">🏫 <strong id="ctxSchool">—</strong></div>
+    <div class="context-bar-item">📅 <strong id="ctxYear">—</strong></div>
+    <div class="context-bar-item">👤 <strong id="ctxUser">—</strong></div>
+  </div>
+  <div class="today-strip" id="todayStrip">
+    <div class="today-dot"></div>
+    <span class="today-label">היום: <span id="todayDateDisplay"></span></span>
+    <span class="today-period" id="todayPeriodText"></span>
+  </div>
+  <div class="progress-summary" id="progressSummary"></div>
+
+  <div class="gantt-container">
+    <table class="gantt-table">
+      <thead>
+        <tr class="gantt-header-row">
+          <th class="gantt-th col-period">תקופה</th>
+          <th class="gantt-th col-dates">תאריכים</th>
+          <th class="gantt-th col-actions">פעולות מרכזיות</th>
+          <th class="gantt-th" style="width:90px;text-align:center;">סטטוס</th>
+        </tr>
+      </thead>
+      <tbody id="ganttBody"></tbody>
+    </table>
+  </div>
+
+  <!-- תצוגת לוח שנה -->
+  <div id="calendarView" style="display:none;">
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+  <div class="calendar-hint">
+    <span class="calendar-hint-icon">📅</span>
+    <div>
+      <strong>לוח שנה מחושב אוטומטית:</strong> התקופות נטענות לפי לוח השנה העברי האמיתי — חגים, חופשות ומועדים. לחץ על כל שורה לפירוט הפעולות המומלצות לאותה תקופה, וסמן את הפעולות שתרצה לאמץ.
+    </div>
+  </div>
+
+  <!-- יומן פעולות — מתמלא אוטומטית בעת הגדרת תאריכים לפעולות -->
+  <div class="action-journal" id="actionJournalCard" style="display:none;">
+    <div class="action-journal-title">📋 יומן פעולות</div>
+    <div id="actionJournalBody"></div>
+  </div>
+</main>
+
+<!-- Month Zoom Overlay -->
+<div class="month-zoom-overlay" id="monthZoomOverlay" onclick="closeMonthZoom(event)">
+  <div class="month-zoom-panel" id="monthZoomPanel">
+    <div class="mz-header">
+      <span class="mz-title" id="mzTitle">—</span>
+      <div class="mz-nav">
+        <button class="mz-nav-btn" onclick="navigateMonthZoom(-1)" title="חודש קודם">›</button>
+        <button class="mz-nav-btn" onclick="navigateMonthZoom(1)" title="חודש הבא">‹</button>
+        <button class="mz-nav-btn" onclick="closeMonthZoom(null)" title="סגור" style="font-size:0.85rem;">✕</button>
+      </div>
+    </div>
+    <div class="mz-weekdays" id="mzWeekdays"></div>
+    <div class="mz-days" id="mzDays"></div>
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay" onclick="closeDetail(event)">
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-header">
+      <div class="detail-title-block">
+        <h2 id="detailTitle">—</h2>
+        <div class="detail-dates" id="detailDates"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="add-event-btn" style="font-size:var(--text-xs);padding:4px 10px;" onclick="openAddModalForPeriod()">+ אירוע</button>
+        <button class="detail-close" onclick="closeDetail(null)">✕</button>
+      </div>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Edit/Add Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-panel">
+    <div class="modal-header">
+      <h3 id="modalTitle">הוסף אירוע</h3>
+      <button class="detail-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editEventId">
+      <div class="form-group">
+        <label>כותרת האירוע *</label>
+        <input type="text" id="evtTitle" placeholder="לדוגמה: ישיבת הנהלה — סיכום מחצית">
+      </div>
+      <div class="form-group">
+        <label>תיאור</label>
+        <textarea id="evtDesc" placeholder="פרט את תוכן האירוע, מטרות, משתתפים..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>תאריך התחלה</label><input type="date" id="evtStart"></div>
+        <div class="form-group"><label>תאריך סיום</label><input type="date" id="evtEnd"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>תקופה בלוח</label>
+          <select id="evtPeriod"><option value="">— בחר תקופה —</option></select>
+        </div>
+        <div class="form-group">
+          <label>סוג אירוע</label>
+          <select id="evtType" onchange="toggleSchoolField()">
+            <option value="general">תכנון כללי</option>
+            <option value="school">ספציפי לבית הספר</option>
+            <option value="blueprint">פריט בתכנית העבודה</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="schoolFieldWrap" style="display:none;">
+        <label>הערה / גורם אחראי</label>
+        <input type="text" id="evtSchool" placeholder="לדוגמה: מנהל, רכז שכבה, יועץ...">
+      </div>
+      <div class="form-group">
+        <label>קטגוריה</label>
+        <select id="evtCurriculum">
+          <option value="">— ללא קטגוריה ספציפית —</option>
+          <option value="elementary">ניהול</option>
+          <option value="inclusion">פדגוגי</option>
+          <option value="both">כוח אדם</option>
+          <option value="events">אירועים</option>
+          <option value="routine">שגרה</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>סטטוס אירוע</label>
+        <select id="evtStatus">
+          <option value="open">פתוח</option>
+          <option value="closed">סגור</option>
+          <option value="cancelled">בוטל</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">ביטול</button>
+      <button class="btn-primary" onclick="saveEvent()">שמור אירוע</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     DATE PICKER MODAL — גאנט
+═══════════════════════════════════════════ -->
+<div id="datePickerModal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="dpm-title">
+  <div class="datemodal-overlay" id="datePickerOverlay">
+    <div class="datemodal-box" id="datePickerBox">
+      <div class="datemodal-title" id="dpm-title">📅 הגדרת תאריכים לפעולה</div>
+      <div class="datemodal-task-name" id="dpm-task-name"></div>
+      <div class="datemodal-fields">
+        <div class="form-group">
+          <label for="modalDateStart">תאריך התחלה</label>
+          <input type="date" id="modalDateStart" oninput="dpmUpdatePreview()">
+        </div>
+        <div class="form-group">
+          <label for="modalDateEnd">תאריך סיום</label>
+          <input type="date" id="modalDateEnd" oninput="dpmUpdatePreview()">
+        </div>
+      </div>
+      <div class="datemodal-preview">
+        <div class="datemodal-preview-label">תצוגה מקדימה — חודשים מסומנים:</div>
+        <div class="datemodal-chips" id="dpm-chips">
+          <span style="color:var(--color-text-faint);font-size:var(--text-xs);">בחר תאריכים להצגת תצוגה מקדימה</span>
+        </div>
+      </div>
+      <div class="datemodal-footer">
+        <button class="btn-secondary" id="dpm-cancel-btn" onclick="dpmCancel()">ביטול</button>
+        <button class="btn-danger"    id="dpm-remove-btn" onclick="dpmRemove()" style="display:none;margin-left:auto;">🗑 הסר פעולה</button>
+        <button class="btn-primary"   id="dpm-confirm-btn" onclick="dpmConfirm()">אישור ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+function createEmptyState() {
+  return {
+    docType: 'gantt',
+    schoolName: '',
+    year: '',
+    instructorEmail: '',
+    updatedAt: '',
+    data: {
+      globalPlans: [],
+      schoolPlans: [],
+      schoolBlueprint: [],
+      notes: ''
+    }
+  };
+}
+
+let ganttState = createEmptyState();
+let _currentDetailPeriodId = null;
+let currentDetailPeriodId = null;
+let isDirtyLocal = false;
+let lastLoadedSignature = '';
+
+// Selected actions: { [periodId_sectionName_actionIndex]: true }
+// Wrapped in try-catch: Chrome throws SecurityError on localStorage in file:// / cross-origin iframes
+let selectedActions = (() => {
+  try { return JSON.parse(localStorage.getItem('gantt_selectedActions') || '{}'); } catch(_) { return {}; }
+})();
+
+function saveSelectedActions() {
+  try { localStorage.setItem('gantt_selectedActions', JSON.stringify(selectedActions)); } catch(_) {}
+}
+
+function getActionKey(periodId, section, idx) {
+  return `${SCHOOL_YEAR_START_GREG}||${periodId}||${section}||${idx}`;
+}
+
+function toggleActionSelection(periodId, section, idx) {
+  const key = getActionKey(periodId, section, idx);
+  if (selectedActions[key]) {
+    delete selectedActions[key];
+  } else {
+    selectedActions[key] = true;
+  }
+  saveSelectedActions();
+  openDetail(periodId);
+  if (currentView === 'calendar') renderCalendar();
+}
+
+function cloneDeep(obj) {
+  return JSON.parse(JSON.stringify(obj));
+}
+
+function normalizeEvent(evt = {}) {
+  const now = new Date().toISOString();
+  return {
+    id: evt.id || `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    title: String(evt.title || '').trim(),
+    desc: String(evt.desc || '').trim(),
+    start: evt.start || '',
+    end: evt.end || '',
+    periodId: evt.periodId || '',
+    type: ['general', 'school', 'blueprint'].includes(evt.type) ? evt.type : 'general',
+    school: String(evt.school || '').trim(),
+    status: ['open', 'closed', 'cancelled'].includes(evt.status) ? evt.status : 'open',
+    createdAt: evt.createdAt || now,
+    updatedAt: now
+  };
+}
+
+function normalizePayload(payload = {}) {
+  const base = createEmptyState();
+  const data = payload.data || {};
+
+  base.docType = 'gantt';
+  base.schoolName = payload.schoolName || '';
+  base.year = payload.year || '';
+  base.instructorEmail = payload.instructorEmail || '';
+  base.updatedAt = payload.updatedAt || '';
+
+  base.data.globalPlans = Array.isArray(data.globalPlans) ? data.globalPlans.map(normalizeEvent) : [];
+  base.data.schoolPlans = Array.isArray(data.schoolPlans) ? data.schoolPlans.map(normalizeEvent) : [];
+  base.data.schoolBlueprint = Array.isArray(data.schoolBlueprint) ? data.schoolBlueprint.map(normalizeEvent) : [];
+  base.data.notes = data.notes ?? '';
+
+  return base;
+}
+
+function setDirtyLocal(value = true) {
+  isDirtyLocal = !!value;
+  updateSaveButtonState();
+}
+
+function updateSaveButtonState() {
+  const btn = document.getElementById('saveBtn');
+  if (!btn) return;
+  btn.disabled = false;
+  btn.classList.toggle('is-dirty', isDirtyLocal);
+  btn.title = isDirtyLocal ? 'יש שינויים שלא נשמרו' : 'כל השינויים נשמרו';
+}
+
+function buildPayload() {
+  ganttState.updatedAt = new Date().toISOString();
+  return cloneDeep({
+    ...ganttState,
+    docType: 'gantt',
+    data: {
+      globalPlans: ganttState.data.globalPlans.map(normalizeEvent),
+      schoolPlans: ganttState.data.schoolPlans.map(normalizeEvent),
+      schoolBlueprint: ganttState.data.schoolBlueprint.map(normalizeEvent),
+      notes: ganttState.data.notes ?? ''
+    }
+  });
+}
+
+function resetState() {
+  ganttState = createEmptyState();
+}
+
+function applyPayload(payload, { replace = true } = {}) {
+  const normalized = normalizePayload(payload);
+
+  if (replace) {
+    ganttState = normalized;
+  } else {
+    const merged = createEmptyState();
+    merged.schoolName = normalized.schoolName || ganttState.schoolName;
+    merged.year = normalized.year || ganttState.year;
+    merged.instructorEmail = normalized.instructorEmail || ganttState.instructorEmail;
+    merged.updatedAt = normalized.updatedAt || ganttState.updatedAt;
+    merged.data.globalPlans = normalized.data.globalPlans.length ? normalized.data.globalPlans : ganttState.data.globalPlans;
+    merged.data.schoolPlans = normalized.data.schoolPlans.length ? normalized.data.schoolPlans : ganttState.data.schoolPlans;
+    merged.data.schoolBlueprint = normalized.data.schoolBlueprint.length ? normalized.data.schoolBlueprint : ganttState.data.schoolBlueprint;
+    merged.data.notes = normalized.data.notes !== '' ? normalized.data.notes : ganttState.data.notes;
+    ganttState = merged;
+  }
+
+  updateContextBar();
+  renderGantt();
+  renderProgress();
+
+  if (currentDetailPeriodId) {
+    openDetail(currentDetailPeriodId);
+  }
+
+  setDirtyLocal(false);
+  lastLoadedSignature = JSON.stringify(buildPayload());
+}
+
+function looksLikeDirectGanttPayload(msg) {
+  if (!msg || typeof msg !== 'object') return false;
+  if (msg.docType === 'gantt') return true;
+  return (
+    ('schoolName' in msg || 'year' in msg || 'instructorEmail' in msg || 'data' in msg) &&
+    !msg.type
+  );
+}
+
+function extractIncomingPayload(msg) {
+  if (!msg || typeof msg !== 'object') return null;
+
+  if (msg.type === 'load-data' && msg.payload) {
+    return msg.payload;
+  }
+
+  if (msg.payload && typeof msg.payload === 'object' && msg.payload.docType === 'gantt') {
+    return msg.payload;
+  }
+
+  if (looksLikeDirectGanttPayload(msg)) {
+    return msg;
+  }
+
+  return null;
+}
+
+function handleIncomingPayload(msg) {
+  const payload = extractIncomingPayload(msg);
+  if (!payload) return false;
+  if (payload.docType && payload.docType !== 'gantt') return false;
+
+  applyPayload(payload, { replace: true });
+  return true;
+}
+
+function sendSaveRequestToParent() {
+  window.parent.postMessage({
+    type: 'save-request',
+    docType: 'gantt',
+    payload: buildPayload()
+  }, '*');
+}
+
+function requestSave() {
+  const btn = document.getElementById('saveBtn');
+  if (btn) btn.disabled = true;
+
+  try {
+    if (window.parent && window.parent !== window) {
+      sendSaveRequestToParent();
+      setTimeout(() => {
+        const currentBtn = document.getElementById('saveBtn');
+        if (currentBtn && currentBtn.disabled) {
+          currentBtn.disabled = false;
+        }
+      }, 4000);
+      return;
+    }
+  } catch (_) {}
+
+  if (btn) btn.disabled = false;
+  showToast('לא זוהה פורטל אב. השמירה זמינה רק מתוך הפורטל.', 'error');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MESSAGE BUS
+// ═══════════════════════════════════════════════════════════
+function broadcastToPlan(periodId) {
+    const period = PERIODS.find(p => p.id === periodId);
+    if (!period) return;
+
+    const dynEvents = getEventsByPeriod(periodId);
+    const selectedKeys = Object.keys(selectedActions).filter(k => k.startsWith(SCHOOL_YEAR_START_GREG + '||' + periodId + '||'));
+
+    // בנה רשימת פריטים לפני בחירת היעד
+    const broadcastItems = [];
+
+    dynEvents.forEach(evt => {
+        if (!evt.start && !evt.end) return;
+        const autoTargets = evt.curriculum === 'inclusion'  ? ['hakala']
+                          : evt.curriculum === 'elementary' ? ['yesodi']
+                          : null; // null = תלוי בבחירת המשתמש
+        if (evt.status === 'closed' && evt.start) {
+            broadcastItems.push({ kind: 'summary', autoTargets, evt });
+        } else if (evt.status === 'open' && evt.start) {
+            broadcastItems.push({ kind: 'quarter', autoTargets, evt, quarter: dateToQuarter(evt.end || evt.start) });
+        }
+    });
+
+    selectedKeys.forEach(key => {
+        const parts = key.split('||');
+        // key format: year||periodId||section||idx
+        const pId = parts[1], section = parts[2], idx = parseInt(parts[3]);
+        const per = PERIODS.find(p => p.id === pId);
+        if (!per) return;
+        const action = per.actions[section]?.[idx];
+        if (!action) return;
+        broadcastItems.push({ kind: 'quarter-action', autoTargets: null, action, periodId, quarter: dateToQuarter(per.end) });
+    });
+
+    if (!broadcastItems.length) {
+        showToast('אין פריטים לשידור (נדרש תאריך או בחירת פעולות)', 'error');
+        return;
+    }
+
+    // בדוק אם יש פריטים שצריך בחירת יעד (autoTargets === null)
+    const needsChoice = broadcastItems.some(item => item.autoTargets === null);
+
+    if (!needsChoice) {
+        // כל הפריטים יש להם יעד קבוע לפי curriculum — שדר ישירות
+        _sendBroadcast(periodId, broadcastItems.map(item => ({ ...item, targets: item.autoTargets })));
+        return;
+    }
+
+    // פתח דיאלוג בחירת יעד בתוך פאנל הפרטים
+    _showBroadcastTargetDialog(periodId, broadcastItems);
+}
+
+// מאחסן ברמת המודול — אמין יותר מ-property על DOM element
+let _pendingBroadcastItems = null;
+
+function _showBroadcastTargetDialog(periodId, broadcastItems) {
+    _pendingBroadcastItems = broadcastItems; // שמור כאן, לא על ה-DOM
+
+    const existing = document.getElementById('broadcastTargetDialog');
+    if (existing) existing.remove();
+
+    const dialog = document.createElement('div');
+    dialog.id = 'broadcastTargetDialog';
+    dialog.style.cssText = `
+        position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:400;
+        display:flex; align-items:center; justify-content:center; padding:1rem;
+        animation: fadeIn 0.15s ease;
+    `;
+    dialog.innerHTML = `
+        <div style="background:var(--color-surface); border-radius:var(--radius-xl);
+                    max-width:380px; width:100%; box-shadow:var(--shadow-lg);
+                    direction:rtl; overflow:hidden;
+                    animation: scaleIn 0.2s cubic-bezier(0.16,1,0.3,1);">
+            <div style="padding:1.25rem 1.5rem 1rem; border-bottom:1px solid var(--color-border);
+                        display:flex; align-items:center; justify-content:space-between;">
+                <h3 style="font-size:var(--text-base); font-weight:800; margin:0;">📤 שדר לתכנית השנתית</h3>
+                <button onclick="document.getElementById('broadcastTargetDialog').remove()"
+                    style="background:none;border:none;cursor:pointer;font-size:1.1rem;
+                           color:var(--color-text-muted);padding:2px 6px;border-radius:4px;">✕</button>
+            </div>
+            <div style="padding:1.25rem 1.5rem;">
+                <p style="font-size:var(--text-sm); color:var(--color-text-muted); margin:0 0 1rem;">
+                    שדר ${broadcastItems.length} פריטים לתכנית:
+                </p>
+                <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                    <button onclick="_executeBroadcast('${periodId}', 'hakala')"
+                        style="padding:0.65rem 1rem; border-radius:var(--radius-md);
+                               background:var(--color-primary-light); color:var(--color-primary);
+                               border:1.5px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+                               font-weight:700; font-size:var(--text-sm); cursor:pointer; text-align:right;">
+                        📋 תכנית עבודה בית-ספרית
+                    </button>
+                    <button onclick="_executeBroadcast('${periodId}', 'both')"
+                        style="padding:0.65rem 1rem; border-radius:var(--radius-md);
+                               background:var(--color-primary); color:#fff;
+                               border:none; font-weight:700; font-size:var(--text-sm);
+                               cursor:pointer; text-align:right;">
+                        ✨ לוח גאנט מלא
+                    </button>
+                </div>
+            </div>
+        </div>`;
+
+    document.body.appendChild(dialog);
+
+    // סגור בלחיצה על הרקע
+    dialog.addEventListener('click', e => {
+        if (e.target === dialog) dialog.remove();
+    });
+}
+
+function _executeBroadcast(periodId, targetChoice) {
+    try {
+        const dialog = document.getElementById('broadcastTargetDialog');
+        if (dialog) dialog.remove();
+
+        const broadcastItems = _pendingBroadcastItems;
+        _pendingBroadcastItems = null;
+
+        if (!broadcastItems?.length) {
+            showToast('שגיאה: לא נמצאו פריטים לשידור', 'error');
+            return;
+        }
+
+        // בחירת המשתמש בדיאלוג מנצחת תמיד
+        const broadcasts = broadcastItems.map(item => {
+            const targets = targetChoice === 'hakala' ? ['hakala']
+                          : targetChoice === 'yesodi' ? ['yesodi']
+                          : ['hakala', 'yesodi'];
+            return { ...item, targets };
+        });
+
+        _sendBroadcast(periodId, broadcasts);
+    } catch (err) {
+        console.error('[gantt] _executeBroadcast error:', err);
+        showToast('שגיאה בשידור: ' + err.message, 'error');
+    }
+}
+
+function _sendBroadcast(periodId, broadcasts) {
+    window.parent.postMessage({ type: 'gantt-broadcast', periodId, broadcasts }, '*');
+    showToast(`✅ ${broadcasts.length} פריטים שודרו למתווה`, 'success');
+}
+
+function dateToQuarter(dateStr) {
+    if (!dateStr) return 1;
+    const m = new Date(dateStr).getMonth(); // 0-based: 0=Jan ... 11=Dec
+    if (m >= 8 && m <= 10) return 1; // ספטמבר(8)–נובמבר(10)
+    if (m === 11 || m <= 1) return 2; // דצמבר(11)–פברואר(1)
+    if (m >= 2 && m <= 4)   return 3; // מרץ(2)–מאי(4)
+    return 4;                          // יוני(5)–אוגוסט(7)
+}
+
+function initMessageBus() {
+  try {
+    window.parent.postMessage({ type: 'iframe-ready', docType: 'gantt' }, '*');
+  } catch (_) {}
+
+  window.addEventListener('message', (e) => {
+    const msg = e.data;
+    if (!msg || typeof msg !== 'object') return;
+
+    if (handleIncomingPayload(msg)) return;
+
+    if (msg.type === 'request-data') {
+      sendSaveRequestToParent();
+      return;
+    }
+
+    if (msg.type === 'save-confirm') {
+      const btn = document.getElementById('saveBtn');
+      if (btn) btn.disabled = false;
+
+      if (msg.message) {
+        showToast(msg.message, /נשמר|נשמרו|success/i.test(msg.message) ? 'success' : 'error');
+      } else {
+        showToast('התקבל אישור שמירה מהפורטל.', 'success');
+      }
+
+      setDirtyLocal(false);
+      lastLoadedSignature = JSON.stringify(buildPayload());
+      return;
+    }
+  });
+}
+
+function updateContextBar() {
+  const bar = document.getElementById('contextBar');
+  if (!bar) return;
+
+  const hasAnyContext = !!(ganttState.schoolName || ganttState.year || ganttState.instructorEmail);
+  bar.style.display = hasAnyContext ? 'flex' : 'none';
+
+  const schoolEl = document.getElementById('ctxSchool');
+  const yearEl = document.getElementById('ctxYear');
+  const userEl = document.getElementById('ctxUser');
+
+  if (schoolEl) schoolEl.textContent = ganttState.schoolName || '—';
+  if (yearEl) yearEl.textContent = ganttState.year || '—';
+  if (userEl) userEl.textContent = ganttState.instructorEmail || '—';
+}
+
+// ═══════════════════════════════════════════════════════════
+// EVENT CRUD
+// ═══════════════════════════════════════════════════════════
+function getAllEvents() {
+  return [
+    ...ganttState.data.globalPlans,
+    ...ganttState.data.schoolPlans,
+    ...ganttState.data.schoolBlueprint
+  ];
+}
+
+function getEventsByPeriod(periodId) {
+  return getAllEvents().filter(e => e.periodId === periodId);
+}
+
+function removeEventFromAll(id) {
+  ganttState.data.globalPlans = ganttState.data.globalPlans.filter(e => e.id !== id);
+  ganttState.data.schoolPlans = ganttState.data.schoolPlans.filter(e => e.id !== id);
+  ganttState.data.schoolBlueprint = ganttState.data.schoolBlueprint.filter(e => e.id !== id);
+}
+
+function addOrUpdateEvent(evt) {
+  const normalized = normalizeEvent(evt);
+  removeEventFromAll(normalized.id);
+
+  const list =
+    normalized.type === 'school'
+      ? ganttState.data.schoolPlans
+      : normalized.type === 'blueprint'
+      ? ganttState.data.schoolBlueprint
+      : ganttState.data.globalPlans;
+
+  list.push(normalized);
+  setDirtyLocal(true);
+}
+
+function deleteEvent(id) {
+  if (!confirm('למחוק את האירוע?')) return;
+
+  removeEventFromAll(id);
+  renderGantt();
+  renderProgress();
+  if (currentView === 'calendar') renderCalendar();
+
+  if (currentDetailPeriodId || _currentDetailPeriodId) {
+    openDetail(currentDetailPeriodId || _currentDetailPeriodId);
+  }
+
+  setDirtyLocal(true);
+  showToast('האירוע נמחק.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════
+function populatePeriodSelect(selectedId) {
+  const sel = document.getElementById('evtPeriod');
+  sel.innerHTML = '<option value="">— בחר תקופה —</option>';
+  PERIODS.filter(p => !p.isHoliday).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.emoji + ' ' + p.name;
+    if (p.id === selectedId) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+function openAddModal() {
+  resetModal();
+  document.getElementById('modalTitle').textContent = 'הוסף אירוע חדש';
+  populatePeriodSelect(_currentDetailPeriodId || '');
+  openModal();
+}
+function openAddModalForPeriod() {
+  resetModal();
+  document.getElementById('modalTitle').textContent = 'הוסף אירוע לתקופה';
+  populatePeriodSelect(_currentDetailPeriodId || '');
+  openModal();
+}
+function openEditModal(id) {
+  const evt = getAllEvents().find(e => e.id === id);
+  if (!evt) return;
+  resetModal();
+  document.getElementById('modalTitle').textContent = 'ערוך אירוע';
+  document.getElementById('editEventId').value = evt.id;
+  document.getElementById('evtTitle').value    = evt.title  || '';
+  document.getElementById('evtDesc').value     = evt.desc   || '';
+  document.getElementById('evtStart').value    = evt.start  || '';
+  document.getElementById('evtEnd').value      = evt.end    || '';
+  document.getElementById('evtType').value       = evt.type       || 'general';
+  document.getElementById('evtSchool').value     = evt.school     || '';
+  document.getElementById('evtStatus').value     = evt.status     || 'open';
+  document.getElementById('evtCurriculum').value = evt.curriculum || '';
+  populatePeriodSelect(evt.periodId || '');
+  toggleSchoolField();
+  openModal();
+}
+function resetModal() {
+  ['editEventId','evtTitle','evtDesc','evtStart','evtEnd','evtSchool'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('evtType').value       = 'general';
+  document.getElementById('evtStatus').value     = 'open';
+  document.getElementById('evtCurriculum').value = '';
+  toggleSchoolField();
+}
+function openModal()  { document.getElementById('editModal').classList.add('open'); }
+function closeModal() { document.getElementById('editModal').classList.remove('open'); }
+function toggleSchoolField() {
+  document.getElementById('schoolFieldWrap').style.display =
+    document.getElementById('evtType').value === 'school' ? 'flex' : 'none';
+}
+function saveEvent() {
+  const title = document.getElementById('evtTitle').value.trim();
+  const periodId = document.getElementById('evtPeriod').value;
+  const existingId = document.getElementById('editEventId').value;
+
+  if (!title) {
+    showToast('יש להזין כותרת לאירוע.', 'error');
+    return;
+  }
+
+  if (!periodId) {
+    showToast('יש לבחור תקופה.', 'error');
+    return;
+  }
+
+  const existing = existingId ? getAllEvents().find(e => e.id === existingId) : null;
+
+  const evt = normalizeEvent({
+    id: existingId || undefined,
+    title,
+    desc: document.getElementById('evtDesc').value.trim(),
+    start: document.getElementById('evtStart').value,
+    end: document.getElementById('evtEnd').value,
+    periodId,
+    type: document.getElementById('evtType').value,
+    school: document.getElementById('evtSchool').value.trim(),
+    status: document.getElementById('evtStatus').value,
+    createdAt: existing?.createdAt
+  });
+
+  addOrUpdateEvent(evt);
+  closeModal();
+  renderGantt();
+  renderProgress();
+  if (currentView === 'calendar') renderCalendar();
+
+  if (currentDetailPeriodId || _currentDetailPeriodId) {
+    openDetail(currentDetailPeriodId || _currentDetailPeriodId);
+  }
+
+  showToast(existing ? 'האירוע עודכן.' : 'האירוע נוסף.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════
+let _toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type ? ' ' + type : '');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+// שנת לימודים
+// ═══════════════════════════════════════════════════════════
+function getCurrentSchoolYear() {
+  const now = new Date();
+  return now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+}
+function hebrewYear(gy) {
+  return gy + (new Date().getMonth() >= 8 ? 3761 : 3760);
+}
+
+let SCHOOL_YEAR_START_GREG = getCurrentSchoolYear();
+let SCHOOL_YEAR_END_GREG   = SCHOOL_YEAR_START_GREG + 1;
+let HEB_YEAR = hebrewYear(SCHOOL_YEAR_START_GREG);
+let YEAR_START = new Date(SCHOOL_YEAR_START_GREG, 8, 1);
+let YEAR_END   = new Date(SCHOOL_YEAR_END_GREG,   7, 31); // עד סוף אוגוסט
+let YEAR_TOTAL = (YEAR_END - YEAR_START) / (1000*60*60*24);
+
+function syncStateYearFromVisualYear() {
+  ganttState.year = `${SCHOOL_YEAR_START_GREG}-${SCHOOL_YEAR_END_GREG}`;
+}
+
+function changeYear(delta) {
+  SCHOOL_YEAR_START_GREG += delta;
+  SCHOOL_YEAR_END_GREG    = SCHOOL_YEAR_START_GREG + 1;
+  HEB_YEAR = hebrewYear(SCHOOL_YEAR_START_GREG);
+  YEAR_START = new Date(SCHOOL_YEAR_START_GREG, 8, 1);
+  YEAR_END   = new Date(SCHOOL_YEAR_END_GREG,   7, 31); // עד סוף אוגוסט
+
+  const badge = document.getElementById('yearBadge');
+  if (badge) {
+    badge.textContent = `${SCHOOL_YEAR_START_GREG}/${String(SCHOOL_YEAR_END_GREG).slice(2)}`;
+  }
+
+  syncStateYearFromVisualYear();
+
+  fetchHolidays().then(() => {
+    PERIODS    = buildPeriods();
+    YEAR_TOTAL = (YEAR_END - YEAR_START) / (1000*60*60*24);
+    renderTodayStrip();
+    renderProgress();
+    renderGantt();
+
+    if (currentView === 'calendar') renderCalendar();
+
+    if (currentDetailPeriodId || _currentDetailPeriodId) {
+      openDetail(currentDetailPeriodId || _currentDetailPeriodId);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Hebcal
+// ═══════════════════════════════════════════════════════════
+let HOLIDAYS = {};
+
+async function fetchHolidays() {
+  try {
+    HOLIDAYS = {};
+    const base = 'v=1&cfg=json&maj=on&min=on&mod=on&nx=on&mf=on&ss=on&geo=none&c=off&i=on';
+    const url = `https://www.hebcal.com/hebcal?${base}&start=${SCHOOL_YEAR_START_GREG}-09-01&end=${SCHOOL_YEAR_END_GREG}-08-31`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = data.items || [];
+
+    const parseDate = str => { const [y,m,d] = (str||'').split('T')[0].split('-').map(Number); return new Date(y,m-1,d); };
+    const inSY = d => d >= YEAR_START && d <= YEAR_END;
+    const inTishrei = d => {
+      const y = d.getFullYear(), m = d.getMonth();
+      // ראש השנה יכול לחול מ-1 בספטמבר ועד סוף אוקטובר
+      return y === SCHOOL_YEAR_START_GREG && (m === 8 || m === 9 || m === 10);
+    };
+    const isShavuot = item => {
+      const cat = item.category||'', t = item.title||'', h = item.hebrew||'', hd = item.hdate||'';
+      return cat === 'holiday' && (t==='Shavuot I'||t==='Shavuot'||h.includes('שבועות')||hd.startsWith('6 Sivan'));
+    };
+
+    items.forEach(item => {
+      const d = parseDate(item.date), t = item.title||'', cat = item.category||'';
+      if (!inSY(d)) return;
+      if ((t==='Rosh Hashana I'||t==='Rosh Hashana II'||t==='Rosh Hashana') && inTishrei(d)) {
+        (HOLIDAYS._rosh = HOLIDAYS._rosh||[]).push(d);
+      }
+      if (!HOLIDAYS.yomKippur && inTishrei(d) && t==='Yom Kippur') HOLIDAYS.yomKippur = d;
+      if (!HOLIDAYS.sukkot && inTishrei(d) && t==='Sukkot I') HOLIDAYS.sukkot = d;
+      if (!HOLIDAYS.sheminiAtzeret && inTishrei(d) && (t==='Shmini Atzeret'||t==='Simchat Torah')) HOLIDAYS.sheminiAtzeret = d;
+      if (!HOLIDAYS.chanuka && inSY(d) && t==='Chanukah: 1 Candle') HOLIDAYS.chanuka = d;
+      if (!HOLIDAYS.purim && inSY(d) && t==='Purim') HOLIDAYS.purim = d;
+      if (!HOLIDAYS.shavuot && inSY(d) && isShavuot(item)) HOLIDAYS.shavuot = d;
+      if (cat==='holiday' && inSY(d) && t==='Pesach I') (HOLIDAYS._pesach=HOLIDAYS._pesach||[]).push(d);
+    });
+
+    if (HOLIDAYS._rosh)   { HOLIDAYS._rosh.sort((a,b)=>a-b);   HOLIDAYS.roshHashana = HOLIDAYS._rosh[0];   delete HOLIDAYS._rosh; }
+    if (HOLIDAYS._pesach) { HOLIDAYS._pesach.sort((a,b)=>a-b); HOLIDAYS.pesach = HOLIDAYS._pesach[0]; delete HOLIDAYS._pesach; }
+    YEAR_TOTAL = (YEAR_END - YEAR_START) / (1000*60*60*24);
+
+  } catch(e) {
+    console.warn('Hebcal failed:', e.message);
+    if (!document.getElementById('apiBanner')) {
+      const b = document.createElement('div');
+      b.id = 'apiBanner';
+      b.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:999;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;font-size:13px;font-family:var(--font-body);max-width:320px;display:flex;align-items:flex-start;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,.12)';
+      b.innerHTML = '<span>⚠️</span><div><strong>לא ניתן לטעון נתוני חגים</strong><br><span>התאריכים הם הערכה בלבד.</span><button onclick="this.closest(\'#apiBanner\').remove()" style="display:block;margin-top:6px;background:none;border:none;color:#92400e;font-weight:700;cursor:pointer;padding:0;font-size:12px;">✕ סגור</button></div>';
+      document.body.appendChild(b);
+    }
+  }
+}
+
+function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+
+// ═══════════════════════════════════════════════════════════
+// buildPeriods
+// ═══════════════════════════════════════════════════════════
+function buildPeriods() {
+  const sy = SCHOOL_YEAR_START_GREG, ey = SCHOOL_YEAR_END_GREG;
+  const roshOut  = HOLIDAYS.roshHashana ? addDays(HOLIDAYS.roshHashana,-2) : new Date(sy,8,22);
+  const roshBack = HOLIDAYS.roshHashana ? addDays(HOLIDAYS.roshHashana, 2) : new Date(sy,8,24);
+  const tishriInterimStart = new Date(roshBack);
+  const tishriInterimEnd   = HOLIDAYS.yomKippur ? addDays(HOLIDAYS.yomKippur,-2) : addDays(roshBack,5);
+  const tishriOut  = HOLIDAYS.yomKippur      ? addDays(HOLIDAYS.yomKippur,-1)      : new Date(sy,9,1);
+  const tishriBack = HOLIDAYS.sheminiAtzeret ? addDays(HOLIDAYS.sheminiAtzeret,1)  : new Date(sy,9,15);
+  const chanukaOut  = HOLIDAYS.chanuka ? addDays(HOLIDAYS.chanuka,2) : new Date(sy,11,15);
+  const chanukaBack = HOLIDAYS.chanuka ? addDays(HOLIDAYS.chanuka,9) : new Date(sy,11,22);
+  const purimOut  = HOLIDAYS.purim ? new Date(HOLIDAYS.purim)   : new Date(ey,2,3);
+  const purimBack = HOLIDAYS.purim ? addDays(HOLIDAYS.purim,2)  : new Date(ey,2,5);
+  const pesachOut  = HOLIDAYS.pesach ? addDays(HOLIDAYS.pesach,-9) : new Date(ey,2,25);
+  const pesachBack = HOLIDAYS.pesach ? addDays(HOLIDAYS.pesach,7)  : new Date(ey,3,9);
+  const shavuotOut  = HOLIDAYS.shavuot ? addDays(HOLIDAYS.shavuot,0) : new Date(ey,4,21);
+  const shavuotBack = HOLIDAYS.shavuot ? addDays(HOLIDAYS.shavuot,1) : new Date(ey,4,22);
+
+  const p1end=addDays(roshOut,-1), p2start=new Date(tishriBack), p2end=addDays(chanukaOut,-1);
+  const p3start=new Date(chanukaBack), p3end=addDays(purimOut,-1);
+  const p4start=new Date(purimBack), p4end=addDays(pesachOut,-1);
+  const p5start=new Date(pesachBack), p5end=addDays(shavuotOut,-1);
+  const p6start=new Date(shavuotBack);
+
+  return [
+    { id:'sep', name:'פתיחת שנה', nameShort:'ספט׳', start:YEAR_START, end:p1end, color:'#01696f', isHoliday:false, emoji:'🌱',
+      levels:['ניהול','פדגוגי','כוח אדם','אירועים'], levelColors:['#01696f','#2563a8','#b45309','#be185d'], actions:PERIOD_ACTIONS.sep },
+    { id:'roshHashana', name:'ראש השנה', nameShort:'ר"ה', start:roshOut, end:addDays(roshBack,-2),
+      color:'#9ca3af', isHoliday:true, emoji:'🍎', levels:[], levelColors:[],
+      actions:{'חופשה':[{icon:'🍎',text:'חופשת ראש השנה'}]} },
+    { id:'tishriInterim', name:"ג'–ח' תשרי", nameShort:"ג'–ח' תשרי", start:tishriInterimStart, end:tishriInterimEnd,
+      color:'#01696f', isHoliday:false, emoji:'📅',
+      levels:['ניהול','פדגוגי','שגרה','אירועים'], levelColors:['#01696f','#2563a8','#7c3aab','#be185d'],
+      actions:{"ימי לימוד":[{icon:'📅',text:"ג'–ח' תשרי — ימי לימוד רגילים בין ראש השנה ליום כיפור"}]} },
+    { id:'sukkot', name:'כיפור וסוכות', nameShort:'כיפור–סוכות', start:tishriOut, end:addDays(tishriBack,-1),
+      color:'#9ca3af', isHoliday:true, emoji:'🍃', levels:[], levelColors:[],
+      actions:{'חופשה':[{icon:'🍃',text:'יום כיפור וסוכות — חופשה'}]} },
+    { id:'nov', name:'נובמבר–דצמבר', nameShort:'נוב–דצמ׳', start:p2start, end:p2end,
+      color:'#2563a8', isHoliday:false, emoji:'📚',
+      levels:['ניהול','פדגוגי','שגרה','אירועים'],
+      levelColors:['#01696f','#2563a8','#7c3aab','#be185d'], actions:PERIOD_ACTIONS.nov },
+    { id:'xmas', name:'חופשת חנוכה', nameShort:'חנוכה', start:chanukaOut, end:addDays(chanukaBack,-1),
+      color:'#9ca3af', isHoliday:true, emoji:'🕎', levels:[], levelColors:[],
+      actions:{'חופשה':[{icon:'🕎',text:'חופשת חנוכה'}]} },
+    { id:'jan', name:'ינואר–פברואר', nameShort:'ינו–פבר׳', start:p3start, end:p3end,
+      color:'#7c3aab', isHoliday:false, emoji:'🔍',
+      levels:['ניהול','פדגוגי','שגרה','הורים'],
+      levelColors:['#01696f','#2563a8','#7c3aab','#b45309'], actions:PERIOD_ACTIONS.jan },
+    { id:'purim', name:'חופשת פורים', nameShort:'פורים', start:purimOut, end:addDays(purimBack,-1),
+      color:'#9ca3af', isHoliday:true, emoji:'🎭', levels:[], levelColors:[],
+      actions:{'חופשה':[{icon:'🎭',text:'חופשת פורים'}]} },
+    { id:'mar', name:'מרץ–אפריל', nameShort:'מרץ–אפר׳', start:p4start, end:p4end,
+      color:'#b45309', isHoliday:false, emoji:'🌿',
+      levels:['ניהול','פדגוגי','אירועים','הורים'],
+      levelColors:['#01696f','#2563a8','#be185d','#b45309'], actions:PERIOD_ACTIONS.mar },
+    { id:'pesach', name:'חופשת פסח', nameShort:'פסח', start:pesachOut, end:addDays(pesachBack,-1),
+      color:'#9ca3af', isHoliday:true, emoji:'🫙', levels:[], levelColors:[],
+      actions:{'חופשה':[{icon:'🫙',text:'חופשת פסח'}]} },
+    { id:'may', name:'מאי–יוני', nameShort:'מאי–יוני', start:p5start, end:p5end,
+      color:'#be185d', isHoliday:false, emoji:'🏁',
+      levels:['ניהול','פדגוגי','כוח אדם','אירועים'],
+      levelColors:['#01696f','#2563a8','#b45309','#be185d'], actions:PERIOD_ACTIONS.may },
+    { id:'shavuot', name:'חופשת שבועות', nameShort:'שבועות', start:shavuotOut, end:addDays(shavuotBack,0),
+      color:'#9ca3af', isHoliday:true, emoji:'📜', levels:[], levelColors:[],
+      actions:{'הפסקה':[{icon:'📜',text:'חופשת שבועות — אין מפגשי הדרכה'}]} },
+    { id:'june', name:'יוני — סיום שנה', nameShort:'יוני', start:p6start, end:new Date(ey,5,30),
+      color:'#be185d', isHoliday:false, emoji:'🏁',
+      levels:['ניהול','פדגוגי','כוח אדם'],
+      levelColors:['#01696f','#2563a8','#b45309'], actions:PERIOD_ACTIONS.june },
+    { id:'summer', name:'יולי–אוגוסט — קיץ', nameShort:'קיץ', start:new Date(ey,6,1), end:YEAR_END,
+      color:'#d97706', isHoliday:false, emoji:'☀️',
+      levels:['ניהול','כוח אדם','תשתית'],
+      levelColors:['#01696f','#b45309','#7c3aed'], actions:PERIOD_ACTIONS.summer }
+  ];
+}
+
+let PERIODS = [];
+
+// ═══════════════════════════════════════════════════════════
+// PERIOD_ACTIONS
+// ═══════════════════════════════════════════════════════════
+const PERIOD_ACTIONS = {
+  sep: {
+    '🏛️ ניהול ותשתית': [
+      {icon:'📋',text:'[חובה] ימי היערכות צוות: יישור קו ניהולי-פדגוגי, הצגת יעדי השנה וחלוקת תפקידים'},
+      {icon:'📅',text:'[חובה] פרסום לוח שנה בית-ספרי מלא: חגים, טקסים, אספות, הערכות, טיולים, מועדי דיווח'},
+      {icon:'🔐',text:'[חובה] הצגת נהלי בטיחות וחירום לצוות ולתלמידים — עדכון צוות חירום'},
+      {icon:'📊',text:'[חובה] עדכון תכנית השעות הסופית לאחר פתיחה בפועל'},
+      {icon:'🏗️',text:'[מומלץ] בדיקת היערכות פיזית: כיתות, ציוד, שילוט, נגישות — לפני כניסת תלמידים'},
+    ],
+    '🎒 פתיחה עם תלמידים': [
+      {icon:'🌱',text:'[חובה] יום פתיחה לתלמידים — קבלת פנים, הכרות והצגת כללי בית הספר'},
+      {icon:'👨‍👩‍👧',text:'[חובה] אספות הורים ראשונות — הצגת מחנכים, יעדים ונהלים לשנה'},
+      {icon:'🆕',text:'[חובה] קליטת תלמידים חדשים וילדי גן — יום הכרות ופגישות הורים'},
+      {icon:'📝',text:'[חובה] הטמעת שגרות יומיומיות: פתיחת בוקר, מעברים, תורנויות, דיווח נוכחות'},
+    ],
+    '📚 פדגוגיה': [
+      {icon:'🗺️',text:'[חובה] מיפויי פתיחה לימודיים, רגשיים וחברתיים לכל תלמיד'},
+      {icon:'🌀',text:'[חובה] התנעת מערכי פרט, שילוב, תגבור וכישורי חיים'},
+      {icon:'💬',text:'[חובה] SEL ושעת חינוך — הטמעה כשגרה קבועה בכל הכיתות'},
+      {icon:'✏️',text:'[מומלץ] עדכון תוכניות עבודה כיתתיות ושכבתיות לפי נתוני הפתיחה'},
+      {icon:'🤝',text:'[מומלץ] פעילויות גיבוש, היכרות ובניית כללי כיתה'},
+    ],
+  },
+  nov: {
+    '🏛️ ניהול שוטף': [
+      {icon:'📋',text:'[חובה] ישיבות הנהלה קבועות: מנהל + סגנים + רכזים'},
+      {icon:'👥',text:'[חובה] ישיבות צוות מורים שבועיות / דו-שבועיות'},
+      {icon:'🏫',text:'[חובה] ישיבות שכבתיות לרכזי שכבה'},
+      {icon:'📐',text:'[מומלץ] ישיבות רכזי מקצוע — תיאום ובקרה על תכניות לימוד'},
+      {icon:'💰',text:'[חובה] ניהול תקציב שוטף ומעקב הוצאות'},
+      {icon:'📊',text:'[חובה] בקרה על יישום תוכנית העבודה וניצול משאבים'},
+    ],
+    '📚 פדגוגיה ובקרה': [
+      {icon:'👁️',text:'[חובה] ביקורי כיתה והשתתפות בשיעורים — ניהול פדגוגי'},
+      {icon:'📈',text:'[חובה] הערכה מעצבת שוטפת ומיפויים תקופתיים'},
+      {icon:'⚠️',text:'[חובה] מעקב נוכחות, טיפול בהתמדה ומעקב תלמידים בסיכון'},
+      {icon:'♿',text:'[חובה] ועדות שילוב לתלמידים עם צרכים מיוחדים'},
+      {icon:'🔎',text:'[חובה] בקרה — סוף ספטמבר/אוקטובר: בדיקת התייצבות כיתות וממצאי מיפוי פתיחה'},
+      {icon:'🔎',text:'[חובה] בקרה — נובמבר/דצמבר: בדיקת התקדמות יעדים, מיקוד תלמידים בסיכון'},
+    ],
+    '👥 הורים וקהילה': [
+      {icon:'📢',text:'[חובה] כנסי הורים מחנכים — עדכון על התקדמות'},
+      {icon:'💬',text:'[חובה] פגישות עם הורים לפי צורך'},
+      {icon:'🏫',text:'[מומלץ] מועצת תלמידים — קיום ויוזמות'},
+    ],
+    '🎉 אירועים': [
+      {icon:'🍎',text:'[חובה] אירועי חגי תשרי — ראש השנה, יום כיפור, סוכות, שמחת תורה: טקסים ולימוד'},
+      {icon:'🕎',text:'[חובה] אירוע חנוכה — טקס ולימוד נושא החג'},
+    ],
+    '🧑‍🏫 כוח אדם': [
+      {icon:'📚',text:'[מומלץ] פיתוח מקצועי ולמידת עמיתים לצוות'},
+      {icon:'🤝',text:'[מומלץ] חניכה שוטפת למורים חדשים'},
+    ],
+  },
+  jan: {
+    '🏛️ סיכום מחצית ראשונה': [
+      {icon:'📝',text:'[חובה] בחינות והערכות סיכום מחצית ראשונה'},
+      {icon:'📄',text:'[חובה] חלוקת תעודות מחצית ראשונה'},
+      {icon:'👨‍👩‍👧',text:'[חובה] כנסי הורים לסיכום מחצית — הצגת התקדמות'},
+      {icon:'💬',text:'[מומלץ] יום הורים אישי — שיחות עם הורים לכל תלמיד'},
+      {icon:'📊',text:'[חובה] ישיבת צוות לסיכום ביניים: ניתוח נתונים ותיקוני כיוון'},
+      {icon:'🎯',text:'[חובה] עדכון תוכניות שנתיות בהתאם לצרכים שנמצאו'},
+    ],
+    '🔎 בקרה ותכנון': [
+      {icon:'🔎',text:'[חובה] בקרת ינואר-פברואר: סיכום מחצית, ניתוח נתונים, תכנון מחצית ב'},
+      {icon:'🚨',text:'[חובה] תיאום תכנית הסיוע לתלמידים בסיכון לאחר מחצית א'},
+      {icon:'💰',text:'[מומלץ] עדכון תחזית תקציב ותכנון הוצאות מחצית ב'},
+    ],
+    '📚 פדגוגיה': [
+      {icon:'👁️',text:'[חובה] המשך ביקורי כיתה ומיפויים תקופתיים'},
+      {icon:'🌀',text:'[חובה] המשך ועדות שילוב, מעקב תלמידים בסיכון וסדירויות SEL'},
+      {icon:'📐',text:'[מומלץ] ישיבות רכזי מקצוע — סיכום מחצית א ותכנון מחצית ב'},
+    ],
+  },
+  mar: {
+    '🏛️ ניהול שוטף': [
+      {icon:'📋',text:'[חובה] המשך ישיבות הנהלה, צוות ושכבה'},
+      {icon:'📊',text:'[חובה] בקרה — מרץ-אפריל: היערכות לאירועי שיא, מבחנים, קליטת נרשמים לשנה הבאה'},
+      {icon:'💰',text:'[חובה] הגשת בקשות לתקצוב שנת הלימודים הבאה'},
+      {icon:'👥',text:'[חובה] תחילת תהליכי גיוס ושיבוץ לשנה הבאה'},
+    ],
+    '🎉 אירועים ותרבות': [
+      {icon:'🎭',text:'[חובה] אירוע פורים — פעילות ומסיבה'},
+      {icon:'🌿',text:'[חובה] הכנת אירועי יום הזיכרון לשואה ולגבורה — טקס, שיעורים, מפגשים'},
+      {icon:'🇮🇱',text:'[חובה] הכנת אירועי יום הזיכרון לחללי צה"ל ויום העצמאות — טקסים, שירים'},
+      {icon:'🫙',text:'[חובה] אירועי פסח — ניקוי, לימוד נושא החג, פעילות'},
+      {icon:'📚',text:'[מומלץ] שבוע הספר / יריד ספרים'},
+    ],
+    '📚 פדגוגיה': [
+      {icon:'🏆',text:'[חובה] הכנה וביצוע מבחני מיצ"ב ומבחנים ארציים'},
+      {icon:'🌟',text:'[מומלץ] פרויקטים בין-תחומיים ועבודות גמר שכבתיות'},
+      {icon:'⛵',text:'[מומלץ] תכנון ויציאה לטיולים שנתיים שכבתיים'},
+      {icon:'👁️',text:'[מומלץ] ביקורי כיתה אינטנסיביים לקראת סוף שנה'},
+    ],
+    '👥 הורים': [
+      {icon:'🎨',text:'[מומלץ] יום הורים פתוח — הצגת פרויקטי תלמידים ואיסוף משוב'},
+      {icon:'👨‍👩‍👧',text:'[חובה] ועדות פדגוגיות לסיכום תלמידים ומעברי שכבה'},
+    ],
+  },
+  may: {
+    '🏁 סגירת שנה — ניהול': [
+      {icon:'📄',text:'[חובה] כתיבת דוחות הערכה שנתיים לכל תלמיד'},
+      {icon:'📋',text:'[חובה] חלוקת תעודות סוף שנה לתלמידים ולהורים'},
+      {icon:'📁',text:'[חובה] ישיבות מעבר בין מחנכים — מסירת ידע ותיקי מעבר לכיתה הבאה'},
+      {icon:'🏫',text:'[חובה] ארגון מחדש של כיתות ורשימות תלמידים לשנה הבאה'},
+      {icon:'📊',text:'[חובה] הגשת דוחות שנתיים לרשות ולמינהל'},
+      {icon:'💰',text:'[חובה] סגירת תקציב שנתי ודוח כספי'},
+      {icon:'💾',text:'[חובה] עדכון רשומות תלמידים, גיבוי מאגרים וארכוב תיעוד'},
+      {icon:'🔎',text:'[חובה] בקרת מאי: תחילת סיכום שנה, תשתיות שיבוץ ותכנון לשנה הבאה'},
+    ],
+    '🎉 אירועי סיום': [
+      {icon:'🎓',text:'[חובה] אירוע סיום כיתות ו — חגיגת בוגרים'},
+      {icon:'🏁',text:'[חובה] טקס סיום שנה בית-ספרי לכלל הכיתות'},
+      {icon:'⛵',text:'[מומלץ] מסע / פעילות שכבתית לכיתות ו'},
+    ],
+    '🧑‍🏫 כוח אדם וסיכום צוות': [
+      {icon:'💬',text:'[חובה] שיחות סיכום שנתיות עם כל איש צוות'},
+      {icon:'📑',text:'[מומלץ] סיכום עבודת רכזים, ועדות ושותפויות קהילה'},
+      {icon:'📋',text:'[מומלץ] איסוף משוב מצוות ומהורים על השנה'},
+      {icon:'🔧',text:'[חובה] תיאום עבודות קיץ ותחזוקת מבנה'},
+    ],
+    '⭐ עשרת הדברות — לפני קיץ': [
+      {icon:'1️⃣',text:'לסכם בכתב את ההישגים מול יעדי השנה — מה הצלחנו? מה לשפר?'},
+      {icon:'2️⃣',text:'לקיים שיחת סיכום אישית עם כל מורה — תחושות, הישגים, קשיים'},
+      {icon:'3️⃣',text:'לתעד תלמידים שדרשו תכנית התערבות ולהעביר מידע לשנה הבאה'},
+      {icon:'4️⃣',text:'לסמן תלמידים מאתגרים שצריכים מעקב מיוחד בשנה הבאה'},
+      {icon:'5️⃣',text:'לכתוב המלצות מעשיות למחנך שיקבל כל כיתה בשנה הבאה'},
+      {icon:'6️⃣',text:'לסכם מפת המשאבים הבית-ספרית ולעדכן לשנה הבאה'},
+      {icon:'7️⃣',text:'לבחור 3 יעדי עבודה לשנה הבאה בהתבסס על נתוני השנה הנוכחית'},
+      {icon:'8️⃣',text:'לאשר שיבוצי כוח אדם ותפקידים לשנה הבאה'},
+      {icon:'9️⃣',text:'לוודא שעבודות הקיץ תוכננו ואושרו לפני תחילת החופשה'},
+      {icon:'🔟',text:'לאחסן את כל המסמכים, ההערכות ותיקי התלמידים בסדר מלא להעברה'},
+    ]
+  },
+  june: {
+    '🏁 סגירת שנה — ניהול': [
+      {icon:'📄',text:'[חובה] כתיבת דוחות הערכה שנתיים לכל תלמיד'},
+      {icon:'📋',text:'[חובה] חלוקת תעודות סוף שנה לתלמידים ולהורים'},
+      {icon:'📁',text:'[חובה] ישיבות מעבר בין מחנכים — מסירת ידע ותיקי מעבר לכיתה הבאה'},
+      {icon:'🏫',text:'[חובה] ארגון מחדש של כיתות ורשימות תלמידים לשנה הבאה'},
+      {icon:'📊',text:'[חובה] הגשת דוחות שנתיים לרשות ולמינהל'},
+      {icon:'💰',text:'[חובה] סגירת תקציב שנתי ודוח כספי'},
+      {icon:'💾',text:'[חובה] עדכון רשומות תלמידים, גיבוי מאגרים וארכוב תיעוד'},
+    ],
+    '🎉 אירועי סיום': [
+      {icon:'🎓',text:'[חובה] אירוע סיום כיתות ו — חגיגת בוגרים'},
+      {icon:'🏁',text:'[חובה] טקס סיום שנה בית-ספרי לכלל הכיתות'},
+      {icon:'⛵',text:'[מומלץ] מסע / פעילות שכבתית לכיתות ו'},
+    ],
+    '🧑‍🏫 כוח אדם וסיכום צוות': [
+      {icon:'💬',text:'[חובה] שיחות סיכום שנתיות עם כל איש צוות'},
+      {icon:'📑',text:'[מומלץ] סיכום עבודת רכזים, ועדות ושותפויות קהילה'},
+      {icon:'📋',text:'[מומלץ] איסוף משוב מצוות ומהורים על השנה'},
+      {icon:'🔧',text:'[חובה] תיאום עבודות קיץ ותחזוקת מבנה'},
+    ],
+    '⭐ עשרת הדברות — לפני קיץ': [
+      {icon:'1️⃣',text:'לסכם בכתב את ההישגים מול יעדי השנה — מה הצלחנו? מה לשפר?'},
+      {icon:'2️⃣',text:'לקיים שיחת סיכום אישית עם כל מורה — תחושות, הישגים, קשיים'},
+      {icon:'3️⃣',text:'לתעד תלמידים שדרשו תכנית התערבות ולהעביר מידע לשנה הבאה'},
+      {icon:'4️⃣',text:'לסמן תלמידים מאתגרים שצריכים מעקב מיוחד בשנה הבאה'},
+      {icon:'5️⃣',text:'לכתוב המלצות מעשיות למחנך שיקבל כל כיתה בשנה הבאה'},
+      {icon:'6️⃣',text:'לסכם מפת המשאבים הבית-ספרית ולעדכן לשנה הבאה'},
+      {icon:'7️⃣',text:'לבחור 3 יעדי עבודה לשנה הבאה בהתבסס על נתוני השנה הנוכחית'},
+      {icon:'8️⃣',text:'לאשר שיבוצי כוח אדם ותפקידים לשנה הבאה'},
+      {icon:'9️⃣',text:'לוודא שעבודות הקיץ תוכננו ואושרו לפני תחילת החופשה'},
+      {icon:'🔟',text:'לאחסן את כל המסמכים, ההערכות ותיקי התלמידים בסדר מלא להעברה'},
+    ]
+  },
+  summer: {
+    '☀️ חופשת קיץ — ניהול': [
+      {icon:'🏗️',text:'[חובה] פיקוח ואישור עבודות קיץ: שיפוצים, תחזוקה ובדיקות בטיחות'},
+      {icon:'📋',text:'[חובה] הכנת מערכת שעות ושיבוץ מורים לשנה הבאה'},
+      {icon:'🔐',text:'[חובה] עדכון נהלי בטיחות וחירום לשנה הבאה'},
+      {icon:'💻',text:'[מומלץ] עדכון מערכות מידע: מנדב, תמוז, מאגר תלמידים'},
+      {icon:'📊',text:'[מומלץ] ניתוח נתוני השנה שחלפה — הסקת מסקנות ותכנון שנה הבאה'},
+    ],
+    '👥 כוח אדם': [
+      {icon:'🤝',text:'[חובה] קליטת עובדים חדשים — הסכמים, נהלים, היכרות עם הצוות'},
+      {icon:'📑',text:'[חובה] סיום הליכי גיוס — חוזים, אישורים ושיבוצים סופיים'},
+      {icon:'🎓',text:'[מומלץ] השתלמויות קיץ לצוות הוראה'},
+      {icon:'📞',text:'[מומלץ] יצירת קשר ראשוני עם תלמידים חדשים ומשפחותיהם'},
+    ],
+    '🏫 היערכות לשנה הבאה': [
+      {icon:'📚',text:'[חובה] הזמנת ספרי לימוד וציוד פדגוגי לשנה הבאה'},
+      {icon:'🗓️',text:'[חובה] בניית לוח שנה ראשוני לשנה הבאה — ימי היערכות, אירועים, מועדי הערכה'},
+      {icon:'🌐',text:'[מומלץ] עדכון אתר בית הספר ותקשורת עם הורים לקראת הפתיחה'},
+      {icon:'🧹',text:'[מומלץ] הכנת הבניין — ניקיון, סידור כיתות, שילוט'},
+    ],
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formatDate(d) {
+  return d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric',year:'2-digit'});
+}
+function daysBetween(a,b) { return Math.round((b-a)/(1000*60*60*24)); }
+function getBarPosition(start,end) {
+  const s = Math.max(0,daysBetween(YEAR_START,start));
+  const e = Math.min(YEAR_TOTAL,daysBetween(YEAR_START,end));
+  return { left:Math.max(0,(s/YEAR_TOTAL)*100), width:Math.max(0.5,((e-s)/YEAR_TOTAL)*100) };
+}
+function getPeriodStatus(p) {
+  const now = new Date();
+  if (p.isHoliday) return 'holiday';
+  if (now < p.start) return 'upcoming';
+  if (now > p.end) return 'past';
+  return 'current';
+}
+function getStatusLabel(s) { return {upcoming:'עתידי',past:'הסתיים',current:'עכשיו',holiday:'הפסקה'}[s]; }
+function getTypeName(t) { return {general:'כללי',school:'בית ספר',blueprint:'תכנית'}[t]||t; }
+function getTypeClass(t) { return {general:'type-general',school:'type-school',blueprint:'type-blueprint'}[t]||'type-general'; }
+function getCurriculumName(c) { return {elementary:'ניהול',inclusion:'פדגוגי',both:'כוח אדם',events:'אירועים',routine:'שגרה'}[c]||c; }
+
+// ═══════════════════════════════════════════════════════════
+// TODAY STRIP
+// ═══════════════════════════════════════════════════════════
+function renderTodayStrip() {
+  const now = new Date();
+  document.getElementById('todayDateDisplay').textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const cur = PERIODS.find(p => now>=p.start && now<=p.end);
+  document.getElementById('todayPeriodText').textContent = cur
+    ? '— ' + (cur.isHoliday ? '🎉 '+cur.name : '📌 תקופה נוכחית: '+cur.name)
+    : '— מחוץ לתקופת הלימודים';
+}
+
+// ═══════════════════════════════════════════════════════════
+// PROGRESS
+// ═══════════════════════════════════════════════════════════
+function renderProgress() {
+  const now = new Date();
+  const main = PERIODS.filter(p=>!p.isHoliday);
+  const done = main.filter(p=>now>p.end).length;
+  const inProg = main.filter(p=>now>=p.start&&now<=p.end).length;
+  const upcoming = main.filter(p=>now<p.start).length;
+  const total = daysBetween(YEAR_START,YEAR_END);
+  const elapsed = Math.max(0,Math.min(total,daysBetween(YEAR_START,now)));
+  const pct = Math.round((elapsed/total)*100);
+
+  document.getElementById('progressSummary').innerHTML = [
+    {num:pct+'%',label:'מהשנה הושלמה',color:'var(--color-primary)'},
+    {num:done,label:'תקופות הושלמו',color:'#2563a8'},
+    {num:inProg?'1':'0',label:'תקופה פעילה',color:'#be185d'},
+    {num:upcoming,label:'תקופות קרובות',color:'#b45309'},
+  ].map(c=>`<div class="progress-card"><div class="p-num" style="color:${c.color}">${c.num}</div><div class="p-label">${c.label}</div></div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER GANTT
+// ═══════════════════════════════════════════════════════════
+function renderGantt() {
+  const now = new Date();
+  const tbody = document.getElementById('ganttBody');
+  tbody.innerHTML = '';
+
+  PERIODS.forEach(period => {
+    const status = getPeriodStatus(period);
+    const {left,width} = getBarPosition(period.start,period.end);
+    const isCurrent = status==='current';
+    const allActions = Object.values(period.actions).flat();
+    const firstTwo = allActions.slice(0,2).map(a=>a.text).join(' • ');
+    const dynEvents = getEventsByPeriod(period.id);
+
+    const badgeStyle = period.isHoliday
+      ? 'background:#f3f4f6;color:#6b7280;'
+      : `background:${period.color}18;color:${period.color};border:1px solid ${period.color}40;`;
+
+    const dots = period.levels.map((name,i)=>
+      `<div class="level-dot" style="background:${period.levelColors[i]}" title="${name}"></div>`
+    ).join('');
+
+    let progressPct = 0;
+    if (status==='past') progressPct=100;
+    else if (status==='current') progressPct=Math.round((daysBetween(period.start,now)/daysBetween(period.start,period.end))*100);
+
+    const dynBadge = dynEvents.length ? `<span class="dynamic-count">+${dynEvents.length} אירועים</span>` : '';
+
+    const tr = document.createElement('tr');
+    tr.className = `gantt-row${isCurrent?' is-current':''}${period.isHoliday?' is-holiday':''}`;
+    tr.id = 'row-'+period.id;
+    tr.setAttribute('data-period',period.id);
+    tr.onclick = ()=>openDetail(period.id);
+
+    tr.innerHTML = `
+      <td class="gantt-td col-period">
+        <span class="period-badge" style="${badgeStyle}">${period.emoji} ${period.nameShort}</span>
+      </td>
+      <td class="gantt-td col-dates">
+        <div class="date-range"><strong>${formatDate(period.start)}</strong> — <strong>${formatDate(period.end)}</strong></div>
+        <div style="font-size:var(--text-xs);color:var(--color-text-faint);margin-top:2px;">${daysBetween(period.start,period.end)+1} ימים</div>
+      </td>
+      <td class="gantt-td col-actions">
+        ${period.isHoliday
+          ? `<span style="color:var(--color-text-faint);font-size:var(--text-xs);">${period.name}</span>`
+          : `<div class="action-preview">${firstTwo}</div>
+             <span class="action-count">${allActions.length} פעולות — לחץ לפירוט</span>${dynBadge}`
+        }
+      </td>
+      <td class="gantt-td" style="text-align:center;"><span class="status-chip ${status}">${getStatusLabel(status)}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// DETAIL PANEL
+// ═══════════════════════════════════════════════════════════
+function openDetail(periodId) {
+  const period = PERIODS.find(p=>p.id===periodId);
+  if (!period) return;
+  _currentDetailPeriodId = periodId;
+  currentDetailPeriodId = periodId;
+
+  document.getElementById('detailTitle').textContent = period.emoji+' '+period.name;
+  document.getElementById('detailDates').textContent = formatDate(period.start)+' — '+formatDate(period.end);
+
+  // אירועים דינמיים
+  const dynEvents = getEventsByPeriod(periodId);
+  let dynHTML = '';
+  if (dynEvents.length) {
+    const statusMeta = {
+      open:      { label:'פתוח',  chipStyle:'background:#dcfce7;color:#15803d;' },
+      closed:    { label:'סגור',  chipStyle:'background:#fee2e2;color:#dc2626;' },
+      cancelled: { label:'בוטל', chipStyle:'background:#f3f4f6;color:#6b7280;' },
+    };
+    const cards = dynEvents.map(evt => {
+      const sm = statusMeta[evt.status] || statusMeta.open;
+      const statusClass = `status-${evt.status || 'open'}`;
+      const curriculum = evt.curriculum ? `<div style="font-size:var(--text-xs);color:var(--color-text-faint);">📎 ${getCurriculumName(evt.curriculum)}</div>` : '';
+      return `
+      <div class="dynamic-event-card ${statusClass}">
+        <span class="type-badge ${getTypeClass(evt.type)}">${getTypeName(evt.type)}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${escapeHtml(evt.title)}
+            <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;flex-shrink:0;${sm.chipStyle}">${sm.label}</span>
+          </div>
+          ${evt.desc?`<div style="color:var(--color-text-muted);font-size:var(--text-xs);margin-top:2px;">${escapeHtml(evt.desc)}</div>`:''}
+          ${(evt.start||evt.end)?`<div style="font-size:var(--text-xs);color:var(--color-text-faint);margin-top:3px;">📅 ${evt.start||''}${evt.end&&evt.end!==evt.start?' — '+evt.end:''}</div>`:''}
+          ${evt.school?`<div style="font-size:var(--text-xs);color:var(--color-text-faint);">🏫 ${escapeHtml(evt.school)}</div>`:''}
+          ${curriculum}
+        </div>
+        <div class="evt-actions">
+          <button class="evt-btn" onclick="event.stopPropagation();openEditModal('${evt.id}')">ערוך</button>
+          <button class="evt-btn delete" onclick="event.stopPropagation();deleteEvent('${evt.id}')">מחק</button>
+        </div>
+      </div>`;
+    }).join('');
+    dynHTML = `<div class="detail-section">
+      <div class="detail-section-title" style="color:#2563a8;">📌 אירועים מותאמים (${dynEvents.length})</div>
+      <div class="action-cards">${cards}</div>
+    </div>`;
+  }
+
+  // פעולות קבועות עם אפשרות בחירה
+  const totalSelected = Object.keys(selectedActions).filter(k => k.startsWith(SCHOOL_YEAR_START_GREG + '||' + periodId + '||')).length;
+  const broadcastBtn = `
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="add-event-btn" style="font-size:var(--text-xs);padding:5px 12px;"
+            onclick="broadcastToPlan('${periodId}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            שדר לתכנית השנתית
+        </button>
+    </div>`;
+  const selHint = `<div class="action-select-hint">💡 לחץ על פעולה כדי לסמן אותה כנבחרת ללוח הגאנט — הסימון נשמר אוטומטית${totalSelected > 0 ? ` <span class="selected-count-badge">✓ ${totalSelected} נבחרו</span>` : ''}</div>`;
+
+  const staticHTML = Object.entries(period.actions).map(([section,items])=>`
+    <div class="detail-section">
+      <div class="detail-section-title" style="color:${period.isHoliday?'var(--color-text-muted)':period.color}">${section}</div>
+      <div class="action-cards">
+        ${items.map((a,idx)=>{
+          const key = getActionKey(periodId, section, idx);
+          const isSel = !!selectedActions[key];
+          // חלץ תגית עדיפות מתוך הטקסט
+          let displayText = a.text;
+          let priTag = '';
+          const priMatch = a.text.match(/^\[(חובה|מומלץ|רשות)\]\s*/);
+          if (priMatch) {
+            const pri = priMatch[1];
+            displayText = a.text.replace(priMatch[0], '');
+            priTag = `<span class="pri-tag pri-${pri}">${pri}</span>`;
+          }
+          return `<div class="action-card${isSel?' is-selected':''}" onclick="toggleActionSelection('${periodId}','${escapeHtml(section)}',${idx})">
+            <span class="action-icon">${a.icon}</span>
+            <span style="flex:1;">${displayText}</span>
+            ${priTag}
+            ${isSel ? '<span style="margin-right:auto;flex-shrink:0;font-size:1rem;">✅</span>' : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('detailBody').innerHTML = broadcastBtn + dynHTML + selHint + staticHTML;
+  document.getElementById('detailOverlay').classList.add('open');
+}
+
+function closeDetail(event) {
+  if (event===null || event.target===document.getElementById('detailOverlay')) {
+    document.getElementById('detailOverlay').classList.remove('open');
+    _currentDetailPeriodId = null;
+    currentDetailPeriodId = null;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    // If date picker modal is open, let its own handler handle Escape
+    if (_dpm && _dpm.open) return;
+    document.getElementById('detailOverlay').classList.remove('open');
+    document.getElementById('editModal').classList.remove('open');
+    document.getElementById('monthZoomOverlay').classList.remove('open');
+    _currentDetailPeriodId = null;
+    currentDetailPeriodId  = null;
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// SCROLL TO TODAY
+// ═══════════════════════════════════════════════════════════
+function scrollToToday() {
+  const now = new Date();
+  const cur = PERIODS.find(p=>now>=p.start&&now<=p.end);
+  if (cur) { const row=document.getElementById('row-'+cur.id); if(row) row.scrollIntoView({behavior:'smooth',block:'center'}); }
+  else window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ═══════════════════════════════════════════════════════════
+// THEME TOGGLE
+// ═══════════════════════════════════════════════════════════
+(function(){
+  const t=document.querySelector('[data-theme-toggle]'), r=document.documentElement;
+  let d=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
+  r.setAttribute('data-theme',d);
+  function updateIcon(){
+    if(!t) return;
+    t.innerHTML = d==='dark'
+      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+  }
+  updateIcon();
+  t&&t.addEventListener('click',()=>{ d=d==='dark'?'light':'dark'; r.setAttribute('data-theme',d); updateIcon(); });
+})();
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// HOLIDAY LABELS TOGGLE
+// ═══════════════════════════════════════════════════════════
+let holidayLabelsVisible = false;
+
+function toggleHolidayLabels() {
+  holidayLabelsVisible = !holidayLabelsVisible;
+  const btn = document.getElementById('holidayToggleBtn');
+  const grid = document.getElementById('calGrid');
+  if (holidayLabelsVisible) {
+    btn.classList.add('hol-active');
+    grid && grid.classList.add('holidays-visible');
+  } else {
+    btn.classList.remove('hol-active');
+    grid && grid.classList.remove('holidays-visible');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MONTH ZOOM
+// ═══════════════════════════════════════════════════════════
+let _zoomYear  = null;
+let _zoomMonth = null; // 0-based
+
+function openMonthZoom(year, month) {
+  _zoomYear  = year;
+  _zoomMonth = month;
+  renderMonthZoom();
+  const ov = document.getElementById('monthZoomOverlay');
+  ov.classList.add('open');
+}
+
+function closeMonthZoom(evt) {
+  if (evt === null || evt.target === document.getElementById('monthZoomOverlay')) {
+    document.getElementById('monthZoomOverlay').classList.remove('open');
+  }
+}
+
+function navigateMonthZoom(delta) {
+  // delta: -1 = קודם (ימין ›), +1 = הבא (שמאל ‹)
+  _zoomMonth += delta;
+  if (_zoomMonth > 11) { _zoomMonth = 0;  _zoomYear++; }
+  if (_zoomMonth < 0)  { _zoomMonth = 11; _zoomYear--; }
+  renderMonthZoom();
+}
+
+function renderMonthZoom() {
+  const year  = _zoomYear;
+  const month = _zoomMonth;
+  const DAY_NAMES = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+  const now   = new Date();
+
+  // כותרת
+  const monthName = new Date(year, month, 1).toLocaleDateString('he-IL', {month:'long', year:'numeric'});
+  const period = PERIODS.find(p => {
+    const ms = new Date(year, month, 1);
+    const me = new Date(year, month+1, 0);
+    return (ms >= p.start && ms <= p.end) || (me >= p.start && me <= p.end) || (p.start >= ms && p.end <= me);
+  });
+  document.getElementById('mzTitle').textContent = monthName + (period ? '  ' + period.emoji : '');
+
+  // כותרות ימים
+  const wdEl = document.getElementById('mzWeekdays');
+  wdEl.innerHTML = DAY_NAMES.map((n,i) =>
+    `<div class="mz-wd${i===5?' wd-fri':i===6?' wd-sat':''}">${n}</div>`
+  ).join('');
+
+  const events     = getCalendarEvents();
+  const daysEl     = document.getElementById('mzDays');
+  daysEl.innerHTML = '';
+
+  const firstDow  = new Date(year, month, 1).getDay();
+  const daysInMon = new Date(year, month+1, 0).getDate();
+
+  // תאים ריקים
+  for (let i = 0; i < firstDow; i++) {
+    const el = document.createElement('div');
+    el.className = 'mz-day other-month';
+    daysEl.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMon; d++) {
+    const date    = new Date(year, month, d);
+    const dow     = date.getDay();
+    const isToday = isSameDay(date, now);
+    const isShab  = dow === 6;
+    const holEvt  = events.find(e => e.source==='holiday' && date>=e.start && date<=e.end);
+    const dayEvts = events.filter(e => e.source!=='holiday' && date>=e.start && date<=e.end);
+
+    const dayEl = document.createElement('div');
+    dayEl.className = 'mz-day'
+      + (isToday ? ' is-today'   : '')
+      + (isShab  ? ' is-shabbat' : '')
+      + (holEvt  ? ' is-holiday' : '');
+
+    // שורה עליונה: מספר + שם חג
+    const numBadge = isToday
+      ? `<span class="mz-day-num-badge">${d}</span>`
+      : `<span>${d}</span>`;
+    const hebBadge = hebrewDatesVisible
+      ? `<span class="mz-heb-day">${getHebrewDay(date)}</span>`
+      : '';
+    const holName = holEvt
+      ? `<span class="mz-hol-name" title="${holEvt.title}">${holEvt.title}</span>`
+      : '';
+    dayEl.innerHTML = `<div class="mz-day-top">${numBadge}${hebBadge}${holName}</div>`;
+
+    // אירועים ופעולות — ללא מגבלה
+    const MAX_MZ = 5;
+    dayEvts.slice(0, MAX_MZ).forEach(evt => {
+      const evtEl = document.createElement('div');
+      evtEl.className = 'mz-event';
+      evtEl.style.background = evt.color;
+      evtEl.textContent = evt.title;
+      evtEl.title = evt.title;
+      evtEl.onclick = (e) => {
+        e.stopPropagation();
+        if (evt.source === 'manual') {
+          openEditModal(evt.id);
+        } else if (evt.periodId) {
+          closeMonthZoom(null);
+          if (currentView === 'calendar') toggleView();
+          openDetail(evt.periodId);
+        }
+      };
+      dayEl.appendChild(evtEl);
+    });
+    if (dayEvts.length > MAX_MZ) {
+      const more = document.createElement('div');
+      more.className = 'mz-more';
+      more.textContent = `+${dayEvts.length - MAX_MZ} נוספים`;
+      more.onclick = (e) => { e.stopPropagation(); showDayPopup(e, date, dayEvts); };
+      dayEl.appendChild(more);
+    }
+
+    // לחיצה על תא — popup
+    dayEl.onclick = () => {
+      if (dayEvts.length) showDayPopup({clientX: window.innerWidth/2 - 120, clientY: 200}, date, dayEvts);
+    };
+
+    daysEl.appendChild(dayEl);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// VIEW TOGGLE
+// ═══════════════════════════════════════════════════════════
+let currentView = 'gantt'; // 'gantt' | 'calendar'
+
+// ═══════════════════════════════════════════════════════════
+// HEBREW DATE CONVERSION (standalone, no CDN)
+// Algorithm: astronomical Julian Day → Hebrew calendar
+// ═══════════════════════════════════════════════════════════
+let hebrewDatesVisible = false;
+
+const HEB_DIGITS = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט'];
+const HEB_TENS   = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ'];
+const HEB_HUNDREDS = ['', 'ק', 'ר', 'ש', 'ת', 'תק', 'תר', 'תש', 'תת', 'תתק'];
+
+function numToHebrewLetters(n) {
+  // Returns gematria string for 1–999
+  if (n <= 0 || n > 999) return '';
+  let s = '';
+  const h = Math.floor(n / 100); n %= 100;
+  if (h) s += HEB_HUNDREDS[h];
+  // avoid יה / יו
+  if (n === 15) { s += 'ט״ו'; return s; }
+  if (n === 16) { s += 'ט״ז'; return s; }
+  const t = Math.floor(n / 10); n %= 10;
+  if (t) s += HEB_TENS[t];
+  if (n) s += HEB_DIGITS[n];
+  // add geresh / gershayim
+  if (s.length === 1) return s + '׳';
+  return s.slice(0, -1) + '״' + s.slice(-1);
+}
+
+// ─── DEPRECATED: gregorianToJD / jdToHebrew ──────────────────────────────────
+// These functions are no longer used for Hebrew day rendering.
+// Active path now uses Intl.DateTimeFormat (see getHebrewDay below).
+// Kept in place for safety; may be removed in a future cleanup pass.
+function gregorianToJD(year, month, day) {
+  const a = Math.floor((14 - month) / 12);
+  const y = year + 4800 - a;
+  const m = month + 12 * a - 3;
+  return day + Math.floor((153 * m + 2) / 5) + 365 * y +
+         Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+}
+function jdToHebrew(jd) {
+  const EPOCH = 347997;
+  function hebrewLeapYear(y) { return ((7 * y + 1) % 19) < 7; }
+  function hebrewMonthsInYear(y) { return hebrewLeapYear(y) ? 13 : 12; }
+  function hebrewCalcElapsedDays(y) {
+    const monthsElapsed = Math.floor((235 * y - 234) / 19);
+    const parts = 12084 + 13753 * monthsElapsed;
+    let day = monthsElapsed * 29 + Math.floor(parts / 25920);
+    if ((3 * (day + 1)) % 7 < 3) day++;
+    return day;
+  }
+  function hebrewYearDays(y) { return hebrewCalcElapsedDays(y + 1) - hebrewCalcElapsedDays(y); }
+  function hebrewDaysInMonth(m, y) {
+    switch (m) {
+      case 2: case 4: case 6: case 10: case 13: return 29;
+      case 12: return hebrewLeapYear(y) ? 30 : 29;
+      case 8: return hebrewYearDays(y) % 10 === 5 ? 30 : 29;
+      case 9: return hebrewYearDays(y) % 10 === 3 ? 29 : 30;
+      default: return 30;
+    }
+  }
+  const day0 = jd - EPOCH;
+  let year = Math.floor(day0 * 98496 / 35975351) + 1;
+  while (hebrewCalcElapsedDays(year + 1) <= day0) year++;
+  const monthsInYear = hebrewMonthsInYear(year);
+  let month = 7, dayInYear = day0 - hebrewCalcElapsedDays(year) + 1;
+  for (let m = 7; m <= monthsInYear; m++) {
+    const dim = hebrewDaysInMonth(m, year);
+    if (dayInYear <= dim) { month = m; break; }
+    dayInYear -= dim;
+  }
+  if (dayInYear > 0) {
+    for (let m = 1; m < 7; m++) {
+      const dim = hebrewDaysInMonth(m, year);
+      if (dayInYear <= dim) { month = m; break; }
+      dayInYear -= dim;
+    }
+  }
+  return { day: dayInYear, month, year };
+}
+// ─── END DEPRECATED ──────────────────────────────────────────────────────────
+
+const HEB_MONTH_NAMES = {
+  1:'ניסן', 2:'אייר', 3:'סיוון', 4:'תמוז', 5:'אב', 6:'אלול',
+  7:'תשרי', 8:'חשוון', 9:'כסלו', 10:'טבת', 11:'שבט', 12:'אדר',
+  13:'אדר ב׳'
+};
+
+// ─── Intl-based Hebrew date engine ──────────────────────────────────────────
+// Uses the browser's built-in Hebrew calendar via Intl.DateTimeFormat.
+// timeZone:'Asia/Jerusalem' ensures correctness for all browser locales.
+const _hebFormatter = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', {
+  day: 'numeric', month: 'long', year: 'numeric',
+  timeZone: 'Asia/Jerusalem'
+});
+
+// Hebrew digit chars → ASCII digit, for environments that return א-ת numerals
+const _hebDigitMap = {
+  '\u05D0':1,'\u05D1':2,'\u05D2':3,'\u05D3':4,'\u05D4':5,
+  '\u05D5':6,'\u05D6':7,'\u05D7':8,'\u05D8':9,'\u05D9':10,
+  '\u05DB':20,'\u05DC':30,'\u05DE':40,'\u05E0':50,
+  '\u05E1':60,'\u05E2':70,'\u05E4':80,'\u05E6':90,
+  '\u05E7':100,'\u05E8':200,'\u05E9':300,'\u05EA':400
+};
+function _parseIntlDay(raw) {
+  // First try plain ASCII digits (Chrome/Edge return e.g. "1", "14")
+  const ascii = parseInt(String(raw).replace(/[^0-9]/g, ''), 10);
+  if (!Number.isNaN(ascii) && ascii > 0) return ascii;
+  // Fallback: decode Hebrew letter-numerals (Safari may return e.g. "א׳", "י״ד")
+  let total = 0;
+  for (const ch of String(raw)) {
+    if (_hebDigitMap[ch]) total += _hebDigitMap[ch];
+  }
+  return total > 0 ? total : NaN;
+}
+
+function getHebrewDateParts(date) {
+  // Returns { day: string, month: string, year: string } from Intl
+  const parts = _hebFormatter.formatToParts(date);
+  return {
+    day:   parts.find(p => p.type === 'day')?.value   || '',
+    month: parts.find(p => p.type === 'month')?.value || '',
+    year:  parts.find(p => p.type === 'year')?.value  || ''
+  };
+}
+
+function getHebrewDay(date) {
+  // Active rendering path: Intl → numeric day → gematria string
+  const { day } = getHebrewDateParts(date);
+  const n = _parseIntlDay(day);
+  if (!Number.isNaN(n)) return numToHebrewLetters(n);
+  return day; // last-resort: return raw string from Intl
+}
+
+function toggleHebrewDates() {
+  hebrewDatesVisible = !hebrewDatesVisible;
+  const btn = document.getElementById('hebrewDateToggleBtn');
+  if (btn) {
+    btn.classList.toggle('hol-active', hebrewDatesVisible);
+    btn.title = hebrewDatesVisible ? 'הסתר תאריכים עבריים' : 'הצג תאריכים עבריים';
+  }
+  // re-render whichever view is active
+  if (currentView === 'calendar') renderCalendar();
+  // also refresh zoom if open
+  if (document.getElementById('monthZoomOverlay').classList.contains('open')) renderMonthZoom();
+}
+
+function toggleView() {
+  currentView = currentView === 'gantt' ? 'calendar' : 'gantt';
+  const btn     = document.getElementById('viewToggleBtn');
+  const holBtn  = document.getElementById('holidayToggleBtn');
+  const ganttEl = document.querySelector('.gantt-container');
+  const calEl   = document.getElementById('calendarView');
+  const hint    = document.querySelector('.calendar-hint');
+
+  if (currentView === 'calendar') {
+    ganttEl.style.display = 'none';
+    hint.style.display    = 'none';
+    calEl.style.display   = 'block';
+    holBtn.style.display  = 'flex';
+    const hebBtn = document.getElementById('hebrewDateToggleBtn');
+    if (hebBtn) hebBtn.style.display = 'flex';
+    btn.classList.add('cal-active');
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg> גאנט`;
+    renderCalendar();
+  } else {
+    ganttEl.style.display = '';
+    hint.style.display    = '';
+    calEl.style.display   = 'none';
+    holBtn.style.display  = 'none';
+    holBtn.classList.remove('hol-active');
+    holidayLabelsVisible  = false;
+    const hebBtn = document.getElementById('hebrewDateToggleBtn');
+    if (hebBtn) { hebBtn.style.display = 'none'; hebBtn.classList.remove('hol-active'); }
+    hebrewDatesVisible = false;
+    btn.classList.remove('cal-active');
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> לוח שנה`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CALENDAR RENDERER
+// ═══════════════════════════════════════════════════════════
+const CAT_COLORS = {
+  ניהול:    '#01696f',
+  פדגוגי:   '#2563a8',
+  'כוח אדם':'#b45309',
+  אירועים:  '#be185d',
+  שגרה:     '#7c3aab',
+  חופשה:    '#9ca3af',
+  general:  '#4b5563',
+  school:   '#2563a8',
+  blueprint:'#01696f',
+};
+
+function getPeriodForDate(d) {
+  return PERIODS.find(p => d >= p.start && d <= p.end) || null;
+}
+
+function getColorForPeriod(p) {
+  if (!p) return '#9ca3af';
+  return p.color || '#9ca3af';
+}
+
+// מחזיר את כל "אירועי לוח" — שני מקורות:
+// 1. אירועים ידניים שיש להם תאריך התחלה
+// 2. פעולות נבחרות (selectedActions) — ממוקמות בחודש האמצע של התקופה
+function getCalendarEvents() {
+  const events = [];
+
+  // --- מקור 1: אירועים ידניים ---
+  getAllEvents().forEach(evt => {
+    if (!evt.start) return;
+    const startD = parseLocalDate(evt.start);
+    const endD   = evt.end ? parseLocalDate(evt.end) : startD;
+    const period = getPeriodForDate(startD);
+    const color  = evt.curriculum
+      ? (CAT_COLORS[getCurriculumName(evt.curriculum)] || CAT_COLORS.general)
+      : (period ? period.color : CAT_COLORS.general);
+    events.push({
+      id: evt.id,
+      title: evt.title,
+      start: startD,
+      end: endD,
+      color,
+      source: 'manual',
+      periodId: evt.periodId,
+    });
+  });
+
+  // --- מקור 2: פעולות נבחרות — רק אם יש תאריכים מאושרים ---
+  Object.keys(selectedActions).forEach(key => {
+    const parts   = key.split('||');
+    // key format: year||periodId||section||idx
+    const keyYear = parseInt(parts[0]);
+    if (keyYear !== SCHOOL_YEAR_START_GREG) return;
+    const pId     = parts[1], section = parts[2], idx = parseInt(parts[3]);
+
+    // דלג אם אין תאריכים מאושרים
+    const dates = selectedActionDates[key];
+    if (!dates || !dates.dateStart || !dates.dateEnd) return;
+
+    const period  = PERIODS.find(p => p.id === pId);
+    if (!period || period.isHoliday) return;
+    const action  = period.actions[section]?.[idx];
+    if (!action) return;
+
+    // השתמש בתאריכים שנבחרו — לא באמצע התקופה
+    const startD = parseLocalDate(dates.dateStart);
+    const endD   = parseLocalDate(dates.dateEnd);
+
+    // צבע לפי שם הסקציה
+    let color = period.color;
+    const secLower = section.toLowerCase();
+    if (secLower.includes('ניהול'))    color = CAT_COLORS['ניהול'];
+    if (secLower.includes('פדגוג'))    color = CAT_COLORS['פדגוגי'];
+    if (secLower.includes('כוח'))      color = CAT_COLORS['כוח אדם'];
+    if (secLower.includes('אירוע'))    color = CAT_COLORS['אירועים'];
+    if (secLower.includes('שגרה'))     color = CAT_COLORS['שגרה'];
+    if (secLower.includes('סיום') || secLower.includes('הדברות')) color = CAT_COLORS['אירועים'];
+
+    // הסר תגית עדיפות מהטקסט
+    const text = action.text.replace(/^\[(חובה|מומלץ|רשות)\]\s*/, '');
+
+    events.push({
+      id: key,
+      title: action.icon + ' ' + text,
+      start: startD,
+      end:   endD,
+      color,
+      source: 'selected',
+      periodId: pId,
+      section,
+    });
+  });
+
+  // --- מקור 3: חגים כרקע ---
+  PERIODS.filter(p => p.isHoliday).forEach(p => {
+    events.push({
+      id: 'hol_' + p.id,
+      title: p.emoji + ' ' + p.name,
+      start: p.start,
+      end:   p.end,
+      color: '#9ca3af',
+      source: 'holiday',
+      periodId: p.id,
+    });
+  });
+
+  return events;
+}
+
+function parseLocalDate(str) {
+  const [y,m,d] = str.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+
+function isSameDay(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+
+  // Apply holiday-visible class if needed
+  if (holidayLabelsVisible) grid.classList.add('holidays-visible');
+  else grid.classList.remove('holidays-visible');
+
+  // ─── Legend ───
+  const legend = document.createElement('div');
+  legend.className = 'cal-legend';
+  legend.style.cssText = 'grid-column:1/-1;';
+  const cats = [
+    {label:'ניהול',        color: CAT_COLORS['ניהול']},
+    {label:'פדגוגי',       color: CAT_COLORS['פדגוגי']},
+    {label:'כוח אדם',     color: CAT_COLORS['כוח אדם']},
+    {label:'אירועים',      color: CAT_COLORS['אירועים']},
+    {label:'שגרה',         color: CAT_COLORS['שגרה']},
+    {label:'חגים/חופשות', color: '#d1d5db'},
+  ];
+  const datedActionsCount = Object.keys(selectedActions).filter(k => {
+    const d = selectedActionDates[k];
+    return d && d.dateStart && d.dateEnd;
+  }).length;
+  const hasSelected = datedActionsCount > 0;
+  const hasManual   = getAllEvents().some(e => e.start);
+  legend.innerHTML = `
+    <strong style="color:var(--color-text-muted);">מקרא:</strong>
+    ${cats.map(c => `<span class="cal-legend-item">
+      <span class="cal-legend-dot" style="background:${c.color}"></span>${c.label}
+    </span>`).join('')}
+    <span style="color:var(--color-text-faint);margin-right:auto;">
+      ${hasSelected ? `✅ ${datedActionsCount} פעולות עם תאריכים` : 'הגדר תאריכים לפעולות כדי שיופיעו כאן'}
+      ${hasManual   ? ` · 📌 ${getAllEvents().filter(e=>e.start).length} אירועים ידניים` : ''}
+    </span>`;
+  grid.appendChild(legend);
+
+  const events   = getCalendarEvents();
+  const now      = new Date();
+  const DAY_NAMES = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+
+  // ספטמבר–אוגוסט (12 חודשים)
+  const months = [];
+  for (let m = 8; m <= 11; m++) months.push(new Date(SCHOOL_YEAR_START_GREG, m, 1));
+  for (let m = 0; m <= 7;  m++) months.push(new Date(SCHOOL_YEAR_END_GREG,   m, 1));
+
+  months.forEach(monthStart => {
+    const year     = monthStart.getFullYear();
+    const month    = monthStart.getMonth();
+    const monthEnd = new Date(year, month + 1, 0);
+
+    const period = PERIODS.find(p =>
+      (monthStart >= p.start && monthStart <= p.end) ||
+      (monthEnd   >= p.start && monthEnd   <= p.end) ||
+      (p.start >= monthStart && p.end <= monthEnd)
+    );
+
+    const monthEl = document.createElement('div');
+    monthEl.className = 'cal-month';
+
+    // ─── Month Header (קליקבל לזום) ───
+    const hdr = document.createElement('div');
+    hdr.className = 'cal-month-header';
+    const monthName = monthStart.toLocaleDateString('he-IL', {month:'long', year:'numeric'});
+    hdr.innerHTML = `
+      <span class="cal-month-name">${monthName}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;color:var(--color-text-faint);" title="לחץ להגדלה">🔍</span>
+        <span class="cal-month-period-dot"
+              style="background:${period ? period.color : '#e5e7eb'}"
+              title="${period ? period.name : ''}"></span>
+      </div>`;
+    hdr.onclick = () => openMonthZoom(year, month);
+    monthEl.appendChild(hdr);
+
+    // ─── Weekday headers ───
+    const wdRow = document.createElement('div');
+    wdRow.className = 'cal-weekdays';
+    DAY_NAMES.forEach((n, i) => {
+      const wd = document.createElement('div');
+      wd.className = 'cal-wd' + (i===5 ? ' wd-fri' : i===6 ? ' wd-sat' : '');
+      wd.textContent = n;
+      wdRow.appendChild(wd);
+    });
+    monthEl.appendChild(wdRow);
+
+    // ─── Days ───
+    const daysEl = document.createElement('div');
+    daysEl.className = 'cal-days';
+
+    const firstDow   = monthStart.getDay(); // 0=Sun
+    const daysInMonth = monthEnd.getDate();
+
+    for (let i = 0; i < firstDow; i++) {
+      const empty = document.createElement('div');
+      empty.className = 'cal-day other-month';
+      daysEl.appendChild(empty);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date    = new Date(year, month, d);
+      const dow     = date.getDay();
+      const isToday = isSameDay(date, now);
+      const isShab  = dow === 6;
+      const holEvt  = events.find(e => e.source === 'holiday' && date >= e.start && date <= e.end);
+      const dayEvts = events.filter(e => e.source !== 'holiday' && date >= e.start && date <= e.end);
+
+      const dayEl = document.createElement('div');
+      dayEl.className = 'cal-day'
+        + (isToday ? ' is-today'   : '')
+        + (isShab  ? ' is-shabbat' : '')
+        + (holEvt  ? ' is-holiday' : '');
+
+      // מספר יום
+      const numEl = document.createElement('div');
+      numEl.className = 'cal-day-num';
+      numEl.textContent = d;
+      dayEl.appendChild(numEl);
+
+      // תאריך עברי — מתחת למספר (מוצג רק כשהפיצ'ר פעיל)
+      if (hebrewDatesVisible) {
+        const hebEl = document.createElement('div');
+        hebEl.className = 'cal-heb-day';
+        hebEl.textContent = getHebrewDay(date);
+        dayEl.appendChild(hebEl);
+      }
+
+      // שם חג (מוסתר ברירת מחדל, נחשף ע"י .holidays-visible)
+      if (holEvt) {
+        const holLabel = document.createElement('div');
+        holLabel.className = 'cal-holiday-label';
+        // שם קצר: הסר אמוג'י מהתחלה
+        holLabel.textContent = holEvt.title.replace(/^[\u{1F300}-\u{1FFFF}\u{2600}-\u{27BF}\s]+/u, '').trim();
+        holLabel.title = holEvt.title;
+        dayEl.appendChild(holLabel);
+      }
+
+      // אירועים (עד 2 בתצוגה קטנה)
+      const MAX_SHOW = 2;
+      dayEvts.slice(0, MAX_SHOW).forEach(evt => {
+        const evtEl = document.createElement('div');
+        evtEl.className = 'cal-event';
+        evtEl.style.background = evt.color;
+        evtEl.title = evt.title;
+        evtEl.textContent = evt.title;
+        evtEl.onclick = e => { e.stopPropagation(); showDayPopup(e, date, dayEvts); };
+        dayEl.appendChild(evtEl);
+      });
+
+      if (dayEvts.length > MAX_SHOW) {
+        const more = document.createElement('div');
+        more.className = 'cal-overflow';
+        more.textContent = `+${dayEvts.length - MAX_SHOW} נוספים`;
+        more.onclick = e => { e.stopPropagation(); showDayPopup(e, date, dayEvts); };
+        dayEl.appendChild(more);
+      }
+
+      dayEl.onclick = () => {
+        if (dayEvts.length) showDayPopup({clientX: 100, clientY: 200}, date, dayEvts);
+      };
+
+      daysEl.appendChild(dayEl);
+    }
+
+    monthEl.appendChild(daysEl);
+    grid.appendChild(monthEl);
+  });
+}
+
+// ─── DAY POPUP ───
+let _calPopup = null;
+function showDayPopup(mouseEvt, date, evts) {
+  closeCalPopup();
+  const popup = document.createElement('div');
+  popup.className = 'cal-day-popup';
+  _calPopup = popup;
+
+  const dateStr = date.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long'});
+  let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3);">
+    <h4 style="margin:0;font-size:var(--text-sm);">📅 ${dateStr}</h4>
+    <button onclick="closeCalPopup()" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--color-text-muted);">✕</button>
+  </div>`;
+
+  evts.forEach(evt => {
+    const label = evt.source==='manual' ? 'אירוע' : evt.source==='selected' ? 'פעולה נבחרת' : 'חופשה';
+    html += `<div class="cal-popup-evt" onclick="${evt.source==='manual'?`openEditModal('${evt.id}')`:evt.periodId?`closeCalPopup();if(currentView==='calendar')toggleView();openDetail('${evt.periodId}')`:'closeCalPopup()'}">
+      <span class="cal-popup-dot" style="background:${evt.color}"></span>
+      <div>
+        <div style="font-weight:600;">${evt.title}</div>
+        <div style="color:var(--color-text-faint);font-size:10px;">${label}${evt.source==='manual'&&evt.end&&evt.end!==evt.start?' · עד '+formatDate(evt.end):''}</div>
+      </div>
+    </div>`;
+  });
+
+  popup.innerHTML = html;
+
+  // מיקום
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const x  = Math.min(mouseEvt.clientX + 8, vw - 340);
+  const y  = Math.min(mouseEvt.clientY + 8, vh - 300);
+  popup.style.cssText += `left:${x}px;top:${y}px;`;
+
+  document.body.appendChild(popup);
+  setTimeout(() => document.addEventListener('click', closeCalPopup, {once:true}), 50);
+}
+
+function closeCalPopup() {
+  if (_calPopup) { _calPopup.remove(); _calPopup = null; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ACTION DATES STORAGE
+// selectedActionDates: { [actionKey]: { dateStart: ISO, dateEnd: ISO } }
+// ═══════════════════════════════════════════════════════════
+let selectedActionDates = (() => {
+  try { return JSON.parse(localStorage.getItem('gantt_actionDates') || '{}'); } catch(_) { return {}; }
+})();
+
+function saveActionDates() {
+  try { localStorage.setItem('gantt_actionDates', JSON.stringify(selectedActionDates)); } catch(_) {}
+}
+
+// Migrate: ensure every selectedActions key has an entry (even if empty)
+function migrateActionDates() {
+  Object.keys(selectedActions).forEach(k => {
+    if (!selectedActionDates[k]) {
+      selectedActionDates[k] = { dateStart: '', dateEnd: '' };
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCHOOL-YEAR MONTH ORDER  (ספטמבר → אוגוסט)
+// ═══════════════════════════════════════════════════════════
+const SCHOOL_MONTHS_ORDER = [8,9,10,11,0,1,2,3,4,5,6,7]; // JS month indices
+const SCHOOL_MONTHS_HE = {
+  8:'ספטמבר', 9:'אוקטובר', 10:'נובמבר', 11:'דצמבר',
+  0:'ינואר',  1:'פברואר',  2:'מרץ',     3:'אפריל',
+  4:'מאי',    5:'יוני',    6:'יולי',    7:'אוגוסט'
+};
+
+/**
+ * Given dateStart (ISO) and dateEnd (ISO), return sorted array of month indices
+ * (JS 0-based) that fall within the range, ordered by school year.
+ */
+function calcMonthsInRange(dateStart, dateEnd) {
+  if (!dateStart || !dateEnd) return [];
+  const s = new Date(dateStart + 'T00:00:00');
+  const e = new Date(dateEnd   + 'T00:00:00');
+  if (isNaN(s) || isNaN(e) || s > e) return [];
+
+  const months = [];
+  const cur = new Date(s.getFullYear(), s.getMonth(), 1);
+  const endMonth = new Date(e.getFullYear(), e.getMonth(), 1);
+
+  while (cur <= endMonth) {
+    months.push(cur.getMonth());
+    cur.setMonth(cur.getMonth() + 1);
+  }
+
+  // Sort by school-year order
+  return months.sort((a, b) =>
+    SCHOOL_MONTHS_ORDER.indexOf(a) - SCHOOL_MONTHS_ORDER.indexOf(b)
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATE PICKER MODAL STATE
+// ═══════════════════════════════════════════════════════════
+let _dpm = {
+  open:       false,
+  actionKey:  '',
+  taskText:   '',
+  periodId:   '',
+  section:    '',
+  idx:        -1,
+  onConfirm:  null
+};
+
+function openDatePickerModal({ actionKey, taskText, dateStart, dateEnd, periodId, section, idx }) {
+  _dpm = { open: true, actionKey, taskText, periodId, section, idx };
+
+  const modal = document.getElementById('datePickerModal');
+  const taskEl = document.getElementById('dpm-task-name');
+  const startEl = document.getElementById('modalDateStart');
+  const endEl   = document.getElementById('modalDateEnd');
+
+  // Sanitise task text for display (no innerHTML with user data)
+  taskEl.textContent = taskText || '—';
+
+  startEl.value = dateStart || '';
+  endEl.value   = dateEnd   || '';
+
+  // הצג כפתור הסרה רק אם הפעולה כבר נבחרת
+  const removeBtn = document.getElementById('dpm-remove-btn');
+  if (removeBtn) removeBtn.style.display = selectedActions[actionKey] ? 'inline-flex' : 'none';
+
+  dpmUpdatePreview();
+  modal.style.display = 'block';
+  _dpm.open = true;
+
+  // Trap focus + auto-focus first input
+  requestAnimationFrame(() => { startEl.focus(); });
+}
+
+function dpmCancel() {
+  document.getElementById('datePickerModal').style.display = 'none';
+  _dpm.open = false;
+}
+
+function dpmRemove() {
+  const key = _dpm.actionKey;
+  delete selectedActions[key];
+  delete selectedActionDates[key];
+  saveSelectedActions();
+  saveActionDates();
+  dpmCancel();
+  if (_dpm.periodId) openDetail(_dpm.periodId);
+  if (currentView === 'calendar') renderCalendar();
+  renderActionJournal();
+  showToast('🗑 הפעולה הוסרה', 'success');
+}
+
+function dpmConfirm() {
+  const dateStart = document.getElementById('modalDateStart').value;
+  const dateEnd   = document.getElementById('modalDateEnd').value;
+
+  if (!dateStart || !dateEnd) {
+    showToast('יש להזין תאריך התחלה וסיום.', 'error');
+    return;
+  }
+  if (dateStart > dateEnd) {
+    showToast('תאריך ההתחלה חייב להיות לפני תאריך הסיום.', 'error');
+    return;
+  }
+
+  const key = _dpm.actionKey;
+
+  // Mark action as selected if not already
+  if (!selectedActions[key]) {
+    selectedActions[key] = true;
+    saveSelectedActions();
+  }
+
+  // Store dates
+  selectedActionDates[key] = { dateStart, dateEnd };
+  saveActionDates();
+
+  dpmCancel();
+
+  // Re-open detail panel to reflect changes
+  if (_dpm.periodId) {
+    openDetail(_dpm.periodId);
+  }
+
+  // Refresh journal
+  renderActionJournal();
+
+  showToast('✅ התאריכים נשמרו לפעולה!', 'success');
+}
+
+function dpmUpdatePreview() {
+  const dateStart = document.getElementById('modalDateStart').value;
+  const dateEnd   = document.getElementById('modalDateEnd').value;
+  const chipsEl   = document.getElementById('dpm-chips');
+
+  const months = calcMonthsInRange(dateStart, dateEnd);
+  if (!months.length) {
+    chipsEl.innerHTML = '<span style="color:var(--color-text-faint);font-size:var(--text-xs);">בחר תאריכים להצגת תצוגה מקדימה</span>';
+    return;
+  }
+
+  chipsEl.innerHTML = months
+    .map(m => `<span class="datemodal-chip">${escapeHtml(SCHOOL_MONTHS_HE[m])}</span>`)
+    .join('');
+}
+
+// ─── Keyboard: Escape closes modal, focus trap ───
+document.addEventListener('keydown', e => {
+  if (!_dpm.open) return;
+  if (e.key === 'Escape') { dpmCancel(); return; }
+  // Basic focus trap inside modal box
+  if (e.key === 'Tab') {
+    const box = document.getElementById('datePickerBox');
+    const focusable = Array.from(
+      box.querySelectorAll('input,button,[tabindex]:not([tabindex="-1"])')
+    ).filter(el => !el.disabled);
+    if (!focusable.length) return;
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  }
+});
+
+// Close on overlay click (outside box)
+document.getElementById('datePickerOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('datePickerOverlay')) dpmCancel();
+});
+
+// ═══════════════════════════════════════════════════════════
+// OVERRIDE toggleActionSelection — intercept with date modal
+// ═══════════════════════════════════════════════════════════
+function toggleActionSelection(periodId, section, idx) {
+  const key = getActionKey(periodId, section, idx);
+  const per = PERIODS.find(p => p.id === periodId);
+  if (!per) return;
+
+  const action    = per.actions[section]?.[idx];
+  const taskText  = action ? action.text.replace(/^\[(חובה|מומלץ|רשות)\]\s*/, '') : '';
+
+  if (selectedActions[key]) {
+    // Already selected — open modal pre-populated to edit dates, double-click behavior
+    const existing = selectedActionDates[key] || {};
+    openDatePickerModal({
+      actionKey:  key,
+      taskText,
+      dateStart:  existing.dateStart || '',
+      dateEnd:    existing.dateEnd   || '',
+      periodId,
+      section,
+      idx
+    });
+  } else {
+    // New selection — open modal
+    openDatePickerModal({
+      actionKey: key,
+      taskText,
+      dateStart: '',
+      dateEnd:   '',
+      periodId,
+      section,
+      idx
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER ACTION JOURNAL
+// ═══════════════════════════════════════════════════════════
+function renderActionJournal() {
+  const card   = document.getElementById('actionJournalCard');
+  const body   = document.getElementById('actionJournalBody');
+  if (!card || !body) return;
+
+  // Gather all dated entries
+  const entries = [];
+  Object.keys(selectedActions).forEach(key => {
+    const dates = selectedActionDates[key];
+    if (!dates || !dates.dateStart || !dates.dateEnd) return;
+
+    const parts = key.split('||');
+    // key format: year||periodId||section||idx
+    const keyYear = parseInt(parts[0]);
+    if (keyYear !== SCHOOL_YEAR_START_GREG) return;
+    const periodId = parts[1], section = parts[2], idx = parseInt(parts[3]);
+    const per = PERIODS.find(p => p.id === periodId);
+    if (!per) return;
+    const action = per.actions[section]?.[idx];
+    if (!action) return;
+
+    const taskText = action.text.replace(/^\[(חובה|מומלץ|רשות)\]\s*/, '');
+    entries.push({
+      taskText,
+      periodName: per.name,
+      periodColor: per.color,
+      dateStart: dates.dateStart,
+      dateEnd:   dates.dateEnd
+    });
+  });
+
+  if (!entries.length) {
+    card.style.display = 'none';
+    return;
+  }
+
+  // Sort chronologically by dateStart
+  entries.sort((a, b) => (a.dateStart > b.dateStart ? 1 : -1));
+
+  card.style.display = 'block';
+
+  const fmt = iso => {
+    if (!iso) return '';
+    const [y,m,d] = iso.split('-');
+    return `${parseInt(d)}/${parseInt(m)}/${y.slice(2)}`;
+  };
+
+  body.innerHTML = entries.map(e => `
+    <div class="journal-entry">
+      <div class="journal-dot" style="background:${escapeHtml(e.periodColor)}"></div>
+      <div class="journal-entry-body">
+        <div class="journal-entry-name">${escapeHtml(e.taskText)}</div>
+        <div class="journal-entry-meta">📌 ${escapeHtml(e.periodName)}</div>
+      </div>
+      <div class="journal-entry-dates">📅 ${escapeHtml(fmt(e.dateStart))} — ${escapeHtml(fmt(e.dateEnd))}</div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PATCH: render date badges on selected action cards in detail panel
+// ═══════════════════════════════════════════════════════════
+
+// Store original openDetail, then replace with extended version
+(function patchOpenDetail() {
+  const origOpenDetail = window.openDetail;
+  window.openDetail = function(periodId) {
+    origOpenDetail(periodId);
+
+    // After render, find action cards and inject date badges for dated ones
+    const per = PERIODS.find(p => p.id === periodId);
+    if (!per) return;
+
+    // Re-query the rendered action cards
+    const detailBody = document.getElementById('detailBody');
+    if (!detailBody) return;
+
+    const allCards = detailBody.querySelectorAll('.action-card');
+    let cardIdx = 0;
+    Object.entries(per.actions).forEach(([section, items]) => {
+      items.forEach((item, idx) => {
+        const key = getActionKey(periodId, section, idx);
+        const dates = selectedActionDates[key];
+        if (dates && dates.dateStart && dates.dateEnd) {
+          const card = allCards[cardIdx];
+          if (card) {
+            const fmt = iso => {
+              if (!iso) return '';
+              const [y,m,d] = iso.split('-');
+              return `${parseInt(d)}/${parseInt(m)}/${y.slice(2)}`;
+            };
+            const badge = document.createElement('span');
+            badge.className = 'action-card-dates';
+            badge.title = 'לחץ לעריכת תאריכים';
+            badge.textContent = `📅 ${fmt(dates.dateStart)} — ${fmt(dates.dateEnd)}`;
+            card.appendChild(badge);
+          }
+        }
+        cardIdx++;
+      });
+    });
+  };
+})();
+
+async function init() {
+  const badge = document.getElementById('yearBadge');
+  if (badge) {
+    badge.textContent = `${SCHOOL_YEAR_START_GREG}/${String(SCHOOL_YEAR_END_GREG).slice(2)}`;
+  }
+
+  await fetchHolidays();
+  PERIODS    = buildPeriods();
+  YEAR_TOTAL = (YEAR_END - YEAR_START) / (1000*60*60*24);
+
+  migrateActionDates();
+
+  renderTodayStrip();
+  renderProgress();
+  renderGantt();
+  updateContextBar();
+  updateSaveButtonState();
+  renderActionJournal();
+  initMessageBus();
+}
+
+init();
+</script>
+</body>
+</html>

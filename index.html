@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>פורטל ניהול בית ספר</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+/* ═══════════════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════════════ */
+:root {
+  --primary:   #1a3a5c;
+  --primary-d: #12294a;
+  --teal:      #01696f;
+  --purple:    #7c3aed;
+  --font: 'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;
+  --nav-w: 200px;
+  --header-h: 50px;
+  --status-h: 32px;
+  --shadow: 0 2px 10px rgba(0,0,0,0.1);
+  --border: #e4e9f0;
+  --radius: 10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-font-smoothing:antialiased;}
+body{
+  font-family:var(--font);background:#e8eaed;
+  height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* ═══════════════════════════════════════════════════
+   LOGIN SCREEN
+═══════════════════════════════════════════════════ */
+#loginScreen{
+  position:fixed;inset:0;z-index:99990;
+  background:linear-gradient(135deg,#1a3a5c 0%,#01696f 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.login-card{
+  background:#fff;border-radius:20px;padding:44px 40px;
+  max-width:420px;width:90%;box-shadow:0 30px 80px rgba(0,0,0,0.3);
+  text-align:center;
+}
+.login-logo{font-size:3rem;margin-bottom:14px;}
+.login-title{font-size:1.4rem;font-weight:800;color:#1a3a5c;margin-bottom:6px;}
+.login-sub{font-size:0.88rem;color:#64748b;margin-bottom:28px;}
+
+.login-roles{display:flex;flex-direction:column;gap:10px;margin-bottom:22px;}
+.login-role-btn{
+  padding:14px 16px;border-radius:12px;border:2px solid var(--border);
+  background:#f8fafc;cursor:pointer;font-family:var(--font);
+  font-size:0.95rem;font-weight:700;color:#1a3a5c;
+  transition:all .2s;display:flex;align-items:center;gap:12px;justify-content:center;
+}
+.login-role-btn:hover,.login-role-btn.selected{
+  border-color:var(--teal);background:#f0fdfa;color:var(--teal);
+}
+.login-role-btn.selected{border-width:2.5px;}
+
+#loginGoogleSection{display:none;margin-top:4px;}
+.login-role-label{
+  font-size:0.82rem;font-weight:700;color:var(--teal);
+  margin-bottom:10px;
+}
+#loginGoogleBtn{display:flex;justify-content:center;margin-bottom:8px;}
+.login-back{
+  background:none;border:none;color:#94a3b8;cursor:pointer;
+  font-family:var(--font);font-size:0.8rem;margin-top:6px;
+}
+.login-back:hover{color:#475569;}
+#loginError{
+  display:none;color:#dc2626;font-size:0.82rem;
+  background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+  padding:10px 14px;margin-top:12px;line-height:1.5;text-align:right;
+}
+
+/* ═══════════════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════════════ */
+#portalHeader{
+  height:var(--header-h);background:var(--primary);
+  display:flex;align-items:center;gap:10px;padding:0 16px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.2);flex-shrink:0;z-index:200;
+}
+.portal-logo{
+  width:28px;height:28px;background:linear-gradient(135deg,var(--teal),#2563a8);
+  border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-size:0.9rem;flex-shrink:0;
+}
+.portal-title{font-size:0.92rem;font-weight:800;color:#fff;flex-shrink:0;}
+.portal-title span{font-weight:400;opacity:.55;font-size:0.68rem;display:block;}
+.hbadge{
+  background:rgba(255,255,255,0.11);border:1px solid rgba(255,255,255,0.18);
+  color:#fff;font-size:0.7rem;font-weight:600;
+  padding:2px 9px;border-radius:20px;white-space:nowrap;
+}
+.hbadge.empty{opacity:.3;}
+#syncBadge{
+  display:none;align-items:center;gap:4px;background:var(--teal);color:#fff;
+  font-size:0.7rem;font-weight:700;padding:3px 10px;border-radius:20px;
+}
+#syncBadge.show{display:flex;animation:pin .3s ease;}
+@keyframes pin{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.sync-dot{width:6px;height:6px;background:#7ff7c5;border-radius:50%;animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.header-spacer{flex:1;}
+
+/* user badge in header */
+#userBadge{
+  display:none;align-items:center;gap:8px;
+  background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);
+  border-radius:20px;padding:3px 12px 3px 6px;
+}
+#userBadge.show{display:flex;}
+#userAvatar{
+  width:24px;height:24px;border-radius:50%;object-fit:cover;
+  background:rgba(255,255,255,0.2);display:flex;align-items:center;
+  justify-content:center;font-size:0.8rem;color:#fff;font-weight:700;
+}
+#userName{color:#fff;font-size:0.75rem;font-weight:600;}
+#userRoleLabel{
+  color:rgba(255,255,255,0.6);font-size:0.68rem;font-weight:400;
+  border-right:1px solid rgba(255,255,255,0.2);padding-right:8px;margin-right:4px;
+}
+
+#headerSaveBtn{
+  background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);
+  color:#fff;font-family:var(--font);font-size:0.72rem;font-weight:600;
+  padding:4px 12px;border-radius:6px;cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;gap:5px;
+}
+#headerSaveBtn:hover{background:rgba(255,255,255,0.2);}
+.btn-logout{
+  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);
+  color:rgba(255,255,255,0.7);font-family:var(--font);font-size:0.7rem;font-weight:600;
+  padding:3px 10px;border-radius:5px;cursor:pointer;transition:all .15s;
+}
+.btn-logout:hover{background:rgba(255,255,255,0.15);color:#fff;}
+
+/* ═══════════════════════════════════════════════════
+   BODY AREA
+═══════════════════════════════════════════════════ */
+#bodyArea{flex:1;display:flex;overflow:hidden;min-height:0;}
+
+/* ─── SIDEBAR ─── */
+#sideNav{
+  width:var(--nav-w);min-width:var(--nav-w);background:var(--primary);
+  display:flex;flex-direction:column;overflow-y:auto;
+  flex-shrink:0;border-left:1px solid rgba(255,255,255,0.06);
+}
+.nav-section-header{
+  font-size:0.58rem;color:rgba(255,255,255,0.38);
+  padding:14px 14px 4px;text-transform:uppercase;letter-spacing:1.2px;user-select:none;
+}
+.nav-section-header:not(:first-child){
+  margin-top:4px;border-top:1px solid rgba(255,255,255,0.07);padding-top:12px;
+}
+.nav-item{
+  display:flex;align-items:center;gap:8px;padding:9px 14px;
+  color:rgba(255,255,255,0.7);font-size:0.79rem;font-weight:500;
+  cursor:pointer;border:none;background:none;font-family:var(--font);
+  text-align:right;width:100%;border-inline-start:3px solid transparent;
+  transition:all .13s;user-select:none;
+}
+.nav-item:hover{background:rgba(255,255,255,0.07);color:#fff;}
+.nav-item.active{background:rgba(255,255,255,0.12);color:#fff;font-weight:600;border-inline-start-color:#7ec8e3;}
+.nav-item.active-teal{border-inline-start-color:#7ff7c5;}
+.nav-item.active-purple{border-inline-start-color:#c4b5fd;}
+.nav-item .ni-icon{font-size:.95rem;width:20px;text-align:center;flex-shrink:0;}
+.nav-item .ni-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:rgba(255,255,255,0.15);margin-right:auto;flex-shrink:0;transition:background .3s;
+}
+.nav-item .ni-dot.on{background:#7ee8a2;box-shadow:0 0 4px #7ee8a2;}
+
+
+/* ─── CONTENT ─── */
+#contentArea{
+  flex:1;display:flex;flex-direction:column;overflow:hidden;
+  min-width:0;background:#e8eaed;padding:3px;gap:3px;
+}
+.frame-wrapper{
+  flex:1;display:none;flex-direction:column;background:#fff;
+  border-radius:7px;overflow:hidden;box-shadow:var(--shadow);min-height:0;
+}
+.frame-wrapper.active{display:flex;}
+.frame-bar{
+  height:24px;flex-shrink:0;display:flex;align-items:center;gap:6px;
+  padding:0 10px;font-size:.65rem;font-weight:700;letter-spacing:.4px;
+  text-transform:uppercase;color:rgba(255,255,255,0.75);
+}
+.frame-bar.bar-plan    {background:var(--primary);}
+.frame-bar.bar-gantt   {background:var(--teal);}
+.frame-bar.bar-mtss    {background:var(--purple);}
+.frame-bar .fb-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:rgba(255,255,255,0.25);transition:all .3s;
+}
+.frame-bar .fb-dot.on{background:#7ee8a2;box-shadow:0 0 4px #7ee8a2;}
+iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
+
+/* ─── STATUS BAR ─── */
+#statusBar{
+  height:var(--status-h);background:var(--primary-d);
+  display:flex;align-items:center;padding:0 14px;gap:0;
+  flex-shrink:0;font-size:.67rem;color:rgba(255,255,255,0.45);overflow:hidden;
+}
+.sb-item{
+  display:flex;align-items:center;gap:4px;
+  padding:0 10px;border-left:1px solid rgba(255,255,255,0.08);white-space:nowrap;
+}
+.sb-item:first-child{padding-right:0;border-left:none;}
+.sb-val{color:#fff;font-weight:600;}
+.sb-val.empty{color:rgba(255,255,255,0.2);font-weight:400;}
+#sbStatus{color:rgba(255,255,255,0.3);margin-right:auto;padding-right:10px;}
+
+/* ─── TOAST ─── */
+#portalToast{
+  position:fixed;top:60px;left:50%;
+  transform:translateX(-50%) translateY(-6px);
+  background:var(--primary);color:#fff;font-size:.78rem;font-weight:600;
+  padding:8px 16px;border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,0.18);
+  opacity:0;pointer-events:none;transition:all .2s;z-index:9999;white-space:nowrap;
+}
+#portalToast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#portalToast.ok    {background:#16a34a;}
+#portalToast.sync  {background:var(--teal);}
+#portalToast.mtss  {background:var(--purple);}
+#portalToast.err   {background:#b91c1c;}
+
+/* ═══════════════════════════════════════════════════
+   SM BADGE
+═══════════════════════════════════════════════════ */
+#smBadge{
+  position:fixed;bottom:18px;left:18px;width:40px;height:40px;
+  border-radius:50%;background:linear-gradient(135deg,#f1c40f,#e67e00);
+  color:#fff;font-family:var(--font);font-size:.8rem;font-weight:900;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  z-index:99999;opacity:0;transition:opacity .3s,box-shadow .3s,transform .2s;
+  pointer-events:auto;
+}
+#smBadge:hover{opacity:1!important;box-shadow:0 4px 20px rgba(241,196,15,0.8);transform:scale(1.08);}
+#smBadgeZone{position:fixed;bottom:0;left:0;width:80px;height:80px;z-index:99998;pointer-events:auto;}
+#smBadgeZone:hover + #smBadge,#smBadge:hover{opacity:1;}
+
+/* ═══════════════════════════════════════════════════
+   STAFF PERMISSIONS PANEL
+═══════════════════════════════════════════════════ */
+.sup-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.sup-modal{background:#fff;border-radius:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+.sup-modal-header{padding:22px 28px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.sup-modal-title{font-size:1.1rem;font-weight:800;color:#1a3a5c;display:flex;align-items:center;gap:10px;}
+.sup-modal-close{background:none;border:none;cursor:pointer;font-size:1.2rem;color:#8a95a3;padding:4px 8px;border-radius:6px;transition:background .2s;}
+.sup-modal-close:hover{background:#f0f2f5;}
+.sup-modal-body{padding:24px 28px;overflow-y:auto;flex:1;}
+
+.perm-table{width:100%;border-collapse:collapse;}
+.perm-staff-row{border-bottom:2px solid var(--border);}
+.perm-staff-row:last-child{border-bottom:none;}
+.perm-identity-cell{padding:16px 0;}
+
+/* Identity inputs row */
+.perm-identity{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+.perm-input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;
+  font-family:var(--font);font-size:.82rem;background:#fff;color:#1e293b;outline:none;}
+.perm-input:focus{border-color:var(--teal);}
+.perm-email{width:200px;}
+.perm-del{background:none;border:1px solid #fecaca;color:#dc2626;border-radius:6px;
+  padding:5px 10px;font-family:var(--font);font-size:.78rem;cursor:pointer;white-space:nowrap;}
+.perm-del:hover{background:#fee2e2;}
+
+/* Groups grid */
+.perm-sections-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+.perm-group{background:#f8fafc;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.perm-group-header{background:var(--primary);color:rgba(255,255,255,0.85);
+  font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.7px;
+  padding:5px 10px;}
+.perm-group-items{padding:6px 8px;display:flex;flex-direction:column;gap:4px;}
+
+/* Toggle row */
+.perm-toggle-row{display:flex;align-items:center;justify-content:space-between;
+  gap:6px;padding:3px 2px;}
+.perm-section-label{font-size:.78rem;color:#334155;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;max-width:90px;}
+.perm-toggle-wrap{display:flex;gap:2px;flex-shrink:0;}
+.perm-btn{padding:2px 7px;border:1px solid var(--border);border-radius:4px;
+  background:#fff;font-family:var(--font);font-size:.7rem;cursor:pointer;
+  color:#64748b;transition:all .12s;}
+.perm-btn:hover{background:#f1f5f9;color:#1e293b;}
+.perm-btn-active{background:var(--primary);color:#fff;border-color:var(--primary);}
+.perm-btn-active:hover{background:var(--primary-d);}
+.sup-save-btn{background:#01696f;color:#fff;border:none;border-radius:8px;padding:9px 22px;font-family:var(--font);font-size:.88rem;font-weight:700;cursor:pointer;transition:background .15s;}
+.sup-save-btn:hover{background:#015e63;}
+.perm-add-row{background:none;border:1px dashed var(--teal);color:var(--teal);border-radius:7px;padding:7px 16px;font-family:var(--font);font-size:.82rem;cursor:pointer;margin-bottom:14px;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">🏫</div>
+    <div class="login-title">פורטל ניהול בית הספר</div>
+    <div class="login-sub">בחר/י את סוג הכניסה שלך</div>
+
+    <div class="login-roles" id="roleButtons">
+      <button class="login-role-btn" onclick="selectRole('principal',this)">
+        <span style="font-size:1.3rem;">🎓</span> מנהל/ת בית ספר
+      </button>
+      <button class="login-role-btn" onclick="selectRole('staff_member',this)">
+        <span style="font-size:1.3rem;">👤</span> בעל/ת תפקיד
+      </button>
+    </div>
+
+    <div id="loginGoogleSection">
+      <div class="login-role-label" id="loginRoleLabel"></div>
+      <div id="loginGoogleBtn"></div>
+      <button class="login-back" onclick="backToRoles()">← חזרה לבחירת תפקיד</button>
+    </div>
+
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     APP SHELL (hidden until login)
+══════════════════════════════════════════════ -->
+<div id="appShell" style="display:none;flex-direction:column;height:100dvh;">
+
+<!-- HEADER -->
+<header id="portalHeader">
+  <div class="portal-logo">🏫</div>
+  <div class="portal-title">
+    פורטל ניהול
+    <span>תכנית עבודה · גאנט · MTSS · מלאי · תקציב</span>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center;margin-right:8px;">
+    <span id="hbSchool" class="hbadge empty">שם בית הספר</span>
+    <span id="hbYear"   class="hbadge empty">שנה</span>
+  </div>
+  <div id="syncBadge"><div class="sync-dot"></div><span id="syncCount">0</span> סונכרנו</div>
+  <div class="header-spacer"></div>
+
+  <!-- User badge -->
+  <div id="userBadge">
+    <div id="userAvatar"></div>
+    <span id="userRoleLabel"></span>
+    <span id="userName"></span>
+  </div>
+  <button class="btn-logout" onclick="portalLogout()">יציאה</button>
+  <button id="headerSaveBtn" onclick="triggerSave()">💾 שמור הכל</button>
+</header>
+
+<!-- BODY -->
+<div id="bodyArea">
+
+  <!-- SIDEBAR -->
+  <nav id="sideNav">
+
+    <div class="nav-section-header">תכנית עבודה</div>
+    <button class="nav-item active" data-target="plan" data-section="s0" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">🏫</span> פרטי מסגרת
+      <span class="ni-dot" id="ndPlan"></span>
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s1" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📊</span> תמונת מצב
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s2" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">🎯</span> יעדי על
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s3" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">🗂️</span> זירות ניהול
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s4" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📅</span> תכנון רבעוני
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s5" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">🔁</span> שגרות הנהלה
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s6" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📝</span> סיכומי מעקב
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s_dash" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📈</span> דשבורד
+    </button>
+
+    <div class="nav-section-header">כלים</div>
+    <button class="nav-item" data-target="gantt" data-perm="gantt" onclick="navClick(this)">
+      <span class="ni-icon">📅</span> גאנט שנתי
+      <span class="ni-dot" id="ndGantt"></span>
+    </button>
+
+    <div class="nav-section-header">שעות</div>
+    <button class="nav-item" data-target="plan" data-section="s_hours" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">🕐</span> סדין שעות
+    </button>
+    <button class="nav-item" data-target="plan" data-section="s_schedule" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📚</span> שיבוץ מקצועות
+    </button>
+
+    <div class="nav-section-header">מיפוי MTSS</div>
+    <button class="nav-item" data-target="mtss" data-tab="learning" data-perm="mtss" onclick="navClick(this)">
+      <span class="ni-icon">📚</span> סביבות למידה
+      <span class="ni-dot" id="ndMtss"></span>
+    </button>
+    <button class="nav-item" data-target="mtss" data-tab="support" data-perm="mtss" onclick="navClick(this)">
+      <span class="ni-icon">🤝</span> מיפוי משאבים
+    </button>
+    <button class="nav-item" data-target="mtss" data-tab="staffSupport" data-perm="mtss" onclick="navClick(this)">
+      <span class="ni-icon">👩‍🏫</span> משאבים למורים
+    </button>
+
+    <div class="nav-section-header">אוכלוסיות מיוחדות</div>
+    <button class="nav-item" data-target="mtss" data-tab="populations" data-perm="mtss" onclick="navClick(this)">
+      <span class="ni-icon">👥</span> מיפוי אוכלוסיות
+    </button>
+
+    <div class="nav-section-header">משאבים</div>
+    <button class="nav-item" data-target="plan" data-section="sinventory" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📦</span> מלאי ציוד
+    </button>
+    <button class="nav-item" data-target="plan" data-section="sbudget" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">💰</span> תקציב
+    </button>
+
+    <div class="nav-section-header" id="navAdminSection" style="display:none;">ניהול</div>
+    <button class="nav-item" id="navStaffPerms" style="display:none;" onclick="openStaffPermissions()">
+      <span class="ni-icon">🔑</span> הרשאות צוות
+    </button>
+
+  </nav>
+
+  <!-- CONTENT -->
+  <div id="contentArea">
+
+    <div class="frame-wrapper active" id="wrapPlan">
+      <div class="frame-bar bar-plan">
+        <div class="fb-dot" id="fbPlan"></div>
+        📋 תכנית עבודה — מנהל בית ספר
+      </div>
+      <iframe id="planFrame" src="tknyt.html"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+        title="תכנית עבודה"></iframe>
+    </div>
+
+    <div class="frame-wrapper" id="wrapGantt">
+      <div class="frame-bar bar-gantt">
+        <div class="fb-dot" id="fbGantt"></div>
+        📅 לוח גאנט שנתי
+      </div>
+      <iframe id="ganttFrame" src="gantt.html"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+        title="גאנט שנתי"></iframe>
+    </div>
+
+    <div class="frame-wrapper" id="wrapMtss">
+      <div class="frame-bar bar-mtss">
+        <div class="fb-dot" id="fbMtss"></div>
+        🎯 מודל MTSS
+      </div>
+      <iframe id="mtssFrame" src="mtss.html"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+        title="MTSS"></iframe>
+    </div>
+
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusBar">
+  <div class="sb-item"><span>🏫</span><span id="sbSchool" class="sb-val empty">—</span></div>
+  <div class="sb-item"><span>📅</span><span id="sbYear"   class="sb-val empty">—</span></div>
+  <div class="sb-item"><span>🔄</span><span id="sbSync"   class="sb-val empty">טרם סונכרן</span></div>
+  <div class="sb-item"><span id="sbCount" class="sb-val empty">0 פריטים</span></div>
+  <span id="sbStatus">מחכה לטעינה...</span>
+</div>
+
+</div><!-- /appShell -->
+
+<!-- SM BADGE -->
+<div id="smBadgeZone"></div>
+<div id="smBadge" onclick="smBadgeClick()">SM</div>
+
+<!-- SM Password Modal -->
+<div id="smPasswordModal" style="display:none;position:fixed;inset:0;
+     background:rgba(0,0,0,0.55);z-index:99995;align-items:center;
+     justify-content:center;direction:rtl;"
+     onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:14px;padding:28px 32px;max-width:340px;width:100%;text-align:center;font-family:'Heebo',sans-serif;">
+    <div style="font-size:2rem;margin-bottom:12px;">🔐</div>
+    <div style="font-size:1rem;font-weight:800;color:#1a3a5c;margin-bottom:6px;">כניסת מנהל מערכת</div>
+    <div style="font-size:0.85rem;color:#7f8c8d;margin-bottom:18px;">הזן סיסמת SM להמשך</div>
+    <form onsubmit="event.preventDefault();smCheckPassword();" autocomplete="on">
+      <input id="smPasswordInput" name="password" type="password" placeholder="סיסמא..."
+        autocomplete="current-password"
+        style="width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;text-align:center;direction:ltr;">
+      <div id="smPasswordError" style="display:none;color:#dc2626;font-size:0.8rem;margin-top:8px;">❌ סיסמא שגויה</div>
+      <div style="display:flex;gap:10px;margin-top:16px;justify-content:center;">
+        <button type="button" onclick="document.getElementById('smPasswordModal').style.display='none'"
+          style="padding:8px 18px;border:1px solid #e4e9f0;border-radius:7px;background:#f8fafc;font-family:'Heebo',sans-serif;cursor:pointer;">ביטול</button>
+        <button type="submit"
+          style="padding:8px 18px;background:#1a3a5c;color:#fff;border:none;border-radius:7px;font-family:'Heebo',sans-serif;font-weight:700;cursor:pointer;">כניסה</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Staff Permissions Modal -->
+<div id="staffPermModal" style="display:none;position:fixed;inset:0;z-index:5000;">
+  <div class="sup-modal-overlay" onclick="if(event.target===this)closeStaffPermissions()">
+    <div class="sup-modal">
+      <div class="sup-modal-header">
+        <div class="sup-modal-title">🔑 הרשאות צוות</div>
+        <button class="sup-modal-close" onclick="closeStaffPermissions()">✕</button>
+      </div>
+      <div class="sup-modal-body">
+        <button class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
+        <table class="perm-table" id="staffPermTable">
+          <tbody id="staffPermTbody"></tbody>
+        </table>
+        <button class="sup-save-btn" onclick="saveStaffPermissions()">💾 שמור הרשאות</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="portalToast"></div>
+
+<!-- ══════════════════════════════════════════════
+     SCRIPT
+══════════════════════════════════════════════ -->
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════
+const ISDEV = false;
+const GOOGLE_CLIENT_ID   = '492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com';
+const PORTAL_SESSION_KEY = 'portalRoleSession';
+const WORKER_URL_AUTH    = 'https://hacala-api.1002220729.workers.dev';
+const WORKER_URL_SUP     = WORKER_URL_AUTH;
+
+// Section IDs for permission gating
+// ═══════════════════════════════════════════════════════
+//  SECTION DEFINITIONS — mirrors v38 nav exactly
+// ═══════════════════════════════════════════════════════
+const SECTION_GROUPS = [
+  { group: 'תכנית עבודה', sections: [
+    { id:'s0',         label:'🏫 פרטי מסגרת' },
+    { id:'s1',         label:'📊 תמונת מצב' },
+    { id:'s2',         label:'🎯 יעדי על' },
+    { id:'s3',         label:'🗂️ זירות ניהול' },
+    { id:'s4',         label:'📅 תכנון רבעוני' },
+    { id:'s5',         label:'🔁 שגרות הנהלה' },
+    { id:'s6',         label:'📝 סיכומי מעקב' },
+  ]},
+  { group: 'כלים', sections: [
+    { id:'s_dash',     label:'📈 דשבורד' },
+    { id:'splan',      label:'🗺️ מתווה עבודה' },
+  ]},
+  { group: 'שעות', sections: [
+    { id:'s_hours',    label:'🕐 סדין שעות' },
+    { id:'s_schedule', label:'📚 שיבוץ מקצועות' },
+  ]},
+  { group: 'משאבים', sections: [
+    { id:'sinventory', label:'📦 מלאי ציוד' },
+    { id:'sbudget',    label:'💰 תקציב' },
+  ]},
+  { group: 'כלים נוספים', sections: [
+    { id:'gantt',      label:'📅 גאנט שנתי (פורטל)' },
+    { id:'mtss',       label:'🎯 MTSS (פורטל)' },
+  ]},
+];
+
+// Flat list of all section IDs — used for permission checks
+const SECTION_LIST = SECTION_GROUPS.flatMap(g => g.sections.map(s => s.id));
+
+// ═══════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const lsGet = k => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch{return null;} };
+const lsSet = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch{} };
+
+function parseJwt(token) {
+  const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+  return JSON.parse(decodeURIComponent(
+    atob(base64).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join('')
+  ));
+}
+
+function getPortalSession() {
+  try { return JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)); } catch { return null; }
+}
+function setPortalSession(data) {
+  try { sessionStorage.setItem(PORTAL_SESSION_KEY, JSON.stringify(data)); } catch {}
+}
+function clearPortalSession() {
+  try {
+    sessionStorage.removeItem(PORTAL_SESSION_KEY);
+    sessionStorage.removeItem('smAdminUnlocked');
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTH — LOGIN FLOW
+// ═══════════════════════════════════════════════════════
+let _pendingRole = null;
+
+function selectRole(role, btn) {
+  _pendingRole = role;
+  document.querySelectorAll('.login-role-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+
+  const roleNames = { principal:'מנהל/ת בית ספר', staff_member:'בעל/ת תפקיד' };
+  document.getElementById('loginRoleLabel').textContent = `כניסה כ${roleNames[role]||role}`;
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginError').textContent = '';
+
+  const btnContainer = document.getElementById('loginGoogleBtn');
+  btnContainer.innerHTML = '';
+
+  setTimeout(() => {
+    if (window.google && google.accounts) {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+        auto_select: false,
+      });
+      google.accounts.id.renderButton(btnContainer, {
+        theme: 'outline', size: 'large', locale: 'he', width: 290,
+      });
+    } else {
+      btnContainer.innerHTML = '<div style="color:#dc2626;font-size:0.84rem;">טוען Google Sign-In... רענן את הדף</div>';
+    }
+    document.getElementById('loginGoogleSection').style.display = 'block';
+    document.getElementById('roleButtons').style.display = 'none';
+  }, 250);
+}
+
+function backToRoles() {
+  _pendingRole = null;
+  document.getElementById('loginGoogleSection').style.display = 'none';
+  document.getElementById('roleButtons').style.display = 'flex';
+  document.getElementById('loginError').style.display = 'none';
+  document.querySelectorAll('.login-role-btn').forEach(b => b.classList.remove('selected'));
+}
+
+async function handleGoogleCredential(response) {
+  const payload = parseJwt(response.credential);
+  const email   = payload.email;
+  const role    = _pendingRole;
+  const errEl   = document.getElementById('loginError');
+  errEl.style.display = 'none';
+
+  // Get school+year from URL params or localStorage
+  const usp    = new URLSearchParams(location.search);
+  const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
+  const year   = usp.get('year')   || lsGet('portal_plan')?.year       || '';
+
+  try {
+    const res  = await fetch(
+      `${WORKER_URL_AUTH}/api/auth/role?email=${encodeURIComponent(email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+      { cache: 'no-store' }
+    );
+    const data = await res.json();
+
+    if (!res.ok || data.role === 'unknown') {
+      showLoginError('המשתמש/ת אינו/ה מורשה/ת לגשת לפורטל זה. פנה/י למנהל/ת המערכת.');
+      return;
+    }
+
+    // Verify selected role matches returned role
+    if (role === 'principal' && !['principal','system_admin'].includes(data.role)) {
+      showLoginError(`המייל ${esc(email)} אינו רשום כמנהל/ת בית ספר.`);
+      return;
+    }
+    if (role === 'staff_member' && data.role !== 'staff_member') {
+      showLoginError(`המייל ${esc(email)} אינו רשום כבעל/ת תפקיד עבור בית ספר זה.`);
+      return;
+    }
+
+    const sessionData = {
+      ...data,
+      portalRole: data.role,
+      email,
+      name:    payload.name  || '',
+      picture: payload.picture || '',
+      school:  data.school   || school,
+      year:    data.year     || year,
+    };
+    setPortalSession(sessionData);
+    applyRoleUI(data.role, sessionData);
+
+  } catch(e) {
+    showLoginError('שגיאת רשת: ' + e.message);
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════
+//  APPLY ROLE UI
+// ═══════════════════════════════════════════════════════
+function applyRoleUI(role, session) {
+  if (!role || !session) {
+    // No session — show login
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appShell').style.display    = 'none';
+    return;
+  }
+
+  // Hide login, show app
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display    = 'flex';
+
+  // User badge
+  const ub = document.getElementById('userBadge');
+  ub.classList.add('show');
+  document.getElementById('userName').textContent = esc(session.name || session.email || '');
+  const roleLabels = { system_admin:'מנהל מערכת', principal:'מנהל/ת', staff_member:'בעל/ת תפקיד' };
+  document.getElementById('userRoleLabel').textContent = roleLabels[role] || role;
+
+  // Avatar
+  const av = document.getElementById('userAvatar');
+  if (session.picture) {
+    const img = document.createElement('img'); img.src = session.picture; img.width=24; img.height=24;
+    img.style.borderRadius='50%'; img.style.objectFit='cover';
+    av.innerHTML=''; av.appendChild(img);
+  } else {
+    av.textContent = (session.name||session.email||'?')[0].toUpperCase();
+  }
+
+  if (role === 'system_admin') {
+    showAdminNav(true);
+    loadAllIframes(null);
+  }
+  else if (role === 'principal') {
+    showAdminNav(true);
+    loadAllIframes(null);
+  }
+  else if (role === 'staff_member') {
+    const perms = session.permissions || {};
+    showAdminNav(false);
+    loadAllIframes(perms);
+    applyStaffSectionPerms(perms);
+  }
+
+  // Sync school/year to PS state
+  if (session.school) { PS.school = session.school; updateBadges(); updateStatus(); }
+  if (session.year)   { PS.year   = session.year;   updateBadges(); updateStatus(); }
+}
+
+// Portal-level frames: gantt, mtss
+// Plan sub-sections: s0,s1,...,sinventory,sbudget — communicated via postMessage
+const PORTAL_FRAMES = ['gantt','mtss'];
+
+function setNavVisible(sectionId, visible) {
+  // Portal nav items with data-perm (gantt, mtss)
+  document.querySelectorAll(`#sideNav .nav-item[data-perm="${sectionId}"]`).forEach(btn => {
+    btn.style.display = visible ? '' : 'none';
+  });
+  // Portal nav items with data-section (sinventory, sbudget shortcuts)
+  document.querySelectorAll(`#sideNav .nav-item[data-section="${sectionId}"]`).forEach(btn => {
+    btn.style.display = visible ? '' : 'none';
+  });
+}
+
+function applyStaffSectionPerms(perms) {
+  // Hide/show portal-level frames
+  PORTAL_FRAMES.forEach(f => {
+    const p = perms[f] || 'none';
+    setNavVisible(f, p !== 'none');
+  });
+  // Send per-section permissions into plan iframe
+  const planWin = document.getElementById('planFrame')?.contentWindow;
+  if (planWin) {
+    planWin.postMessage({ type:'set-section-permissions', permissions: perms }, '*');
+  }
+}
+
+function showAdminNav(show) {
+  document.getElementById('navAdminSection').style.display = show ? '' : 'none';
+  document.getElementById('navStaffPerms').style.display   = show ? '' : 'none';
+}
+
+function loadAllIframes(perms) {
+  // perms === null → load all frames as edit (admin/principal)
+  const frames = {
+    plan:  'tknyt.html',
+    gantt: 'gantt.html',
+    mtss:  'mtss.html',
+  };
+  Object.entries(frames).forEach(([name, src]) => {
+    const frameEl = document.getElementById(name + 'Frame');
+    if (!frameEl) return;
+    const p = perms ? (perms[name] || 'none') : 'edit';
+    if (p === 'none') return;
+    if (!frameEl.src || frameEl.src === 'about:blank') frameEl.src = src;
+    if (p === 'view') {
+      frameEl.addEventListener('load', function onLoad() {
+        frameEl.removeEventListener('load', onLoad);
+        frameEl.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:name }, '*');
+      });
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOGOUT
+// ═══════════════════════════════════════════════════════
+function portalLogout() {
+  clearPortalSession();
+  window.location.reload();
+}
+
+// ═══════════════════════════════════════════════════════
+//  SM BADGE (system admin back-door)
+// ═══════════════════════════════════════════════════════
+const _smK = 'b3BlbjAzOTY0';
+
+function smBadgeClick() {
+  document.getElementById('loginScreen').style.display = 'none';
+  const modal = document.getElementById('smPasswordModal');
+  modal.style.display = 'flex';
+  const inp = document.getElementById('smPasswordInput');
+  if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 100); }
+  document.getElementById('smPasswordError').style.display = 'none';
+}
+window.smBadgeClickSM   = smBadgeClick;
+window.smShowAdminLogin = smBadgeClick;
+
+window.smCheckPassword = function() {
+  const val = document.getElementById('smPasswordInput').value;
+  try {
+    if (val === atob(_smK)) {
+      const adminSession = {
+        portalRole:'system_admin', email:'admin@system',
+        name:'מנהל מערכת', picture:'', school: PS.school, year: PS.year,
+      };
+      setPortalSession(adminSession);
+      document.getElementById('smPasswordModal').style.display = 'none';
+      applyRoleUI('system_admin', adminSession);
+    } else {
+      document.getElementById('smPasswordError').style.display = 'block';
+    }
+  } catch {
+    document.getElementById('smPasswordError').style.display = 'block';
+  }
+};
+
+// ═══════════════════════════════════════════════════════
+//  STAFF PERMISSIONS PANEL
+// ═══════════════════════════════════════════════════════
+let _staffRows = [];
+
+async function openStaffPermissions() {
+  const session = getPortalSession();
+  if (!session) return;
+  _staffRows = [];
+
+  const school = PS.school || session.school || '';
+  const year   = PS.year   || session.year   || '';
+
+  // Open modal immediately — don't block on network
+  renderStaffTable();
+  document.getElementById('staffPermModal').style.display = 'block';
+
+  // Then fetch existing staff (best-effort — no school/year = skip)
+  if (school && year) {
+    try {
+      const res  = await fetch(
+        `${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+        { cache:'no-store' }
+      );
+      const data = await res.json();
+      _staffRows = Array.isArray(data) ? data : [];
+    } catch {
+      _staffRows = [];
+    }
+    renderStaffTable();
+  }
+}
+
+function closeStaffPermissions() {
+  document.getElementById('staffPermModal').style.display = 'none';
+}
+
+function renderStaffTable() {
+  if (!Array.isArray(_staffRows)) _staffRows = [];
+  const tbody = document.getElementById('staffPermTbody');
+
+  if (_staffRows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="2"
+      style="text-align:center;color:#94a3b8;padding:24px;font-size:0.85rem;">
+      אין אנשי צוות — לחץ ＋ הוסף איש צוות
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = _staffRows.map((row, i) => {
+    const perms = row.permissions || {};
+
+    // Build groups HTML
+    const groupsHTML = SECTION_GROUPS.map(g => `
+      <div class="perm-group">
+        <div class="perm-group-header">${esc(g.group)}</div>
+        <div class="perm-group-items">
+          ${g.sections.map(s => {
+            const val = perms[s.id] || 'none';
+            return `
+              <label class="perm-toggle-row">
+                <span class="perm-section-label">${esc(s.label)}</span>
+                <div class="perm-toggle-wrap">
+                  <button class="perm-btn${val==='none'?' perm-btn-active':''}"
+                    onclick="setPermission(${i},'${s.id}','none',this)">ללא</button>
+                  <button class="perm-btn${val==='view'?' perm-btn-active':''}"
+                    onclick="setPermission(${i},'${s.id}','view',this)">צפייה</button>
+                  <button class="perm-btn${val==='edit'?' perm-btn-active':''}"
+                    onclick="setPermission(${i},'${s.id}','edit',this)">עריכה</button>
+                </div>
+              </label>`;
+          }).join('')}
+        </div>
+      </div>`).join('');
+
+    return `
+      <tr class="perm-staff-row" id="perm-row-${i}">
+        <td class="perm-identity-cell">
+          <div class="perm-identity">
+            <input type="email" value="${esc(row.email||'')}"
+              placeholder="אימייל"
+              onchange="_staffRows[${i}].email=this.value"
+              class="perm-input perm-email">
+            <input type="text" value="${esc(row.name||'')}"
+              placeholder="שם מלא"
+              onchange="_staffRows[${i}].name=this.value"
+              class="perm-input">
+            <input type="text" value="${esc(row.role_title||row.roleTitle||'')}"
+              placeholder="תפקיד"
+              onchange="_staffRows[${i}].roleTitle=this.value"
+              class="perm-input">
+            <button class="perm-del" onclick="_staffRows.splice(${i},1);renderStaffTable()" title="הסר">🗑 הסר</button>
+          </div>
+          <div class="perm-sections-grid">
+            ${groupsHTML}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function setPermission(rowIdx, sectionId, value, btn) {
+  if (!_staffRows[rowIdx]) return;
+  if (!_staffRows[rowIdx].permissions) _staffRows[rowIdx].permissions = {};
+  _staffRows[rowIdx].permissions[sectionId] = value;
+  // Update button states in this toggle group only
+  const wrap = btn.closest('.perm-toggle-wrap');
+  wrap.querySelectorAll('.perm-btn').forEach(b => b.classList.remove('perm-btn-active'));
+  btn.classList.add('perm-btn-active');
+}
+
+function addStaffRow() {
+  const perms = {};
+  SECTION_LIST.forEach(s => perms[s] = 'none');
+  _staffRows.push({ email:'', name:'', roleTitle:'', permissions: perms });
+  renderStaffTable();
+}
+
+async function saveStaffPermissions() {
+  const session = getPortalSession();
+  if (!session) return;
+  let ok = 0, fail = 0;
+  for (const row of _staffRows) {
+    if (!row.email) continue;
+    try {
+      const res = await fetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          email: row.email, name: row.name, roleTitle: row.roleTitle||row.role_title||'',
+          school: PS.school||session.school||'', year: PS.year||session.year||'',
+          permissions: row.permissions, createdBy: session.email,
+        }),
+      });
+      if (res.ok) ok++; else fail++;
+    } catch { fail++; }
+  }
+  toast(`✅ ${ok} הרשאות נשמרו${fail?` · ❌ ${fail} נכשלו`:''}`, ok>0?'ok':'err');
+  closeStaffPermissions();
+}
+
+// ═══════════════════════════════════════════════════════
+//  PORTAL STATE
+// ═══════════════════════════════════════════════════════
+const PS = {
+  school:'', year:'',
+  planData:null, ganttData:null, mtssData:null,
+  planReady:false, ganttReady:false, mtssReady:false,
+  lastSync:null, syncCount:0,
+  activeFrame:'plan'
+};
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+let _toastT;
+function toast(msg, cls='', ms=3000) {
+  const el = document.getElementById('portalToast');
+  el.textContent = msg; el.className = 'show'+(cls?' '+cls:'');
+  clearTimeout(_toastT); _toastT = setTimeout(()=>{ el.className=''; }, ms);
+}
+
+// ═══════════════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════════════
+function navClick(btn) {
+  const target  = btn.dataset.target;
+  const section = btn.dataset.section;
+  const tab     = btn.dataset.tab;
+
+  document.querySelectorAll('#sideNav .nav-item').forEach(b =>
+    b.classList.remove('active','active-teal','active-purple'));
+
+  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple' };
+  (clsMap[target]||'active').split(' ').forEach(c => btn.classList.add(c));
+
+  showFrame(target);
+
+  const planWin      = document.getElementById('planFrame')?.contentWindow;
+  const ganttWin     = document.getElementById('ganttFrame')?.contentWindow;
+  const mtssWin      = document.getElementById('mtssFrame')?.contentWindow;
+
+  if (target==='plan'      && section) planWin.postMessage({ type:'switch-section', section }, '*');
+  if (target==='mtss'      && tab)     mtssWin.postMessage({ type:'switch-tab', tab }, '*');
+  if (target==='mtss')                 mtssWin.postMessage({ type:'request-data' }, '*');
+}
+
+function showFrame(name) {
+  PS.activeFrame = name;
+  ['plan','gantt','mtss'].forEach(f => {
+    const w = document.getElementById('wrap'+f.charAt(0).toUpperCase()+f.slice(1));
+    if (w) w.classList.toggle('active', f===name);
+  });
+  lsSet('portal_active_frame', name);
+}
+
+// ═══════════════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════════════
+function updateBadges() {
+  const hs = document.getElementById('hbSchool');
+  const hy = document.getElementById('hbYear');
+  hs.textContent = PS.school||'שם בית הספר'; hs.classList.toggle('empty',!PS.school);
+  hy.textContent = PS.year  ||'שנה';          hy.classList.toggle('empty',!PS.year);
+}
+function updateStatus() {
+  document.getElementById('sbSchool').textContent = PS.school||'—';
+  document.getElementById('sbSchool').className   = 'sb-val'+(PS.school?'':' empty');
+  document.getElementById('sbYear').textContent   = PS.year||'—';
+  document.getElementById('sbYear').className     = 'sb-val'+(PS.year?'':' empty');
+  const t = PS.lastSync ? new Date(PS.lastSync).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) : null;
+  document.getElementById('sbSync').textContent   = t||'טרם סונכרן';
+  document.getElementById('sbSync').className     = 'sb-val'+(!t?' empty':'');
+  document.getElementById('sbCount').textContent  = `${PS.syncCount} פריטים`;
+  document.getElementById('sbCount').className    = 'sb-val'+(PS.syncCount===0?' empty':'');
+}
+function setReady(which, on) {
+  const dotMap = {plan:'ndPlan',gantt:'ndGantt',mtss:'ndMtss'};
+  const fbMap  = {plan:'fbPlan',gantt:'fbGantt',mtss:'fbMtss'};
+  document.getElementById(dotMap[which])?.classList.toggle('on',on);
+  document.getElementById(fbMap[which])?.classList.toggle('on',on);
+}
+function setStatus(txt) { document.getElementById('sbStatus').textContent = txt; }
+let _syncT;
+function flashSync(n) {
+  const b = document.getElementById('syncBadge');
+  document.getElementById('syncCount').textContent = n;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show');
+  clearTimeout(_syncT); _syncT = setTimeout(()=>b.classList.remove('show'), 4500);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SAVE ALL
+// ═══════════════════════════════════════════════════════
+function triggerSave() {
+  document.getElementById('planFrame')?.contentWindow.postMessage({ type:'trigger-save' }, '*');
+  document.getElementById('ganttFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
+  document.getElementById('mtssFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
+  toast('💾 שולח בקשות שמירה...', '', 1500);
+}
+
+// ═══════════════════════════════════════════════════════
+//  GANTT PAYLOAD BUILDER  (unchanged)
+// ═══════════════════════════════════════════════════════
+function dateToQuarter(d) {
+  if (!d) return 1;
+  const m = new Date(d).getMonth();
+  if (m>=8&&m<=10) return 1; if (m===11||m<=1) return 2;
+  if (m>=2&&m<=4) return 3;  return 4;
+}
+function quarterToPeriodId(q, months) {
+  if (months?.length) {
+    const pm={sep:'sep',oct:'sep',nov:'nov',dec:'nov',jan:'jan',feb:'jan',mar:'mar',apr:'mar',may:'may',jun:'jul',jul:'jul',aug:'jul'};
+    for(const m of months){if(pm[m])return pm[m];}
+  }
+  return ({q1:'sep',q2:'jan',q3:'mar',q4:'jul',1:'sep',2:'jan',3:'mar',4:'jul'})[q]||'sep';
+}
+function buildGanttPayload(items, year, school) {
+  const ex=PS.ganttData||{docType:'gantt',schoolName:school,year,instructorEmail:'',updatedAt:'',
+    data:{globalPlans:[],schoolPlans:[],schoolBlueprint:[],notes:''}};
+  let sy=new Date().getFullYear();
+  const ym=String(year||'').match(/(\d{4})/); if(ym) sy=parseInt(ym[1]);
+  const qr={1:{s:'09-01',e:'12-31',o:0},2:{s:'01-01',e:'03-31',o:1},3:{s:'04-01',e:'06-30',o:1},4:{s:'07-01',e:'08-31',o:1}};
+  const qm={'q1':1,'q2':2,'q3':3,'q4':4};
+  const now=new Date().toISOString();
+  const sp=(items||[]).map(item=>{
+    const q=qm[item.quarter]||parseInt(item.quarter)||1,r=qr[q]||qr[1];
+    return {
+      id:item.id||`p_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
+      title:(`[${item.arena||''}] ${item.task||''}`).trim().replace(/^\[\] /,''),
+      desc:item.goalTitle||'',start:`${sy+r.o}-${r.s}`,end:`${sy+r.o}-${r.e}`,
+      periodId:quarterToPeriodId(item.quarter,item.months),
+      type:'school',school:item.owner||'',
+      status:item.status==='done'?'closed':'open',
+      curriculum:'both',createdAt:now,updatedAt:now
+    };
+  });
+  return {...ex,schoolName:school||ex.schoolName,year:year||ex.year,
+    data:{...ex.data,schoolPlans:sp}};
+}
+
+// ═══════════════════════════════════════════════════════
+//  MESSAGE BROKER
+// ═══════════════════════════════════════════════════════
+window.addEventListener('message', e => {
+  if (!e.data||typeof e.data!=='object') return;
+  if (typeof e.data.type!=='string') return;
+
+  const planWin      = document.getElementById('planFrame')?.contentWindow;
+  const ganttWin     = document.getElementById('ganttFrame')?.contentWindow;
+  const mtssWin      = document.getElementById('mtssFrame')?.contentWindow;
+
+  const fromPlan      = e.source===planWin;
+  const fromGantt     = e.source===ganttWin;
+  const fromMtss      = e.source===mtssWin;
+  if (!fromPlan&&!fromGantt&&!fromMtss) return;
+
+  switch(e.data.type) {
+
+    case 'iframe-ready':
+      if (e.data.docType==='principal') {
+        PS.planReady=true; setReady('plan',true); setStatus('תכנית עבודה מוכנה');
+        const sp=PS.planData||lsGet('portal_plan');
+        if (sp) { PS.planData=sp; planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*'); }
+        else if (PS.school||PS.year) planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      }
+      if (e.data.docType==='gantt') {
+        PS.ganttReady=true; setReady('gantt',true); setStatus('גאנט מוכן');
+        const sg=PS.ganttData||lsGet('portal_gantt');
+        if (sg) { PS.ganttData=sg; ganttWin.postMessage({type:'load-data',payload:sg},'*'); }
+        else if (PS.school||PS.year) ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      }
+      if (e.data.docType==='inventory') break; // handled inside plan iframe (v38)
+      if (e.data.docType==='budget')    break; // handled inside plan iframe (v38)
+      if (PS.planReady&&PS.ganttReady&&PS.mtssReady) setStatus('כל האפליקציות מוכנות ✓');
+      break;
+
+    case 'save-request':
+      if (e.data.docType==='principal'||fromPlan) {
+        PS.planData=e.data.payload;
+        if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
+        if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
+        lsSet('portal_plan',e.data.payload);
+        planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');
+        updateStatus(); setStatus('תכנית עבודה נשמרה'); toast('💾 תכנית עבודה נשמרה','ok');
+      }
+      if (e.data.docType==='gantt'||fromGantt) {
+        PS.ganttData=e.data.payload; lsSet('portal_gantt',e.data.payload);
+        ganttWin.postMessage({type:'save-confirm',message:'גאנט נשמר ✓'},'*');
+        updateStatus(); setStatus('גאנט נשמר'); toast('💾 גאנט נשמר','ok');
+      }
+      if (e.data.docType==='mtss'||fromMtss) {
+        PS.mtssData=e.data.payload;
+        if (e.data.payload?.schoolName&&!PS.school) { PS.school=e.data.payload.schoolName; updateBadges(); }
+        lsSet('portal_mtss',e.data.payload);
+        mtssWin.postMessage({type:'save-confirm',message:'MTSS נשמר ✓'},'*');
+        updateStatus(); setStatus('MTSS נשמר'); toast('💾 MTSS נשמר','mtss');
+      }
+      break;
+
+    case 'trigger-save':
+      if (planWin)  planWin.postMessage({type:'trigger-save'},'*');
+      if (ganttWin) ganttWin.postMessage({type:'request-data'},'*');
+      if (mtssWin)  mtssWin.postMessage({type:'request-data'},'*');
+      break;
+
+    case 'sync-gantt':
+      if (!PS.ganttReady) { toast('⚠️ גאנט לא מוכן','err'); break; }
+      PS.school=e.data.school||PS.school; PS.year=e.data.year||PS.year;
+      PS.syncCount=e.data.items?.length||0; PS.lastSync=new Date().toISOString();
+      ganttWin.postMessage({type:'load-data',payload:buildGanttPayload(e.data.items,e.data.year,e.data.school)},'*');
+      updateBadges(); updateStatus(); flashSync(PS.syncCount);
+      toast(`📅 ${PS.syncCount} משימות סונכרנו לגאנט`,'sync');
+      break;
+
+    case 'gantt-broadcast': {
+      if (!PS.planReady) break;
+      let rows=0,sums=0;
+      (e.data.broadcasts||[]).forEach(b=>{
+        if (b.kind==='quarter'||b.kind==='quarter-action') {
+          planWin.postMessage({type:'add-quarter-row',
+            quarter:b.quarter||dateToQuarter(b.evt?.start),
+            goal:b.evt?.title||b.action?.text||'',
+            dates:b.evt?.start?`${b.evt.start}${b.evt.end?' – '+b.evt.end:''}`:''},'*');
+          rows++;
+        }
+        if (b.kind==='summary') {
+          const d=b.evt?.start||new Date().toISOString().slice(0,10);
+          planWin.postMessage({type:'add-summary',title:b.evt?.title||'',desc:b.evt?.desc||'',
+            date:d,quarter:`q${dateToQuarter(d)}`},'*');
+          sums++;
+        }
+      });
+      const p=[];if(rows)p.push(`${rows} שורות`);if(sums)p.push(`${sums} סיכומים`);
+      if(p.length) toast(`📥 מגאנט: ${p.join(', ')}`,'sync');
+      break;
+    }
+
+    case 'school-changed':
+      if (e.data.school) {
+        PS.school=e.data.school; updateBadges(); updateStatus();
+        if (fromPlan&&PS.ganttReady) ganttWin.postMessage({type:'school-data-update',schoolName:e.data.school},'*');
+      }
+      break;
+
+    case 'request-data':
+      if (fromGantt&&PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
+      if (fromMtss&&PS.mtssData)   mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+      break;
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+//  MTSS — load event fallback
+// ═══════════════════════════════════════════════════════
+document.getElementById('mtssFrame').addEventListener('load', () => {
+  PS.mtssReady=true; setReady('mtss',true); setStatus('MTSS נטען');
+  if (PS.planReady&&PS.ganttReady&&PS.mtssReady) setStatus('כל האפליקציות מוכנות ✓');
+  const sm=PS.mtssData||lsGet('portal_mtss');
+  const mtssWin=document.getElementById('mtssFrame').contentWindow;
+  if (sm) { PS.mtssData=sm; mtssWin.postMessage({type:'load-data',payload:sm},'*'); }
+  setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'), 1500);
+});
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+(function init() {
+  const sp=lsGet('portal_plan'), sg=lsGet('portal_gantt'), sm=lsGet('portal_mtss');
+  if(sp){ PS.planData=sp;  PS.school=sp.schoolName||''; PS.year=sp.year||''; }
+  if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
+  if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
+
+  const af=localStorage.getItem('portal_active_frame');
+  if(af&&['plan','gantt','mtss'].includes(af)) {
+    showFrame(af);
+    const match=document.querySelector(`#sideNav .nav-item[data-target="${af}"]`);
+    if(match){
+      document.querySelectorAll('#sideNav .nav-item').forEach(b=>b.classList.remove('active','active-teal','active-purple'));
+      const clsMap={plan:'active',gantt:'active active-teal',mtss:'active active-purple'};
+      (clsMap[af]||'active').split(' ').forEach(c=>match.classList.add(c));
+    }
+  }
+
+  updateBadges(); updateStatus();
+
+  const session = getPortalSession();
+  if (session && session.portalRole && session.email) {
+    applyRoleUI(session.portalRole, session);
+  } else {
+    applyRoleUI(null, null);
+  }
+})();
+</script>
+</body>
+</html>
