@@ -906,7 +906,7 @@ async function openStaffPermissions() {
   _staffRows = [];
 
   const school = PS.school || session.school || '';
-  const year   = PS.year   || session.year   || '';
+  const year   = PS.year   || session.year   || new Date().getFullYear().toString();
 
   // Open modal immediately — don't block on network
   renderStaffTable();
@@ -1024,7 +1024,7 @@ async function saveStaffPermissions() {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           email: row.email, name: row.name, roleTitle: row.roleTitle||row.role_title||'',
-          school: PS.school||session.school||'', year: PS.year||session.year||'',
+          school: PS.school||session.school||'', year: PS.year||session.year||new Date().getFullYear().toString(),
           permissions: row.permissions, createdBy: session.email,
         }),
       });
