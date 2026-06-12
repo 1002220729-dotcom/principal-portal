@@ -912,15 +912,18 @@ async function openStaffPermissions() {
   renderStaffTable();
   document.getElementById('staffPermModal').style.display = 'block';
 
-  // Then fetch existing staff (best-effort — no school/year = skip)
+  // Then fetch existing staff + principals (best-effort — no school/year = skip)
   if (school && year) {
     try {
-      const res  = await fetch(
-        `${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
-        { cache:'no-store' }
-      );
-      const data = await res.json();
-      _staffRows = Array.isArray(data) ? data : [];
+      const [staffRes, principalsRes] = await Promise.all([
+        fetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
+        fetch(`${WORKER_URL_AUTH}/api/principals/list`, { cache:'no-store' })
+      ]);
+      const staffData      = await staffRes.json();
+      const principalsData = await principalsRes.json();
+      const staffRows      = (Array.isArray(staffData) ? staffData : []).map(r => ({ ...r, _type: 'staff' }));
+      const principalRows  = (Array.isArray(principalsData) ? principalsData : []).map(r => ({ ...r, _type: 'principal' }));
+      _staffRows = [...principalRows, ...staffRows];
     } catch {
       _staffRows = [];
     }
@@ -986,7 +989,7 @@ function renderStaffTable() {
               placeholder="תפקיד"
               onchange="_staffRows[${i}].roleTitle=this.value"
               class="perm-input">
-            <button class="perm-del" onclick="_staffRows.splice(${i},1);renderStaffTable()" title="הסר">🗑 הסר</button>
+            <button class="perm-del" onclick="deleteStaffRow(${i})" title="הסר">🗑 הסר</button>
           </div>
           <div class="perm-sections-grid">
             ${groupsHTML}
@@ -1009,7 +1012,29 @@ function setPermission(rowIdx, sectionId, value, btn) {
 function addStaffRow() {
   const perms = {};
   SECTION_LIST.forEach(s => perms[s] = 'none');
-  _staffRows.push({ email:'', name:'', roleTitle:'', permissions: perms });
+  _staffRows.push({ email:'', name:'', roleTitle:'', permissions: perms, _type:'staff' });
+  renderStaffTable();
+}
+
+async function deleteStaffRow(i) {
+  const row = _staffRows[i];
+  if (!row) return;
+
+  if (row.email) {
+    const session = getPortalSession();
+    const school = PS.school || session?.school || '';
+    const year   = PS.year   || session?.year   || new Date().getFullYear().toString();
+
+    try {
+      if (row._type === 'principal' || row.role === 'principal') {
+        await fetch(`${WORKER_URL_AUTH}/api/principals?email=${encodeURIComponent(row.email)}`, { method:'DELETE' });
+      } else {
+        await fetch(`${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(row.email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { method:'DELETE' });
+      }
+    } catch {}
+  }
+
+  _staffRows.splice(i, 1);
   renderStaffTable();
 }
 
@@ -1019,6 +1044,7 @@ async function saveStaffPermissions() {
   let ok = 0, fail = 0;
   for (const row of _staffRows) {
     if (!row.email) continue;
+    if (row._type === 'principal' || row.role === 'principal') continue;
     try {
       const res = await fetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
         method:'POST', headers:{'Content-Type':'application/json'},
