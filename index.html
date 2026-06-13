@@ -192,9 +192,10 @@ body{
   padding:0 10px;font-size:.65rem;font-weight:700;letter-spacing:.4px;
   text-transform:uppercase;color:rgba(255,255,255,0.75);
 }
-.frame-bar.bar-plan    {background:var(--primary);}
-.frame-bar.bar-gantt   {background:var(--teal);}
-.frame-bar.bar-mtss    {background:var(--purple);}
+.frame-bar.bar-plan     {background:var(--primary);}
+.frame-bar.bar-gantt    {background:var(--teal);}
+.frame-bar.bar-mtss     {background:var(--purple);}
+.frame-bar.bar-calendar {background:#b45309;}
 .frame-bar .fb-dot{
   width:5px;height:5px;border-radius:50%;
   background:rgba(255,255,255,0.25);transition:all .3s;
@@ -411,6 +412,10 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <span class="ni-icon">📅</span> גאנט שנתי
       <span class="ni-dot" id="ndGantt"></span>
     </button>
+    <button class="nav-item" data-target="calendar" data-perm="calendar" onclick="navClick(this)">
+      <span class="ni-icon">🗓️</span> לוח שנה
+      <span class="ni-dot" id="ndCalendar"></span>
+    </button>
 
     <div class="nav-section-header">שעות</div>
     <button class="nav-item" data-target="plan" data-section="s_hours" data-perm="plan" onclick="navClick(this)">
@@ -483,6 +488,16 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <iframe id="mtssFrame" src="mtss.html"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         title="MTSS"></iframe>
+    </div>
+
+    <div class="frame-wrapper" id="wrapCalendar">
+      <div class="frame-bar bar-calendar">
+        <div class="fb-dot" id="fbCalendar"></div>
+        🗓️ לוח שנה
+      </div>
+      <iframe id="calendarFrame" src="לוח_שנה.html"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+        title="לוח שנה"></iframe>
     </div>
 
   </div>
@@ -611,6 +626,7 @@ const SECTION_GROUPS = [
   { group: 'כלים נוספים', sections: [
     { id:'gantt',      label:'📅 גאנט שנתי (פורטל)' },
     { id:'mtss',       label:'🎯 MTSS (פורטל)' },
+    { id:'calendar',   label:'🗓️ לוח שנה' },
   ]},
 ];
 
@@ -799,7 +815,7 @@ function applyRoleUI(role, session) {
 
 // Portal-level frames: gantt, mtss
 // Plan sub-sections: s0,s1,...,sinventory,sbudget — communicated via postMessage
-const PORTAL_FRAMES = ['gantt','mtss'];
+const PORTAL_FRAMES = ['gantt','mtss','calendar'];
 
 function setNavVisible(sectionId, visible) {
   // Portal nav items with data-perm (gantt, mtss)
@@ -833,9 +849,10 @@ function showAdminNav(show) {
 function loadAllIframes(perms) {
   // perms === null → load all frames as edit (admin/principal)
   const frames = {
-    plan:  'tknyt.html',
-    gantt: 'gantt.html',
-    mtss:  'mtss.html',
+    plan:     'tknyt.html',
+    gantt:    'gantt.html',
+    mtss:     'mtss.html',
+    calendar: 'לוח_שנה.html',
   };
   Object.entries(frames).forEach(([name, src]) => {
     const frameEl = document.getElementById(name + 'Frame');
@@ -1154,7 +1171,7 @@ function navClick(btn) {
   document.querySelectorAll('#sideNav .nav-item').forEach(b =>
     b.classList.remove('active','active-teal','active-purple'));
 
-  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple' };
+  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple', calendar:'active' };
   (clsMap[target]||'active').split(' ').forEach(c => btn.classList.add(c));
 
   showFrame(target);
@@ -1170,7 +1187,7 @@ function navClick(btn) {
 
 function showFrame(name) {
   PS.activeFrame = name;
-  ['plan','gantt','mtss'].forEach(f => {
+  ['plan','gantt','mtss','calendar'].forEach(f => {
     const w = document.getElementById('wrap'+f.charAt(0).toUpperCase()+f.slice(1));
     if (w) w.classList.toggle('active', f===name);
   });
@@ -1272,11 +1289,13 @@ window.addEventListener('message', e => {
   const planWin      = document.getElementById('planFrame')?.contentWindow;
   const ganttWin     = document.getElementById('ganttFrame')?.contentWindow;
   const mtssWin      = document.getElementById('mtssFrame')?.contentWindow;
+  const calendarWin  = document.getElementById('calendarFrame')?.contentWindow;
 
   const fromPlan      = e.source===planWin;
   const fromGantt     = e.source===ganttWin;
   const fromMtss      = e.source===mtssWin;
-  if (!fromPlan&&!fromGantt&&!fromMtss) return;
+  const fromCalendar  = e.source===calendarWin;
+  if (!fromPlan&&!fromGantt&&!fromMtss&&!fromCalendar) return;
 
   switch(e.data.type) {
 
@@ -1370,6 +1389,38 @@ window.addEventListener('message', e => {
       if (fromGantt&&PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
       if (fromMtss&&PS.mtssData)   mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
       break;
+
+    // ── RELAY: calendar requests Gantt data for meeting sync ──
+    case 'request-gantt-data-for-meetings': {
+      if (!fromCalendar) break;
+      const _calReqSource = e.source;
+      const _ganttWin = document.getElementById('ganttFrame')?.contentWindow;
+      if (!_ganttWin) {
+        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:null},'*');
+        break;
+      }
+      // Use cached data if available, otherwise request fresh from gantt
+      if (PS.ganttData) {
+        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:PS.ganttData},'*');
+        break;
+      }
+      // Listen once for Gantt's save-request response
+      const _ganttReplyHandler = function(evt2) {
+        const m2 = evt2.data;
+        if (!m2 || m2.type !== 'save-request' || m2.docType !== 'gantt') return;
+        window.removeEventListener('message', _ganttReplyHandler);
+        PS.ganttData = m2.payload;
+        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:m2.payload},'*');
+      };
+      window.addEventListener('message', _ganttReplyHandler);
+      _ganttWin.postMessage({type:'request-data'},'*');
+      // Safety timeout
+      setTimeout(() => {
+        window.removeEventListener('message', _ganttReplyHandler);
+        try { _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:null},'*'); } catch(_){}
+      }, 4000);
+      break;
+    }
   }
 });
 
@@ -1395,12 +1446,12 @@ document.getElementById('mtssFrame').addEventListener('load', () => {
   if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
 
   const af=localStorage.getItem('portal_active_frame');
-  if(af&&['plan','gantt','mtss'].includes(af)) {
+  if(af&&['plan','gantt','mtss','calendar'].includes(af)) {
     showFrame(af);
     const match=document.querySelector(`#sideNav .nav-item[data-target="${af}"]`);
     if(match){
       document.querySelectorAll('#sideNav .nav-item').forEach(b=>b.classList.remove('active','active-teal','active-purple'));
-      const clsMap={plan:'active',gantt:'active active-teal',mtss:'active active-purple'};
+      const clsMap={plan:'active',gantt:'active active-teal',mtss:'active active-purple',calendar:'active'};
       (clsMap[af]||'active').split(' ').forEach(c=>match.classList.add(c));
     }
   }
