@@ -313,6 +313,66 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
   color: #fff;
   border-color: var(--primary);
 }
+
+/* ═══════════════════════════════════════════════════
+   MOBILE — hamburger button (hidden on desktop)
+═══════════════════════════════════════════════════ */
+#menuToggleBtn{
+  display:none;
+  background:none;border:none;color:#fff;font-size:1.25rem;
+  cursor:pointer;padding:4px 6px;line-height:1;flex-shrink:0;
+  border-radius:5px;transition:background .15s;
+}
+#menuToggleBtn:hover{background:rgba(255,255,255,0.12);}
+
+/* Overlay backdrop */
+#navOverlay{
+  display:none;
+  position:fixed;inset:0;z-index:299;
+  background:rgba(0,0,0,0.45);
+}
+#navOverlay.show{display:block;}
+
+/* ═══════════════════════════════════════════════════
+   MOBILE BREAKPOINT — < 768px
+═══════════════════════════════════════════════════ */
+@media(max-width:767px){
+
+  /* Show hamburger */
+  #menuToggleBtn{display:flex;align-items:center;justify-content:center;}
+
+  /* Compact header */
+  #portalHeader{gap:6px;padding:0 10px;}
+  .portal-title span{display:none;}          /* hide subtitle */
+  .portal-title{font-size:0.85rem;}
+  #hbBadges{display:none!important;}         /* hide school/year badges */
+  #syncBadge{display:none!important;}
+  #userName{display:none;}                   /* keep avatar, hide name */
+  #userRoleLabel{display:none;}
+  #userBadge{padding:3px 6px;gap:4px;}
+  .btn-logout{font-size:0.65rem;padding:3px 7px;}
+  #headerSaveBtn{font-size:0.65rem;padding:3px 8px;}
+
+  /* Sidebar: hidden by default, slides in as overlay */
+  #sideNav{
+    position:fixed;
+    top:var(--header-h);right:0;
+    height:calc(100dvh - var(--header-h));
+    z-index:300;
+    transform:translateX(100%);
+    transition:transform .25s ease;
+    width:220px;min-width:unset;
+    box-shadow:-4px 0 20px rgba(0,0,0,0.3);
+  }
+  #sideNav.mobile-open{transform:translateX(0);}
+
+  /* Content takes full width */
+  #contentArea{padding:2px;gap:2px;}
+
+  /* Status bar: compact */
+  #statusBar{padding:0 8px;gap:0;font-size:.62rem;}
+  .sb-item{padding:0 6px;}
+}
 </style>
 </head>
 <body>
@@ -352,12 +412,13 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 
 <!-- HEADER -->
 <header id="portalHeader">
+  <button id="menuToggleBtn" onclick="toggleMobileNav()" aria-label="תפריט">☰</button>
   <div class="portal-logo">🏫</div>
   <div class="portal-title">
     פורטל ניהול
     <span>תכנית עבודה · גאנט · MTSS · מלאי · תקציב</span>
   </div>
-  <div style="display:flex;gap:5px;align-items:center;margin-right:8px;">
+  <div id="hbBadges" style="display:flex;gap:5px;align-items:center;margin-right:8px;">
     <span id="hbSchool" class="hbadge empty">שם בית הספר</span>
     <span id="hbYear"   class="hbadge empty">שנה</span>
   </div>
@@ -373,6 +434,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
   <button class="btn-logout" onclick="portalLogout()">יציאה</button>
   <button id="headerSaveBtn" onclick="triggerSave()">💾 שמור הכל</button>
 </header>
+
+<!-- Mobile nav overlay backdrop -->
+<div id="navOverlay" onclick="closeMobileNav()"></div>
 
 <!-- BODY -->
 <div id="bodyArea">
@@ -1583,6 +1647,38 @@ document.addEventListener('DOMContentLoaded', function () {
   bindUI();
   init();
 });
+
+// ═══════════════════════════════════════════════════════
+//  MOBILE NAV TOGGLE
+// ═══════════════════════════════════════════════════════
+function toggleMobileNav() {
+  const nav = document.getElementById('sideNav');
+  const overlay = document.getElementById('navOverlay');
+  const isOpen = nav.classList.contains('mobile-open');
+  if (isOpen) {
+    nav.classList.remove('mobile-open');
+    overlay.classList.remove('show');
+  } else {
+    nav.classList.add('mobile-open');
+    overlay.classList.add('show');
+  }
+}
+
+function closeMobileNav() {
+  document.getElementById('sideNav').classList.remove('mobile-open');
+  document.getElementById('navOverlay').classList.remove('show');
+}
+
+// Close nav after a nav item is tapped on mobile
+(function patchNavClickForMobile() {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#sideNav .nav-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (window.innerWidth < 768) closeMobileNav();
+      });
+    });
+  });
+})();
 
 console.log('portal script loaded');
 </script>
