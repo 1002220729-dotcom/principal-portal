@@ -890,8 +890,25 @@ function smBadgeClick() {
   if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 100); }
   document.getElementById('smPasswordError').style.display = 'none';
 }
-window.smBadgeClickSM   = smBadgeClick;
-window.smShowAdminLogin = smBadgeClick;
+// ── Expose all inline-handler functions globally (fixes Babel/module scope) ──
+window.selectRole            = selectRole;
+window.backToRoles           = backToRoles;
+window.handleGoogleCredential= handleGoogleCredential;
+window.portalLogout          = portalLogout;
+window.smBadgeClick          = smBadgeClick;
+window.smBadgeClickSM        = smBadgeClick;
+window.smShowAdminLogin      = smBadgeClick;
+window.triggerSave           = triggerSave;
+window.navClick              = navClick;
+window.openStaffPermissions  = openStaffPermissions;
+window.closeStaffPermissions = closeStaffPermissions;
+window.addStaffRow           = addStaffRow;
+window.deleteStaffRow        = deleteStaffRow;
+window.saveStaffPermissions  = saveStaffPermissions;
+window.setPermission         = setPermission;
+window.switchSMTab           = switchSMTab;
+window.addPrincipalRow       = addPrincipalRow;
+window.savePrincipals        = savePrincipals;
 
 window.smCheckPassword = function() {
   const val = document.getElementById('smPasswordInput').value;
