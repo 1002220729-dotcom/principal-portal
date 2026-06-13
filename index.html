@@ -1302,43 +1302,68 @@ window.addEventListener('message', e => {
     case 'iframe-ready':
       if (e.data.docType==='principal') {
         PS.planReady=true; setReady('plan',true); setStatus('תכנית עבודה מוכנה');
-        const sp=PS.planData||lsGet('portal_plan');
-        if (sp) { PS.planData=sp; planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*'); }
-        else if (PS.school||PS.year) planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+        if (PS.planData) {
+          planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
+        } else if (PS.school||PS.year) {
+          fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            .then(r=>r.json()).then(sp=>{
+              if(sp){PS.planData=sp;planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*');}
+              else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+            }).catch(()=>planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+        }
       }
       if (e.data.docType==='gantt') {
         PS.ganttReady=true; setReady('gantt',true); setStatus('גאנט מוכן');
-        const sg=PS.ganttData||lsGet('portal_gantt');
-        if (sg) { PS.ganttData=sg; ganttWin.postMessage({type:'load-data',payload:sg},'*'); }
-        else if (PS.school||PS.year) ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+        if (PS.ganttData) {
+          ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
+        } else if (PS.school||PS.year) {
+          fetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            .then(r=>r.json()).then(sg=>{
+              if(sg){PS.ganttData=sg;ganttWin.postMessage({type:'load-data',payload:sg},'*');}
+              else ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+            }).catch(()=>ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+        }
       }
       if (e.data.docType==='inventory') break; // handled inside plan iframe (v38)
       if (e.data.docType==='budget')    break; // handled inside plan iframe (v38)
       if (PS.planReady&&PS.ganttReady&&PS.mtssReady) setStatus('כל האפליקציות מוכנות ✓');
       break;
 
-    case 'save-request':
+    case 'save-request': {
+      const school = PS.school || '';
+      const year   = PS.year   || '';
+      async function dbSave(type, payload) {
+        try {
+          await fetch(`${WORKER_URL_AUTH}/api/data`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, school, year, payload }),
+          });
+        } catch (err) { console.warn('dbSave failed', type, err); }
+      }
       if (e.data.docType==='principal'||fromPlan) {
         PS.planData=e.data.payload;
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
         if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
-        lsSet('portal_plan',e.data.payload);
+        await dbSave('plan', e.data.payload);
         planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');
         updateStatus(); setStatus('תכנית עבודה נשמרה'); toast('💾 תכנית עבודה נשמרה','ok');
       }
       if (e.data.docType==='gantt'||fromGantt) {
-        PS.ganttData=e.data.payload; lsSet('portal_gantt',e.data.payload);
+        PS.ganttData=e.data.payload;
+        await dbSave('gantt', e.data.payload);
         ganttWin.postMessage({type:'save-confirm',message:'גאנט נשמר ✓'},'*');
         updateStatus(); setStatus('גאנט נשמר'); toast('💾 גאנט נשמר','ok');
       }
       if (e.data.docType==='mtss'||fromMtss) {
         PS.mtssData=e.data.payload;
         if (e.data.payload?.schoolName&&!PS.school) { PS.school=e.data.payload.schoolName; updateBadges(); }
-        lsSet('portal_mtss',e.data.payload);
+        await dbSave('mtss', e.data.payload);
         mtssWin.postMessage({type:'save-confirm',message:'MTSS נשמר ✓'},'*');
         updateStatus(); setStatus('MTSS נשמר'); toast('💾 MTSS נשמר','mtss');
       }
       break;
+    }
 
     case 'trigger-save':
       if (planWin)  planWin.postMessage({type:'trigger-save'},'*');
@@ -1430,21 +1455,24 @@ window.addEventListener('message', e => {
 document.getElementById('mtssFrame').addEventListener('load', () => {
   PS.mtssReady=true; setReady('mtss',true); setStatus('MTSS נטען');
   if (PS.planReady&&PS.ganttReady&&PS.mtssReady) setStatus('כל האפליקציות מוכנות ✓');
-  const sm=PS.mtssData||lsGet('portal_mtss');
   const mtssWin=document.getElementById('mtssFrame').contentWindow;
-  if (sm) { PS.mtssData=sm; mtssWin.postMessage({type:'load-data',payload:sm},'*'); }
-  setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'), 1500);
+  if (PS.mtssData) {
+    mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+  } else if (PS.school||PS.year) {
+    fetch(`${WORKER_URL_AUTH}/api/data?type=mtss&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+      .then(r=>r.json()).then(sm=>{
+        if(sm){PS.mtssData=sm;mtssWin.postMessage({type:'load-data',payload:sm},'*');}
+        else setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'),1500);
+      }).catch(()=>setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'),1500));
+  } else {
+    setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'),1500);
+  }
 });
 
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-(function init() {
-  const sp=lsGet('portal_plan'), sg=lsGet('portal_gantt'), sm=lsGet('portal_mtss');
-  if(sp){ PS.planData=sp;  PS.school=sp.schoolName||''; PS.year=sp.year||''; }
-  if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
-  if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
-
+(async function init() {
   const af=localStorage.getItem('portal_active_frame');
   if(af&&['plan','gantt','mtss','calendar'].includes(af)) {
     showFrame(af);
@@ -1463,7 +1491,30 @@ document.getElementById('mtssFrame').addEventListener('load', () => {
     applyRoleUI(session.portalRole, session);
   } else {
     applyRoleUI(null, null);
+    return; // לא מחובר — אין נתונים לטעון
   }
+
+  // טעינת נתוני פורטל מ-D1
+  const school = PS.school || session.school || '';
+  const year   = PS.year   || session.year   || '';
+  if (!school && !year) return;
+
+  async function dbLoad(type) {
+    try {
+      const res = await fetch(
+        `${WORKER_URL_AUTH}/api/data?type=${type}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+        { cache: 'no-store' }
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch { return null; }
+  }
+
+  const [sp, sg, sm] = await Promise.all([dbLoad('plan'), dbLoad('gantt'), dbLoad('mtss')]);
+  if(sp){ PS.planData=sp;  PS.school=sp.schoolName||PS.school; PS.year=sp.year||PS.year; }
+  if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
+  if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
+  updateBadges(); updateStatus();
 })();
 </script>
 </body>
