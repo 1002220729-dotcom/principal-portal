@@ -772,6 +772,10 @@ function applyRoleUI(role, session) {
     return;
   }
 
+  // Populate PS from session early — before iframes load
+  if (session.school) PS.school = session.school;
+  if (session.year)   PS.year   = session.year;
+
   // Hide login, show app
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appShell').style.display    = 'flex';
@@ -808,9 +812,7 @@ function applyRoleUI(role, session) {
     applyStaffSectionPerms(perms);
   }
 
-  // Sync school/year to PS state
-  if (session.school) { PS.school = session.school; updateBadges(); updateStatus(); }
-  if (session.year)   { PS.year   = session.year;   updateBadges(); updateStatus(); }
+  updateBadges(); updateStatus();
 }
 
 // Portal-level frames: gantt, mtss
