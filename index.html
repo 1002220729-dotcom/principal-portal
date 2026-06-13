@@ -327,10 +327,10 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div class="login-sub">בחר/י את סוג הכניסה שלך</div>
 
     <div class="login-roles" id="roleButtons">
-      <button class="login-role-btn" onclick="selectRole('principal',this)">
+      <button class="login-role-btn" id="roleBtnPrincipal" data-role="principal">
         <span style="font-size:1.3rem;">🎓</span> מנהל/ת בית ספר
       </button>
-      <button class="login-role-btn" onclick="selectRole('staff_member',this)">
+      <button class="login-role-btn" id="roleBtnStaff" data-role="staff_member">
         <span style="font-size:1.3rem;">👤</span> בעל/ת תפקיד
       </button>
     </div>
@@ -516,7 +516,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 
 <!-- SM BADGE -->
 <div id="smBadgeZone"></div>
-<div id="smBadge" onclick="smBadgeClick()">SM</div>
+<div id="smBadge">SM</div>
 
 <!-- SM Password Modal -->
 <div id="smPasswordModal" style="display:none;position:fixed;inset:0;
@@ -588,6 +588,39 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
      SCRIPT
 ══════════════════════════════════════════════ -->
 <script>
+// ═══════════════════════════════════════════════════════
+//  EARLY UI BINDING — runs before anything else can throw.
+//  Wires the three buttons that were previously using inline
+//  onclick handlers.  The actual handler functions (selectRole,
+//  smBadgeClick) are defined later in this same script; by the
+//  time a user can click a button the full script will have
+//  finished parsing, so the named functions will exist.
+// ═══════════════════════════════════════════════════════
+(function bindUI() {
+  function _onReady(fn) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    } else {
+      fn();
+    }
+  }
+  _onReady(function () {
+    // ── Role buttons ──────────────────────────────────
+    var roleBtns = document.querySelectorAll('.login-role-btn[data-role]');
+    roleBtns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        selectRole(btn.dataset.role, btn);
+      });
+    });
+
+    // ── SM badge ──────────────────────────────────────
+    var badge = document.getElementById('smBadge');
+    if (badge) {
+      badge.addEventListener('click', function () { smBadgeClick(); });
+    }
+  });
+})();
+
 // ═══════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════
