@@ -589,39 +589,6 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 ══════════════════════════════════════════════ -->
 <script>
 // ═══════════════════════════════════════════════════════
-//  EARLY UI BINDING — runs before anything else can throw.
-//  Wires the three buttons that were previously using inline
-//  onclick handlers.  The actual handler functions (selectRole,
-//  smBadgeClick) are defined later in this same script; by the
-//  time a user can click a button the full script will have
-//  finished parsing, so the named functions will exist.
-// ═══════════════════════════════════════════════════════
-(function bindUI() {
-  function _onReady(fn) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', fn, { once: true });
-    } else {
-      fn();
-    }
-  }
-  _onReady(function () {
-    // ── Role buttons ──────────────────────────────────
-    var roleBtns = document.querySelectorAll('.login-role-btn[data-role]');
-    roleBtns.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        selectRole(btn.dataset.role, btn);
-      });
-    });
-
-    // ── SM badge ──────────────────────────────────────
-    var badge = document.getElementById('smBadge');
-    if (badge) {
-      badge.addEventListener('click', function () { smBadgeClick(); });
-    }
-  });
-})();
-
-// ═══════════════════════════════════════════════════════
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════
 const ISDEV = false;
@@ -699,7 +666,7 @@ function clearPortalSession() {
 let _pendingRole = null;
 
 function selectRole(role, btn) {
-  _pendingRole = role;
+  console.log('[portal] selectRole called:', role);
   document.querySelectorAll('.login-role-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
 
@@ -916,13 +883,48 @@ function portalLogout() {
 const _smK = 'b3BlbjAzOTY0';
 
 function smBadgeClick() {
-  document.getElementById('loginScreen').style.display = 'none';
+  console.log('[portal] smBadgeClick called');
   const modal = document.getElementById('smPasswordModal');
   modal.style.display = 'flex';
   const inp = document.getElementById('smPasswordInput');
   if (inp) { inp.value = ''; setTimeout(() => inp.focus(), 100); }
   document.getElementById('smPasswordError').style.display = 'none';
 }
+// ═══════════════════════════════════════════════════════
+//  UI BINDING — wires the three buttons that must not rely
+//  on inline onclick (login role buttons + SM badge).
+//  Called after DOMContentLoaded so elements are guaranteed
+//  to exist.  All other nav/modal buttons keep their inline
+//  onclick handlers and the window.* fallbacks below.
+// ═══════════════════════════════════════════════════════
+function bindUI() {
+  console.log('bindUI ran');
+
+  // ── Principal login button ────────────────────────────
+  const btnPrincipal = document.getElementById('roleBtnPrincipal');
+  if (btnPrincipal) {
+    btnPrincipal.addEventListener('click', function () {
+      selectRole('principal', btnPrincipal);
+    });
+  }
+
+  // ── Staff / member login button ───────────────────────
+  const btnStaff = document.getElementById('roleBtnStaff');
+  if (btnStaff) {
+    btnStaff.addEventListener('click', function () {
+      selectRole('staffmember', btnStaff);
+    });
+  }
+
+  // ── SM badge ──────────────────────────────────────────
+  const smBadgeEl = document.getElementById('smBadge');
+  if (smBadgeEl) {
+    smBadgeEl.addEventListener('click', function () {
+      smBadgeClick();
+    });
+  }
+}
+
 // ── Expose all inline-handler functions globally (fixes Babel/module scope) ──
 window.selectRole            = selectRole;
 window.backToRoles           = backToRoles;
@@ -1331,8 +1333,22 @@ function buildGanttPayload(items, year, school) {
 
 // ═══════════════════════════════════════════════════════
 //  MESSAGE BROKER
+//  dbSave is hoisted here so it can be called with await
+//  inside the async broker without a SyntaxError.
 // ═══════════════════════════════════════════════════════
-window.addEventListener('message', e => {
+async function dbSave(type, payload) {
+  const school = PS.school || '';
+  const year   = PS.year   || '';
+  try {
+    await fetch(`${WORKER_URL_AUTH}/api/data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, school, year, payload }),
+    });
+  } catch (err) { console.warn('dbSave failed', type, err); }
+}
+
+window.addEventListener('message', async (e) => {
   if (!e.data||typeof e.data!=='object') return;
   if (typeof e.data.type!=='string') return;
 
@@ -1380,17 +1396,6 @@ window.addEventListener('message', e => {
       break;
 
     case 'save-request': {
-      const school = PS.school || '';
-      const year   = PS.year   || '';
-      async function dbSave(type, payload) {
-        try {
-          await fetch(`${WORKER_URL_AUTH}/api/data`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type, school, year, payload }),
-          });
-        } catch (err) { console.warn('dbSave failed', type, err); }
-      }
       if (e.data.docType==='principal'||fromPlan) {
         PS.planData=e.data.payload;
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
@@ -1520,9 +1525,14 @@ document.getElementById('mtssFrame').addEventListener('load', () => {
 });
 
 // ═══════════════════════════════════════════════════════
-//  INIT
+//  INIT + STARTUP
+//  bindUI() wires the three non-inline buttons.
+//  init() restores session and loads remote data.
+//  Both run once after DOMContentLoaded.
 // ═══════════════════════════════════════════════════════
-(async function init() {
+async function init() {
+  console.log('init ran');
+
   const af=localStorage.getItem('portal_active_frame');
   if(af&&['plan','gantt','mtss','calendar'].includes(af)) {
     showFrame(af);
@@ -1565,7 +1575,14 @@ document.getElementById('mtssFrame').addEventListener('load', () => {
   if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
   if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
   updateBadges(); updateStatus();
-})();
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  bindUI();
+  init();
+});
+
+console.log('portal script loaded');
 </script>
 </body>
 </html>
