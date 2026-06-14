@@ -1846,8 +1846,7 @@ function renderStaffAuthTable(rows, permMap = {}) {
       <td>
         <button class="sa-btn" onclick="openAdminResetPwd('${esc(row.username)}')">🔑 איפוס</button>
         ${unlockBtn}
-        <button class="sa-btn danger" id="sa-del-${usernameId}"
-          onclick="saDeleteAsk('${esc(row.username)}')">🗑 מחק</button>
+        <button class="sa-btn danger sa-del-btn" data-username="${esc(row.username)}">🗑 מחק</button>
       </td>
     </tr>
     <tr>
@@ -1971,48 +1970,82 @@ async function unlockStaffAuth(username) {
   } catch(e) { toast('❌ שגיאת רשת', 'err'); }
 }
 
-// Two-step delete: first click asks, second click executes
-function saDeleteAsk(username) {
-  const btnId  = 'sa-del-' + CSS.escape(username);
-  const btn    = document.getElementById(btnId);
-  if (!btn) return;
+// Two-step delete — built entirely with createElement to avoid CSP/COOP
+// inline-handler restrictions that block onclick strings inside innerHTML.
+// The initial 🗑 button uses data-username + event delegation (also safe).
 
-  // Replace button with inline confirm strip
-  const strip = document.createElement('span');
-  strip.id = 'sa-del-confirm-' + CSS.escape(username);
-  strip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
-  strip.innerHTML =
-    `<span style="font-size:.74rem;color:#b91c1c;font-weight:700;white-space:nowrap">מחק?</span>` +
-    `<button class="sa-btn danger" style="padding:3px 8px"
-       onclick="deleteStaffAuth('${esc(username)}')">✓ כן</button>` +
-    `<button class="sa-btn" style="padding:3px 8px"
-       onclick="saDeleteCancel('${esc(username)}')">✕</button>`;
-  btn.replaceWith(strip);
-}
-
-function saDeleteCancel(username) {
-  const stripId = 'sa-del-confirm-' + CSS.escape(username);
-  const strip   = document.getElementById(stripId);
-  if (!strip) return;
-
+function _saRestoreDeleteBtn(username) {
+  const old = document.querySelector(`#saTableBody .sa-del-confirm[data-username="${CSS.escape(username)}"]`);
+  if (!old) return;
   const btn = document.createElement('button');
-  btn.id        = 'sa-del-' + CSS.escape(username);
-  btn.className = 'sa-btn danger';
+  btn.className = 'sa-btn danger sa-del-btn';
+  btn.dataset.username = username;
   btn.textContent = '🗑 מחק';
-  btn.onclick   = () => saDeleteAsk(username);
-  strip.replaceWith(btn);
+  old.replaceWith(btn);
 }
+
+function saDeleteAsk(username) {
+  // Find current delete button or confirm strip for this username
+  const existing = document.querySelector(
+    `#saTableBody .sa-del-btn[data-username="${CSS.escape(username)}"],` +
+    `#saTableBody .sa-del-confirm[data-username="${CSS.escape(username)}"]`
+  );
+  if (!existing || existing.classList.contains('sa-del-confirm')) return;
+
+  const strip = document.createElement('span');
+  strip.className = 'sa-del-confirm';
+  strip.dataset.username = username;
+  strip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+
+  const label = document.createElement('span');
+  label.style.cssText = 'font-size:.74rem;color:#b91c1c;font-weight:700;white-space:nowrap;';
+  label.textContent = 'מחק?';
+
+  const yesBtn = document.createElement('button');
+  yesBtn.className = 'sa-btn danger';
+  yesBtn.style.padding = '3px 8px';
+  yesBtn.textContent = '✓ כן';
+  yesBtn.addEventListener('click', () => deleteStaffAuth(username));
+
+  const noBtn = document.createElement('button');
+  noBtn.className = 'sa-btn';
+  noBtn.style.padding = '3px 8px';
+  noBtn.textContent = '✕';
+  noBtn.addEventListener('click', () => _saRestoreDeleteBtn(username));
+
+  strip.appendChild(label);
+  strip.appendChild(yesBtn);
+  strip.appendChild(noBtn);
+  existing.replaceWith(strip);
+}
+
+function saDeleteCancel(username) { _saRestoreDeleteBtn(username); }
 
 async function deleteStaffAuth(username) {
   try {
-    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`, {
-      method: 'DELETE',
-    });
+    const url = `${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`;
+    const res  = await fetch(url, { method: 'DELETE' });
     const data = await res.json();
-    if (data.ok) { toast(`🗑 משתמש ${username} נמחק`, 'ok'); loadStaffAuth(); }
-    else toast('❌ שגיאה במחיקה', 'err');
-  } catch(e) { toast('❌ שגיאת רשת', 'err'); }
+    if (data.ok) {
+      toast(`🗑 משתמש ${username} נמחק בהצלחה`, 'ok');
+      loadStaffAuth();
+    } else {
+      toast(`❌ שגיאה: ${data.error || 'המחיקה נכשלה'}`, 'err');
+      _saRestoreDeleteBtn(username);
+    }
+  } catch(e) {
+    toast(`❌ שגיאת רשת: ${e.message}`, 'err');
+    _saRestoreDeleteBtn(username);
+  }
 }
+
+// Event delegation for dynamically-rendered 🗑 buttons (avoids inline onclick / CSP issues)
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.sa-del-btn');
+  if (btn && btn.dataset.username) {
+    saDeleteAsk(btn.dataset.username);
+  }
+});
 
 // ═══════════════════════════════════════════════════════
 //  PORTAL STATE
