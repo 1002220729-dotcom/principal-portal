@@ -1675,38 +1675,58 @@ function setSaNewPerm(sectionId, value, btn) {
 // ── Inline permission editing in the existing-users table ──
 let _saEditPerms = {}; // keyed by username
 
-function toggleSaEditPerms(username, permsJson) {
+async function toggleSaEditPerms(username) {
   const row = document.getElementById(`sa-perm-inline-${CSS.escape(username)}`);
   if (!row) return;
   if (row.classList.contains('open')) {
     row.classList.remove('open');
     return;
   }
-  // Build grid if not yet rendered
-  if (!row.innerHTML.trim()) {
-    const perms = permsJson ? JSON.parse(permsJson) : {};
-    _saEditPerms[username] = { ...perms };
-    row.innerHTML = `<div class="sa-perm-title" style="margin-bottom:8px">הרשאות: <strong>${esc(username)}</strong></div>
-      <div class="sa-perm-grid">${SECTION_GROUPS.map(g => `
-        <div class="sa-perm-group">
-          <div class="sa-perm-group-header">${esc(g.group)}</div>
-          <div class="sa-perm-group-items">
-            ${g.sections.map(s => {
-              const val = perms[s.id] || 'none';
-              return `<div class="sa-perm-toggle-row">
-                <span class="sa-perm-section-label" title="${esc(s.label)}">${esc(s.label)}</span>
-                <div class="sa-perm-toggle-wrap">
-                  <button class="sa-perm-btn${val==='none'?' active':''}" onclick="setSaEditPerm('${esc(username)}','${esc(s.id)}','none',this)">ללא</button>
-                  <button class="sa-perm-btn${val==='view'?' active':''}" onclick="setSaEditPerm('${esc(username)}','${esc(s.id)}','view',this)">צפייה</button>
-                  <button class="sa-perm-btn${val==='edit'?' active':''}" onclick="setSaEditPerm('${esc(username)}','${esc(s.id)}','edit',this)">עריכה</button>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>`).join('')}
-      </div>
-      <button class="sa-add-btn" style="margin-top:10px" onclick="saveSaEditPerms('${esc(username)}')">💾 שמור הרשאות</button>`;
-  }
+
+  // Always fetch fresh permissions from the server when opening
+  const session = getPortalSession();
+  const school  = PS.school || session?.school || '';
+  const year    = PS.year   || session?.year   || '';
+  let perms = {};
+  try {
+    const res  = await fetch(
+      `${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+      { cache: 'no-store' }
+    );
+    const list = await res.json();
+    if (Array.isArray(list)) {
+      const emailKey = (
+        document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`)?.dataset.saEmailVal || username
+      ).toLowerCase();
+      const match = list.find(p => (p.email||'').toLowerCase() === emailKey);
+      if (match) perms = match.permissions || {};
+    }
+  } catch(_) {}
+
+  _saEditPerms[username] = { ...perms };
+
+  // Build grid (always fresh — clear any stale content)
+  row.innerHTML = `<div class="sa-perm-title" style="margin-bottom:8px">הרשאות: <strong>${esc(username)}</strong></div>
+    <div class="sa-perm-grid">${SECTION_GROUPS.map(g => `
+      <div class="sa-perm-group">
+        <div class="sa-perm-group-header">${esc(g.group)}</div>
+        <div class="sa-perm-group-items">
+          ${g.sections.map(s => {
+            const val = perms[s.id] || 'none';
+            return `<div class="sa-perm-toggle-row">
+              <span class="sa-perm-section-label" title="${esc(s.label)}">${esc(s.label)}</span>
+              <div class="sa-perm-toggle-wrap">
+                <button class="sa-perm-btn${val==='none'?' active':''}" onclick="setSaEditPerm('${esc(username)}','${esc(s.id)}','none',this)">ללא</button>
+                <button class="sa-perm-btn${val==='view'?' active':''}" onclick="setSaEditPerm('${esc(username)}','${esc(s.id)}','view',this)">צפייה</button>
+                <button class="sa-perm-btn${val==='edit'?' active':''}" onclick="setSaEditPerm('${esc(username)}','${esc(s.id)}','edit',this)">עריכה</button>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}
+    </div>
+    <button class="sa-add-btn" style="margin-top:10px" onclick="saveSaEditPerms('${esc(username)}')">💾 שמור הרשאות</button>`;
+
   row.classList.add('open');
 }
 
@@ -1759,30 +1779,17 @@ async function loadStaffAuth() {
   buildSaNewPermGrid();
 
   try {
-    const url = `${WORKER_URL_AUTH}/api/admin/staff-auth/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`;
-    const [authRes, permRes] = await Promise.all([
-      fetch(url, { cache:'no-store' }),
-      fetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
-    ]);
-    const data     = await authRes.json();
-    const permData = await permRes.json().catch(() => []);
+    const url     = `${WORKER_URL_AUTH}/api/admin/staff-auth/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`;
+    const authRes = await fetch(url, { cache: 'no-store' });
+    const data    = await authRes.json();
     if (!Array.isArray(data)) throw new Error('bad response');
-
-    // Build a quick lookup: email/username → permissions
-    const permMap = {};
-    if (Array.isArray(permData)) {
-      permData.forEach(p => {
-        if (p.email) permMap[p.email.toLowerCase()] = p.permissions || {};
-      });
-    }
-
-    renderStaffAuthTable(data, permMap);
+    renderStaffAuthTable(data);
   } catch(e) {
     if (loadingEl) loadingEl.textContent = 'שגיאה בטעינה: ' + e.message;
   }
 }
 
-function renderStaffAuthTable(rows, permMap = {}) {
+function renderStaffAuthTable(rows) {
   const loadingEl = document.getElementById('saLoading');
   const tableEl   = document.getElementById('saTable');
   const tbody     = document.getElementById('saTableBody');
@@ -1815,17 +1822,6 @@ function renderStaffAuthTable(rows, permMap = {}) {
       ? `<button class="sa-btn" onclick="unlockStaffAuth('${esc(row.username)}')">🔓 שחרר</button>`
       : '';
 
-    // Look up existing permissions by email or username
-    const emailKey = (row.email || row.username || '').toLowerCase();
-    const existingPerms = permMap[emailKey] || permMap[(row.username||'').toLowerCase()] || {};
-    const permsJson = esc(JSON.stringify(existingPerms));
-
-    // Count non-none permissions for badge
-    const permCount = Object.values(existingPerms).filter(v => v && v !== 'none').length;
-    const permBadge = permCount > 0
-      ? `<span style="background:#dcfce7;color:#16a34a;border-radius:10px;padding:1px 7px;font-size:.7rem;font-weight:700">${permCount} סעיפים</span>`
-      : `<span style="color:#94a3b8;font-size:.75rem">ללא הרשאות</span>`;
-
     const usernameId = CSS.escape(row.username);
 
     return `<tr>
@@ -1836,10 +1832,7 @@ function renderStaffAuthTable(rows, permMap = {}) {
       <td style="font-size:.76rem">${esc(row.email || '—')}</td>
       <td>${esc(row.role_title || '—')}</td>
       <td>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          ${permBadge}
-          <button class="sa-btn" onclick="toggleSaEditPerms('${esc(row.username)}','${permsJson}')">✏️ ערוך</button>
-        </div>
+        <button class="sa-btn" onclick="toggleSaEditPerms('${esc(row.username)}')">✏️ הרשאות</button>
       </td>
       <td>${statusHtml}</td>
       <td style="font-size:.76rem">${lastLogin}</td>
