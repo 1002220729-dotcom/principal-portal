@@ -71,6 +71,77 @@ body{
   font-family:var(--font);font-size:0.8rem;margin-top:6px;
 }
 .login-back:hover{color:#475569;}
+
+/* Login method tabs */
+.login-method-tab{
+  padding:6px 16px;border-radius:20px;border:1.5px solid var(--border);
+  background:#fff;color:#64748b;font-family:var(--font);font-size:0.82rem;
+  font-weight:600;cursor:pointer;transition:all .15s;
+}
+.login-method-tab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+/* Username/password fields */
+.login-input-field{
+  display:block;width:100%;padding:11px 14px;border:1.5px solid var(--border);
+  border-radius:10px;font-family:var(--font);font-size:0.93rem;
+  color:#1e293b;margin-bottom:10px;outline:none;transition:border-color .15s;
+  text-align:right;
+}
+.login-input-field:focus{border-color:var(--teal);}
+.login-submit-btn{
+  width:100%;padding:12px;background:var(--teal);color:#fff;border:none;
+  border-radius:10px;font-family:var(--font);font-size:0.97rem;font-weight:700;
+  cursor:pointer;transition:background .15s;margin-bottom:10px;
+}
+.login-submit-btn:hover{background:#015e63;}
+
+/* Change password modal */
+.chpwd-overlay{
+  position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.6);
+  display:flex;align-items:center;justify-content:center;
+}
+.chpwd-card{
+  background:#fff;border-radius:16px;padding:36px 32px;max-width:380px;
+  width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.25);text-align:center;
+}
+.chpwd-title{font-size:1.1rem;font-weight:800;color:#1a3a5c;margin-bottom:6px;}
+.chpwd-sub{font-size:0.84rem;color:#64748b;margin-bottom:22px;}
+.chpwd-input{
+  display:block;width:100%;padding:10px 14px;border:1.5px solid var(--border);
+  border-radius:9px;font-family:var(--font);font-size:0.9rem;
+  margin-bottom:10px;outline:none;text-align:right;transition:border-color .15s;
+}
+.chpwd-input:focus{border-color:var(--teal);}
+.chpwd-btn{
+  width:100%;padding:11px;background:var(--teal);color:#fff;border:none;
+  border-radius:9px;font-family:var(--font);font-size:0.93rem;font-weight:700;
+  cursor:pointer;margin-bottom:8px;
+}
+.chpwd-err{color:#dc2626;font-size:0.82rem;margin-top:4px;display:none;}
+
+/* Staff Auth Admin Panel */
+.sa-table{width:100%;border-collapse:collapse;font-size:0.83rem;}
+.sa-table th{text-align:right;padding:8px 10px;background:#f1f5f9;
+  font-weight:700;color:#475569;font-size:.76rem;border-bottom:2px solid var(--border);}
+.sa-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.sa-table tr:hover td{background:#f8fafc;}
+.sa-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+.sa-badge.locked{background:#fef2f2;color:#dc2626;}
+.sa-badge.expired{background:#fff7ed;color:#c2410c;}
+.sa-badge.ok{background:#f0fdf4;color:#16a34a;}
+.sa-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+  background:#fff;font-family:var(--font);font-size:.74rem;cursor:pointer;margin:1px;}
+.sa-btn:hover{background:#f1f5f9;}
+.sa-btn.danger{border-color:#fecaca;color:#dc2626;}
+.sa-btn.danger:hover{background:#fef2f2;}
+.sa-add-form{background:#f8fafc;border:1px solid var(--border);border-radius:10px;
+  padding:16px;margin-bottom:16px;}
+.sa-add-form .sa-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+.sa-add-input{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;
+  font-family:var(--font);font-size:.84rem;outline:none;flex:1;min-width:120px;}
+.sa-add-input:focus{border-color:var(--teal);}
+.sa-add-btn{padding:8px 18px;background:var(--teal);color:#fff;border:none;
+  border-radius:7px;font-family:var(--font);font-size:.85rem;font-weight:700;cursor:pointer;}
 #loginError{
   display:none;color:#dc2626;font-size:0.82rem;
   background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
@@ -401,6 +472,30 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <button class="login-back" onclick="backToRoles()">← חזרה לבחירת תפקיד</button>
     </div>
 
+    <!-- STAFF PASSWORD LOGIN — shown when staff role selected -->
+    <div id="loginPasswordSection" style="display:none;">
+      <div class="login-role-label">כניסה עם שם משתמש וסיסמא</div>
+
+      <!-- Toggle between Google and Password -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;justify-content:center;">
+        <button class="login-method-tab active" id="tabGoogle" onclick="switchLoginMethod('google',this)">🔑 Google</button>
+        <button class="login-method-tab" id="tabPassword" onclick="switchLoginMethod('password',this)">👤 שם משתמש</button>
+      </div>
+
+      <div id="loginGoogleBtnAlt"></div>
+
+      <div id="loginPasswordForm" style="display:none;">
+        <input type="text" id="loginUsername" placeholder="שם משתמש"
+          class="login-input-field" autocomplete="username"
+          onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+        <input type="password" id="loginPassword" placeholder="סיסמא"
+          class="login-input-field" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')doPasswordLogin()">
+        <button class="login-submit-btn" onclick="doPasswordLogin()">כניסה</button>
+      </div>
+      <button class="login-back" onclick="backToRoles()">← חזרה לבחירת תפקיד</button>
+    </div>
+
     <div id="loginError"></div>
   </div>
 </div>
@@ -615,9 +710,10 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <button class="sup-modal-close" onclick="closeStaffPermissions()">✕</button>
       </div>
       <div class="sup-modal-body">
-        <div id="smTabs" style="display:flex;gap:8px;margin-bottom:18px;">
+        <div id="smTabs" style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
           <button class="sm-tab active" onclick="switchSMTab('staff',this)">👥 צוות</button>
           <button class="sm-tab" onclick="switchSMTab('principals',this)">🏫 מנהלים</button>
+          <button class="sm-tab" onclick="switchSMTab('staffAuth',this)">🔐 סיסמאות צוות</button>
         </div>
         <div id="smPanelStaff">
           <button class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
@@ -641,8 +737,79 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
           </table>
           <button class="sup-save-btn" style="margin-top:14px" onclick="savePrincipals()">💾 שמור מנהלים</button>
         </div>
+
+        <!-- ── STAFF AUTH PANEL ── -->
+        <div id="smPanelStaffAuth" style="display:none;">
+          <div class="sa-add-form">
+            <div style="font-size:.88rem;font-weight:700;color:#1a3a5c;margin-bottom:12px;">➕ הוסף משתמש עם סיסמא</div>
+            <div class="sa-row">
+              <input class="sa-add-input" id="saNewUsername" placeholder="שם משתמש (ללא רווחים)" autocomplete="off">
+              <input class="sa-add-input" id="saNewName" placeholder="שם מלא">
+            </div>
+            <div class="sa-row">
+              <input class="sa-add-input" id="saNewEmail" placeholder="אימייל (אופציונלי)" type="email" autocomplete="off">
+              <input class="sa-add-input" id="saNewRole" placeholder="תפקיד">
+            </div>
+            <div class="sa-row">
+              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 8 תווים)" type="password" autocomplete="new-password">
+              <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:#475569;white-space:nowrap;">
+                <input type="checkbox" id="saNewMustChange" checked> דרוש החלפה בכניסה ראשונה
+              </label>
+            </div>
+            <button class="sa-add-btn" onclick="addStaffAuth()">הוסף משתמש</button>
+            <div id="saAddError" style="color:#dc2626;font-size:.8rem;margin-top:6px;display:none;"></div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:.88rem;font-weight:700;color:#1a3a5c;">משתמשים רשומים עם סיסמא</div>
+            <button class="sa-btn" onclick="loadStaffAuth()" style="font-size:.76rem;">🔄 רענן</button>
+          </div>
+          <div id="saLoading" style="text-align:center;color:#94a3b8;padding:20px;font-size:.85rem;">טוען...</div>
+          <table class="sa-table" id="saTable" style="display:none;">
+            <thead>
+              <tr>
+                <th>שם משתמש</th>
+                <th>שם מלא</th>
+                <th>אימייל</th>
+                <th>תפקיד</th>
+                <th>סטטוס</th>
+                <th>כניסה אחרונה</th>
+                <th>פעולות</th>
+              </tr>
+            </thead>
+            <tbody id="saTableBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div id="changePasswordModal" class="chpwd-overlay" style="display:none;">
+  <div class="chpwd-card">
+    <div style="font-size:2rem;margin-bottom:10px;">🔑</div>
+    <div class="chpwd-title" id="chpwdTitle">החלפת סיסמא</div>
+    <div class="chpwd-sub" id="chpwdSub">הזן/י את הסיסמא הנוכחית והחדשה</div>
+    <input type="password" id="chpwdCurrent" class="chpwd-input" placeholder="סיסמא נוכחית" autocomplete="current-password">
+    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
+    <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password">
+    <div id="chpwdError" class="chpwd-err"></div>
+    <button class="chpwd-btn" onclick="submitPasswordChange()">שמור סיסמא חדשה</button>
+    <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" id="chpwdCancelBtn" onclick="document.getElementById('changePasswordModal').style.display='none'">ביטול</button>
+  </div>
+</div>
+
+<!-- ADMIN RESET PASSWORD MODAL -->
+<div id="adminResetPwdModal" class="chpwd-overlay" style="display:none;">
+  <div class="chpwd-card">
+    <div style="font-size:2rem;margin-bottom:10px;">🔐</div>
+    <div class="chpwd-title">איפוס סיסמא</div>
+    <div class="chpwd-sub" id="adminResetPwdSub">הגדר סיסמא חדשה למשתמש</div>
+    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
+    <div id="adminResetPwdError" class="chpwd-err"></div>
+    <button class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
+    <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="document.getElementById('adminResetPwdModal').style.display='none'">ביטול</button>
   </div>
 </div>
 
@@ -728,6 +895,145 @@ function clearPortalSession() {
 //  AUTH — LOGIN FLOW
 // ═══════════════════════════════════════════════════════
 let _pendingRole = null;
+let _staffLoginUsername = null; // for password change flow
+
+function switchLoginMethod(method, btn) {
+  document.querySelectorAll('.login-method-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const isPassword = method === 'password';
+  document.getElementById('loginGoogleBtnAlt').style.display = isPassword ? 'none' : '';
+  document.getElementById('loginPasswordForm').style.display  = isPassword ? '' : 'none';
+  if (!isPassword) {
+    // Re-render Google button in alt container if needed
+    const container = document.getElementById('loginGoogleBtnAlt');
+    if (!container.innerHTML.trim() && window.google && google.accounts) {
+      google.accounts.id.renderButton(container, { theme:'outline', size:'large', locale:'he', width:290 });
+    }
+  } else {
+    setTimeout(() => document.getElementById('loginUsername')?.focus(), 80);
+  }
+}
+
+async function doPasswordLogin() {
+  const username = document.getElementById('loginUsername')?.value?.trim();
+  const password = document.getElementById('loginPassword')?.value;
+  const errEl    = document.getElementById('loginError');
+  errEl.style.display = 'none';
+
+  if (!username || !password) {
+    errEl.textContent = 'הזן/י שם משתמש וסיסמא';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.querySelector('.login-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'מתחבר...'; }
+
+  const usp    = new URLSearchParams(location.search);
+  const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
+  const year   = usp.get('year')   || lsGet('portal_plan')?.year || new Date().getFullYear().toString();
+
+  try {
+    const res  = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, school, year }),
+    });
+    const data = await res.json();
+
+    if (!data.ok) {
+      errEl.textContent = data.error || 'שגיאת כניסה';
+      errEl.style.display = 'block';
+      if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
+      return;
+    }
+
+    _staffLoginUsername = username;
+
+    // Check if password change is required
+    if (data.mustChangePassword) {
+      if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
+      showMustChangePasswordModal(username, data.passwordExpired);
+      return;
+    }
+
+    const sessionData = {
+      ...data,
+      portalRole: 'staff_member',
+      loginMethod: 'password',
+    };
+    setPortalSession(sessionData);
+    applyRoleUI('staff_member', sessionData);
+
+  } catch(e) {
+    errEl.textContent = 'שגיאת רשת: ' + e.message;
+    errEl.style.display = 'block';
+    if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
+  }
+}
+
+function showMustChangePasswordModal(username, expired) {
+  const modal = document.getElementById('changePasswordModal');
+  document.getElementById('chpwdTitle').textContent = expired ? 'פג תוקף הסיסמא' : 'נדרשת החלפת סיסמא';
+  document.getElementById('chpwdSub').textContent   = expired
+    ? 'הסיסמא פגת תוקף (90 יום). יש להגדיר סיסמא חדשה להמשך.'
+    : 'מנהל המערכת דורש החלפת סיסמא בכניסה הראשונה.';
+  document.getElementById('chpwdCurrent').value = '';
+  document.getElementById('chpwdNew1').value    = '';
+  document.getElementById('chpwdNew2').value    = '';
+  document.getElementById('chpwdError').style.display = 'none';
+  document.getElementById('chpwdCancelBtn').style.display = 'none'; // must change
+  modal.style.display = 'flex';
+}
+
+async function submitPasswordChange() {
+  const current = document.getElementById('chpwdCurrent').value;
+  const new1    = document.getElementById('chpwdNew1').value;
+  const new2    = document.getElementById('chpwdNew2').value;
+  const errEl   = document.getElementById('chpwdError');
+  errEl.style.display = 'none';
+
+  if (!current) { errEl.textContent='הזן/י את הסיסמא הנוכחית'; errEl.style.display='block'; return; }
+  if (new1.length < 8) { errEl.textContent='הסיסמא החדשה חייבת להכיל לפחות 8 תווים'; errEl.style.display='block'; return; }
+  if (new1 !== new2) { errEl.textContent='הסיסמאות אינן תואמות'; errEl.style.display='block'; return; }
+  if (!_staffLoginUsername) { errEl.textContent='שגיאה: שם משתמש לא ידוע. נסה/י להתחבר מחדש.'; errEl.style.display='block'; return; }
+
+  try {
+    const res = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: _staffLoginUsername, currentPassword: current, newPassword: new1 }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'שגיאה בשינוי סיסמא';
+      errEl.style.display = 'block';
+      return;
+    }
+    document.getElementById('changePasswordModal').style.display = 'none';
+    // Now complete login — re-fetch role with new session
+    const usp    = new URLSearchParams(location.search);
+    const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
+    const year   = usp.get('year')   || lsGet('portal_plan')?.year || new Date().getFullYear().toString();
+    const loginRes = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: _staffLoginUsername, password: new1, school, year }),
+    });
+    const loginData = await loginRes.json();
+    if (loginData.ok) {
+      const sessionData = { ...loginData, portalRole:'staff_member', loginMethod:'password' };
+      setPortalSession(sessionData);
+      applyRoleUI('staff_member', sessionData);
+    } else {
+      toast('✅ הסיסמא שונתה. יש להתחבר מחדש.', 'ok');
+      portalLogout();
+    }
+  } catch(e) {
+    errEl.textContent = 'שגיאת רשת: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
 
 function selectRole(role, btn) {
   console.log('[portal] selectRole called:', role);
@@ -741,6 +1047,28 @@ function selectRole(role, btn) {
 
   const btnContainer = document.getElementById('loginGoogleBtn');
   btnContainer.innerHTML = '';
+
+  // For staff_member: show password login section with tabs
+  if (role === 'staff_member' || role === 'staffmember') {
+    _pendingRole = 'staff_member';
+    const altContainer = document.getElementById('loginGoogleBtnAlt');
+    altContainer.innerHTML = '';
+    document.getElementById('loginPasswordSection').style.display = 'block';
+    document.getElementById('loginGoogleSection').style.display   = 'none';
+    document.getElementById('roleButtons').style.display = 'none';
+    document.getElementById('loginRoleLabel').textContent = '';
+    // Default to password tab for staff, but also render Google button for alt tab
+    switchLoginMethod('password', document.getElementById('tabPassword'));
+    setTimeout(() => {
+      if (window.google && google.accounts) {
+        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false });
+        if (altContainer && !altContainer.innerHTML.trim()) {
+          google.accounts.id.renderButton(altContainer, { theme:'outline', size:'large', locale:'he', width:290 });
+        }
+      }
+    }, 250);
+    return;
+  }
 
   setTimeout(() => {
     if (window.google && google.accounts) {
@@ -762,9 +1090,10 @@ function selectRole(role, btn) {
 
 function backToRoles() {
   _pendingRole = null;
-  document.getElementById('loginGoogleSection').style.display = 'none';
+  document.getElementById('loginGoogleSection').style.display  = 'none';
+  document.getElementById('loginPasswordSection').style.display = 'none';
   document.getElementById('roleButtons').style.display = 'flex';
-  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginError').style.display  = 'none';
   document.querySelectorAll('.login-role-btn').forEach(b => b.classList.remove('selected'));
 }
 
@@ -1011,6 +1340,16 @@ window.switchSMTab           = switchSMTab;
 window.addPrincipalRow       = addPrincipalRow;
 window.savePrincipals        = savePrincipals;
 
+window.submitPasswordChange    = submitPasswordChange;
+window.doPasswordLogin         = doPasswordLogin;
+window.switchLoginMethod       = switchLoginMethod;
+window.addStaffAuth            = addStaffAuth;
+window.loadStaffAuth           = loadStaffAuth;
+window.unlockStaffAuth         = unlockStaffAuth;
+window.deleteStaffAuth         = deleteStaffAuth;
+window.openAdminResetPwd       = openAdminResetPwd;
+window.submitAdminResetPassword= submitAdminResetPassword;
+
 window.smCheckPassword = function() {
   const val = document.getElementById('smPasswordInput').value;
   try {
@@ -1200,9 +1539,11 @@ async function saveStaffPermissions() {
 function switchSMTab(tab, btn) {
   document.querySelectorAll('.sm-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('smPanelStaff').style.display = tab === 'staff' ? '' : 'none';
-  document.getElementById('smPanelPrincipals').style.display = tab === 'principals' ? '' : 'none';
+  document.getElementById('smPanelStaff').style.display       = tab === 'staff'     ? '' : 'none';
+  document.getElementById('smPanelPrincipals').style.display  = tab === 'principals'? '' : 'none';
+  document.getElementById('smPanelStaffAuth').style.display   = tab === 'staffAuth' ? '' : 'none';
   if (tab === 'principals') loadPrincipals();
+  if (tab === 'staffAuth')  loadStaffAuth();
 }
 
 // PRINCIPALS
@@ -1255,6 +1596,185 @@ async function savePrincipals() {
     } catch { fail++; }
   }
   toast(fail ? `⚠️ ${fail} שגיאות, ${ok} נשמרו` : `✅ ${ok} מנהלים נשמרו`, fail ? 'err' : 'ok');
+}
+
+// ═══════════════════════════════════════════════════════
+//  STAFF AUTH ADMIN PANEL
+// ═══════════════════════════════════════════════════════
+let _saResetUsername = null;
+
+async function loadStaffAuth() {
+  const session = getPortalSession();
+  const school = PS.school || session?.school || '';
+  const year   = PS.year   || session?.year   || '';
+
+  const loadingEl = document.getElementById('saLoading');
+  const tableEl   = document.getElementById('saTable');
+  if (loadingEl) loadingEl.style.display = '';
+  if (tableEl)   tableEl.style.display   = 'none';
+
+  try {
+    const url = `${WORKER_URL_AUTH}/api/admin/staff-auth/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`;
+    const res  = await fetch(url, { cache:'no-store' });
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('bad response');
+    renderStaffAuthTable(data);
+  } catch(e) {
+    if (loadingEl) loadingEl.textContent = 'שגיאה בטעינה: ' + e.message;
+  }
+}
+
+function renderStaffAuthTable(rows) {
+  const loadingEl = document.getElementById('saLoading');
+  const tableEl   = document.getElementById('saTable');
+  const tbody     = document.getElementById('saTableBody');
+  if (!tbody) return;
+
+  if (rows.length === 0) {
+    if (loadingEl) { loadingEl.textContent = 'אין משתמשים עם סיסמא רשומים'; loadingEl.style.display=''; }
+    if (tableEl) tableEl.style.display = 'none';
+    return;
+  }
+
+  if (loadingEl) loadingEl.style.display = 'none';
+  if (tableEl)   tableEl.style.display   = '';
+
+  tbody.innerHTML = rows.map(row => {
+    let statusHtml = '';
+    if (row.isLocked) {
+      statusHtml = '<span class="sa-badge locked">🔒 חסום</span>';
+    } else if (row.passwordExpired || row.must_change_password) {
+      statusHtml = '<span class="sa-badge expired">⏰ ' + (row.must_change_password ? 'נדרשת החלפה' : 'פג תוקף') + '</span>';
+    } else {
+      statusHtml = '<span class="sa-badge ok">✓ פעיל</span>';
+    }
+
+    const lastLogin = row.last_login
+      ? new Date(row.last_login).toLocaleDateString('he-IL', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+      : '—';
+
+    const unlockBtn = row.isLocked
+      ? `<button class="sa-btn" onclick="unlockStaffAuth('${esc(row.username)}')">🔓 שחרר</button>`
+      : '';
+
+    return `<tr>
+      <td style="font-family:monospace;font-weight:600">${esc(row.username)}</td>
+      <td>${esc(row.name || '—')}</td>
+      <td style="font-size:.76rem">${esc(row.email || '—')}</td>
+      <td>${esc(row.role_title || '—')}</td>
+      <td>${statusHtml}</td>
+      <td style="font-size:.76rem">${lastLogin}</td>
+      <td>
+        <button class="sa-btn" onclick="openAdminResetPwd('${esc(row.username)}')">🔑 איפוס</button>
+        ${unlockBtn}
+        <button class="sa-btn danger" onclick="deleteStaffAuth('${esc(row.username)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function addStaffAuth() {
+  const username   = document.getElementById('saNewUsername')?.value?.trim().toLowerCase();
+  const name       = document.getElementById('saNewName')?.value?.trim();
+  const email      = document.getElementById('saNewEmail')?.value?.trim();
+  const roleTitle  = document.getElementById('saNewRole')?.value?.trim();
+  const password   = document.getElementById('saNewPassword')?.value;
+  const mustChange = document.getElementById('saNewMustChange')?.checked;
+  const errEl      = document.getElementById('saAddError');
+
+  if (!username || !password) {
+    errEl.textContent = 'שם משתמש וסיסמא נדרשים'; errEl.style.display = '';
+    return;
+  }
+  if (password.length < 8) {
+    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 8 תווים'; errEl.style.display = '';
+    return;
+  }
+  if (/\s/.test(username)) {
+    errEl.textContent = 'שם משתמש לא יכול להכיל רווחים'; errEl.style.display = '';
+    return;
+  }
+
+  const session = getPortalSession();
+  const school = PS.school || session?.school || '';
+  const year   = PS.year   || session?.year   || '';
+
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, name, email, school, year, roleTitle, mustChangePassword: mustChange }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'שגיאה'; errEl.style.display = '';
+      return;
+    }
+    // Clear form
+    ['saNewUsername','saNewName','saNewEmail','saNewRole','saNewPassword'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    toast(`✅ משתמש ${username} נוסף בהצלחה`, 'ok');
+    loadStaffAuth();
+  } catch(e) {
+    errEl.textContent = 'שגיאת רשת: ' + e.message; errEl.style.display = '';
+  }
+}
+
+function openAdminResetPwd(username) {
+  _saResetUsername = username;
+  document.getElementById('adminResetPwdSub').textContent = `איפוס סיסמא עבור: ${username}`;
+  document.getElementById('adminResetPwdNew').value = '';
+  document.getElementById('adminResetPwdError').style.display = 'none';
+  document.getElementById('adminResetPwdModal').style.display = 'flex';
+}
+
+async function submitAdminResetPassword() {
+  const newPwd = document.getElementById('adminResetPwdNew')?.value;
+  const errEl  = document.getElementById('adminResetPwdError');
+  if (!newPwd || newPwd.length < 8) {
+    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 8 תווים'; errEl.style.display = '';
+    return;
+  }
+  try {
+    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(_saResetUsername)}/reset-password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword: newPwd }),
+    });
+    const data = await res.json();
+    if (!data.ok) { errEl.textContent = data.error||'שגיאה'; errEl.style.display=''; return; }
+    document.getElementById('adminResetPwdModal').style.display = 'none';
+    toast(`✅ סיסמא אופסה עבור ${_saResetUsername}`, 'ok');
+    loadStaffAuth();
+  } catch(e) {
+    errEl.textContent = 'שגיאת רשת: ' + e.message; errEl.style.display = '';
+  }
+}
+
+async function unlockStaffAuth(username) {
+  try {
+    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}/unlock`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const data = await res.json();
+    if (data.ok) { toast(`🔓 חשבון ${username} שוחרר מחסימה`, 'ok'); loadStaffAuth(); }
+    else toast('❌ שגיאה בשחרור חסימה', 'err');
+  } catch(e) { toast('❌ שגיאת רשת', 'err'); }
+}
+
+async function deleteStaffAuth(username) {
+  if (!confirm(`למחוק את המשתמש ${username}?`)) return;
+  try {
+    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+    if (data.ok) { toast(`🗑 משתמש ${username} נמחק`, 'ok'); loadStaffAuth(); }
+    else toast('❌ שגיאה במחיקה', 'err');
+  } catch(e) { toast('❌ שגיאת רשת', 'err'); }
 }
 
 // ═══════════════════════════════════════════════════════
