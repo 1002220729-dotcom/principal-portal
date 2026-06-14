@@ -2022,19 +2022,17 @@ function saDeleteAsk(username) {
 function saDeleteCancel(username) { _saRestoreDeleteBtn(username); }
 
 async function deleteStaffAuth(username) {
-  try {
-    const url = `${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`;
-    const res  = await fetch(url, { method: 'DELETE' });
-    const data = await res.json();
-    if (data.ok) {
-      toast(`🗑 משתמש ${username} נמחק בהצלחה`, 'ok');
-      loadStaffAuth();
-    } else {
-      toast(`❌ שגיאה: ${data.error || 'המחיקה נכשלה'}`, 'err');
-      _saRestoreDeleteBtn(username);
-    }
-  } catch(e) {
-    toast(`❌ שגיאת רשת: ${e.message}`, 'err');
+  const res  = await fetch(
+    'https://principal-api.1002220729.workers.dev/api/admin/staff-auth/' + encodeURIComponent(username),
+    { method: 'DELETE' }
+  ).catch(e => { toast('❌ שגיאת רשת: ' + e.message, 'err'); _saRestoreDeleteBtn(username); return null; });
+  if (!res) return;
+  const data = await res.json().catch(() => ({}));
+  if (data.ok) {
+    toast('🗑 נמחק בהצלחה', 'ok');
+    loadStaffAuth();
+  } else {
+    toast(data.error || '❌ שגיאה במחיקה', 'err');
     _saRestoreDeleteBtn(username);
   }
 }
