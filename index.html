@@ -1374,6 +1374,8 @@ window.unlockStaffAuth         = unlockStaffAuth;
 window.deleteStaffAuth         = deleteStaffAuth;
 window.openAdminResetPwd       = openAdminResetPwd;
 window.submitAdminResetPassword= submitAdminResetPassword;
+window.saDeleteAsk             = saDeleteAsk;
+window.saDeleteCancel          = saDeleteCancel;
 window.buildSaNewPermGrid      = buildSaNewPermGrid;
 window.setSaNewPerm            = setSaNewPerm;
 window.toggleSaEditPerms       = toggleSaEditPerms;
@@ -1844,7 +1846,8 @@ function renderStaffAuthTable(rows, permMap = {}) {
       <td>
         <button class="sa-btn" onclick="openAdminResetPwd('${esc(row.username)}')">🔑 איפוס</button>
         ${unlockBtn}
-        <button class="sa-btn danger" onclick="deleteStaffAuth('${esc(row.username)}')">🗑</button>
+        <button class="sa-btn danger" id="sa-del-${usernameId}"
+          onclick="saDeleteAsk('${esc(row.username)}')">🗑 מחק</button>
       </td>
     </tr>
     <tr>
@@ -1968,8 +1971,39 @@ async function unlockStaffAuth(username) {
   } catch(e) { toast('❌ שגיאת רשת', 'err'); }
 }
 
+// Two-step delete: first click asks, second click executes
+function saDeleteAsk(username) {
+  const btnId  = 'sa-del-' + CSS.escape(username);
+  const btn    = document.getElementById(btnId);
+  if (!btn) return;
+
+  // Replace button with inline confirm strip
+  const strip = document.createElement('span');
+  strip.id = 'sa-del-confirm-' + CSS.escape(username);
+  strip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+  strip.innerHTML =
+    `<span style="font-size:.74rem;color:#b91c1c;font-weight:700;white-space:nowrap">מחק?</span>` +
+    `<button class="sa-btn danger" style="padding:3px 8px"
+       onclick="deleteStaffAuth('${esc(username)}')">✓ כן</button>` +
+    `<button class="sa-btn" style="padding:3px 8px"
+       onclick="saDeleteCancel('${esc(username)}')">✕</button>`;
+  btn.replaceWith(strip);
+}
+
+function saDeleteCancel(username) {
+  const stripId = 'sa-del-confirm-' + CSS.escape(username);
+  const strip   = document.getElementById(stripId);
+  if (!strip) return;
+
+  const btn = document.createElement('button');
+  btn.id        = 'sa-del-' + CSS.escape(username);
+  btn.className = 'sa-btn danger';
+  btn.textContent = '🗑 מחק';
+  btn.onclick   = () => saDeleteAsk(username);
+  strip.replaceWith(btn);
+}
+
 async function deleteStaffAuth(username) {
-  if (!confirm(`למחוק את המשתמש ${username}?`)) return;
   try {
     const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`, {
       method: 'DELETE',
