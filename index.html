@@ -1356,6 +1356,7 @@ window.smShowAdminLogin      = smBadgeClick;
 window.triggerSave           = triggerSave;
 window.navClick              = navClick;
 window.openStaffPermissions  = openStaffPermissions;
+window.loadStaffPermissions  = loadStaffPermissions;
 window.closeStaffPermissions = closeStaffPermissions;
 window.addStaffRow           = addStaffRow;
 window.deleteStaffRow        = deleteStaffRow;
@@ -1406,35 +1407,42 @@ window.smCheckPassword = function() {
 // ═══════════════════════════════════════════════════════
 let _staffRows = [];
 
+async function loadStaffPermissions() {
+  const session = getPortalSession();
+  if (!session) return;
+
+  const school = PS.school || session.school || '';
+  const year   = PS.year   || session.year   || new Date().getFullYear().toString();
+
+  if (!school || !year) return;
+
+  try {
+    const [staffRes, principalsRes] = await Promise.all([
+      fetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
+      fetch(`${WORKER_URL_AUTH}/api/principals/list`, { cache:'no-store' })
+    ]);
+    const staffData      = await staffRes.json();
+    const principalsData = await principalsRes.json();
+    const staffRows      = (Array.isArray(staffData) ? staffData : []).map(r => ({ ...r, _type: 'staff' }));
+    const principalRows  = (Array.isArray(principalsData) ? principalsData : []).map(r => ({ ...r, _type: 'principal' }));
+    _staffRows = [...principalRows, ...staffRows];
+  } catch {
+    _staffRows = [];
+  }
+  renderStaffTable();
+}
+
 async function openStaffPermissions() {
   const session = getPortalSession();
   if (!session) return;
   _staffRows = [];
 
-  const school = PS.school || session.school || '';
-  const year   = PS.year   || session.year   || new Date().getFullYear().toString();
-
   // Open modal immediately — don't block on network
   renderStaffTable();
   document.getElementById('staffPermModal').style.display = 'block';
 
-  // Then fetch existing staff + principals (best-effort — no school/year = skip)
-  if (school && year) {
-    try {
-      const [staffRes, principalsRes] = await Promise.all([
-        fetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
-        fetch(`${WORKER_URL_AUTH}/api/principals/list`, { cache:'no-store' })
-      ]);
-      const staffData      = await staffRes.json();
-      const principalsData = await principalsRes.json();
-      const staffRows      = (Array.isArray(staffData) ? staffData : []).map(r => ({ ...r, _type: 'staff' }));
-      const principalRows  = (Array.isArray(principalsData) ? principalsData : []).map(r => ({ ...r, _type: 'principal' }));
-      _staffRows = [...principalRows, ...staffRows];
-    } catch {
-      _staffRows = [];
-    }
-    renderStaffTable();
-  }
+  // Then fetch existing staff + principals
+  await loadStaffPermissions();
 }
 
 function closeStaffPermissions() {
@@ -2015,14 +2023,31 @@ function saDeleteAsk(username) {
 function saDeleteCancel(username) { _saRestoreDeleteBtn(username); }
 
 async function deleteStaffAuth(username) {
+  const session = getPortalSession();
+  const school  = PS.school || session?.school || '';
+  const year    = PS.year   || session?.year   || '';
+
+  // Resolve email from the rendered table row before deleting
+  const emailEl = document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`);
+  const email   = emailEl ? (emailEl.dataset.saEmailVal || username) : username;
+
   const res = await fetch(
     `https://principal-api.1002220729.workers.dev/api/admin/staff-auth/${encodeURIComponent(username)}`,
     { method: 'DELETE' }
   );
   const data = await res.json();
   if (data.ok) {
+    // Also remove from staffpermissions so the user disappears from the permissions table
+    try {
+      await fetch(
+        `${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+        { method: 'DELETE' }
+      );
+    } catch(_) {}
+
     toast('נמחק בהצלחה', 'ok');
     loadStaffAuth();
+    loadStaffPermissions();
   } else {
     toast(data.error || 'שגיאה במחיקה', 'err');
   }
