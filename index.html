@@ -2022,18 +2022,16 @@ function saDeleteAsk(username) {
 function saDeleteCancel(username) { _saRestoreDeleteBtn(username); }
 
 async function deleteStaffAuth(username) {
-  const res  = await fetch(
-    'https://principal-api.1002220729.workers.dev/api/admin/staff-auth/' + encodeURIComponent(username),
+  const res = await fetch(
+    `https://principal-api.1002220729.workers.dev/api/admin/staff-auth/${encodeURIComponent(username)}`,
     { method: 'DELETE' }
-  ).catch(e => { toast('❌ שגיאת רשת: ' + e.message, 'err'); _saRestoreDeleteBtn(username); return null; });
-  if (!res) return;
-  const data = await res.json().catch(() => ({}));
+  );
+  const data = await res.json();
   if (data.ok) {
-    toast('🗑 נמחק בהצלחה', 'ok');
+    toast('נמחק בהצלחה', 'ok');
     loadStaffAuth();
   } else {
-    toast(data.error || '❌ שגיאה במחיקה', 'err');
-    _saRestoreDeleteBtn(username);
+    toast(data.error || 'שגיאה במחיקה', 'err');
   }
 }
 
@@ -2041,7 +2039,7 @@ async function deleteStaffAuth(username) {
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('.sa-del-btn');
   if (btn && btn.dataset.username) {
-    saDeleteAsk(btn.dataset.username);
+    deleteStaffAuth(btn.dataset.username);
   }
 });
 
