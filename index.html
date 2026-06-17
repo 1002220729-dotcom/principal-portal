@@ -689,7 +689,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbTeachers"></div>
         👩‍🏫 ניהול מורים
       </div>
-      <iframe id="teachersFrame" src=""
+      <iframe id="teachersFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         title="ניהול מורים"></iframe>
     </div>
@@ -2252,8 +2252,12 @@ function _ensureTeachersLoaded() {
   if (!frameEl) return;
   // Respect the resolved permission (set in loadAllIframes / applyRoleUI)
   if (PS._teachersPerm === 'none') return;
-  // First visit: load the src
-  if (!frameEl.src || frameEl.src === 'about:blank') {
+  // First visit: load the src. Check the *attribute* (not the resolved
+  // .src property) — an empty/blank attribute resolves .src to the
+  // current page's own absolute URL, which would make this check fail
+  // to detect "not yet loaded" and silently never load teachers.html.
+  const attr = frameEl.getAttribute('src');
+  if (!attr || attr === 'about:blank' || !attr.includes('teachers.html')) {
     frameEl.src = 'teachers.html';
   }
   // If already ready (revisit), push current school/year again
