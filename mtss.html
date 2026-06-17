@@ -9,7 +9,7 @@
     <!-- טעינת ספריות ליבה -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -395,7 +395,532 @@
 
     <div id="root"></div>
 
-    <script type="text/babel">
+    <script>
+// ══════════════════════════════════════════════════════════════════
+//  פונקציות ייצוא — הוצאו מ-Babel JSX כדי למנוע שגיאת import
+// ══════════════════════════════════════════════════════════════════
+window.mtssExportCharts = function(items, populationsData, populationCategories, classes, schoolName, classStructure, studentNotes) {
+
+                                        const element = document.querySelector('.min-h-screen');
+                                        const clonedElement = element.cloneNode(true);
+
+                                        // Remove buttons from clone
+                                        const buttons = clonedElement.querySelector('.flex.justify-center.gap-4');
+                                        if (buttons) buttons.remove();
+
+                                        // Collect chart data
+                                        const chartsData = {
+                                            learning: items.learning || [],
+                                            support: items.support || [],
+                                            staffSupport: items.staffSupport || [],
+                                            populations: {
+                                                data: populationsData,
+                                                categories: populationCategories,
+                                                classes: classes
+                                            }
+                                        };
+
+                                        const htmlContent = `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תצוגת גרפים - MTSS Mapper</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap');
+        body { 
+            font-family: 'Heebo', sans-serif; 
+            margin: 0;
+            padding: 0;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .bg-gradient-to-br { background: linear-gradient(to bottom right, #0f172a, #581c87, #0f172a); }
+        .rounded-2xl { border-radius: 1rem; }
+        .p-8 { padding: 2rem; }
+        .mb-12 { margin-bottom: 3rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-3 { margin-bottom: 0.75rem; }
+        .mb-8 { margin-bottom: 2rem; }
+        .text-center { text-align: center; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .gap-3 { gap: 0.75rem; }
+        .gap-6 { gap: 1.5rem; }
+        .gap-8 { gap: 2rem; }
+        .justify-center { justify-content: center; }
+        .text-5xl { font-size: 3rem; }
+        .text-3xl { font-size: 1.875rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-sm { font-size: 0.875rem; }
+        .font-black { font-weight: 900; }
+        .font-bold { font-weight: 700; }
+        .text-purple-300 { color: #d8b4fe; }
+        .text-pink-300 { color: #f9a8d4; }
+        .text-purple-400 { color: #c084fc; }
+        .text-slate-300 { color: #cbd5e1; }
+        .text-slate-400 { color: #94a3b8; }
+        .text-slate-200 { color: #e2e8f0; }
+        .text-white { color: white; }
+        .text-cyan-400 { color: #22d3ee; }
+        .text-emerald-400 { color: #34d399; }
+        .text-blue-400 { color: #60a5fa; }
+        .bg-slate-800 { background-color: rgba(30, 41, 59, 0.5); }
+        .grid { display: grid; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        @media (min-width: 1024px) {
+            .lg\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        .min-h-screen { min-height: 100vh; }
+        h1, h2, h3, h4 { margin: 0; }
+        .bg-clip-text {
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .bg-gradient-to-r {
+            background-image: linear-gradient(to right, var(--tw-gradient-stops));
+        }
+        @media print {
+            .min-h-screen { background: white !important; }
+            .glass-panel { background: white !important; border: 1px solid #e2e8f0 !important; }
+            h1, h2, h3, h4 { color: #0f172a !important; }
+        }
+    </style>
+</head>
+<body>
+${clonedElement.outerHTML}
+<script>
+const chartsData = ${JSON.stringify(chartsData)};
+
+
+
+// ===== Helper functions for populations data =====
+const populationsData = chartsData.populations?.data || {};
+const populationCategories = chartsData.populations?.categories || [];
+const classes = chartsData.populations?.classes || [];
+
+function getStudentsForCell(className, categoryId) {
+    return populationsData[className + '-' + categoryId] || [];
+}
+
+function getTotalForCategory(categoryId) {
+    let total = 0;
+    // Iterate over all keys in populationsData
+    Object.keys(populationsData).forEach(key => {
+        // Check if the key ends with this category
+        if (key.endsWith('-' + categoryId)) {
+            const students = populationsData[key];
+            if (Array.isArray(students)) {
+                total += students.length;
+            }
+        }
+    });
+    return total;
+}
+
+function getTotalForClass(className) {
+    let total = 0;
+    // Iterate over all keys in populationsData
+    Object.keys(populationsData).forEach(key => {
+        // Check if the key starts with this className (e.g., "א1-", "א2-")
+        if (key.startsWith(className)) {
+            const students = populationsData[key];
+            if (Array.isArray(students)) {
+                total += students.length;
+            }
+        }
+    });
+    return total;
+}
+
+function getGrandTotal() {
+    let total = 0;
+    // Simply iterate over all students in populationsData
+    Object.values(populationsData).forEach(students => {
+        if (Array.isArray(students)) {
+            total += students.length;
+        }
+    });
+    return total;
+}
+
+window.addEventListener('load', () => {
+    // Create charts for each arena
+    ['learning', 'support', 'staffSupport'].forEach(arena => {
+        const arenaItems = chartsData[arena];
+        if (!arenaItems || arenaItems.length === 0) return;
+
+        const stats = {
+            tier1: arenaItems.filter(i => i.tier === 'tier1').length,
+            tier2: arenaItems.filter(i => i.tier === 'tier2').length,
+            tier3: arenaItems.filter(i => i.tier === 'tier3').length,
+            emotional: arenaItems.filter(i => i.domains && i.domains.includes('emotional')).length,
+            social: arenaItems.filter(i => i.domains && i.domains.includes('social')).length,
+            pedagogical: arenaItems.filter(i => i.domains && i.domains.includes('pedagogical')).length
+        };
+
+        const doughnut = document.getElementById(\`charts-doughnut-\${arena}\`);
+        if (doughnut) {
+            new Chart(doughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: ['100% מענה כיתתי', '25% מענה קבוצתי', '5% מענה פרטני'],
+                    datasets: [{
+                        data: [stats.tier1, stats.tier2, stats.tier3],
+                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } }
+                }
+            });
+        }
+
+        const bar = document.getElementById(\`charts-bar-\${arena}\`);
+        if (bar) {
+            new Chart(bar, {
+                type: 'bar',
+                data: {
+                    labels: ['רגשי', 'חברתי', 'פדגוגי'],
+                    datasets: [{
+                        data: [stats.emotional, stats.social, stats.pedagogical],
+                        backgroundColor: ['#a855f7', '#3b82f6', '#f97316']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+                        x: { ticks: { color: '#cbd5e1' } }
+                    }
+                }
+            });
+        }
+
+        const radar = document.getElementById(\`charts-radar-\${arena}\`);
+        if (radar) {
+            new Chart(radar, {
+                type: 'radar',
+                data: {
+                    labels: ['שכבה 1', 'שכבה 2', 'שכבה 3', 'רגשי', 'חברתי', 'פדגוגי'],
+                    datasets: [{
+                        data: [stats.tier1, stats.tier2, stats.tier3, stats.emotional, stats.social, stats.pedagogical],
+                        backgroundColor: 'rgba(6, 182, 212, 0.2)',
+                        borderColor: '#06b6d4'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { r: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, pointLabels: { color: '#cbd5e1' } } }
+                }
+            });
+        }
+    });
+
+    // Create charts for populations
+    if (populationsData && Object.keys(populationsData).length > 0) {
+        // Calculate category totals
+        const categoryTotals = {};
+        populationCategories.forEach(cat => {
+            categoryTotals[cat.id] = getTotalForCategory(cat.id);
+        });
+
+        // Calculate class totals
+        const classTotals = {};
+        classes.forEach(cls => {
+            classTotals[cls] = getTotalForClass(cls);
+        });
+
+        // Pie Chart - Distribution by Category
+        const pie = document.getElementById('charts-population-pie');
+        if (pie && populationCategories.length > 0) {
+            new Chart(pie, {
+                type: 'doughnut',
+                data: {
+                    labels: populationCategories.map(cat => cat.label),
+                    datasets: [{
+                        data: populationCategories.map(cat => categoryTotals[cat.id] || 0),
+                        backgroundColor: [
+                            '#a855f7', '#ec4899', '#f97316', '#3b82f6', 
+                            '#14b8a6', '#6366f1', '#64748b'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#1e293b'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#cbd5e1', padding: 15, font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const value = context.parsed;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return \`\${context.label}: \${value} (\${percentage}%)\`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Bar Chart - Distribution by Class
+        const bar = document.getElementById('charts-population-bar');
+        if (bar && classes.length > 0) {
+            new Chart(bar, {
+                type: 'bar',
+                data: {
+                    labels: classes,
+                    datasets: [{
+                        label: 'תלמידים',
+                        data: classes.map(cls => classTotals[cls] || 0),
+                        backgroundColor: '#06b6d4',
+                        borderColor: '#0891b2',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => \`\${context.parsed.y} תלמידים\`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { 
+                                color: '#94a3b8',
+                                stepSize: 1
+                            },
+                            grid: { color: '#334155' }
+                        },
+                        x: {
+                            ticks: { color: '#cbd5e1' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Radar Chart - Comparison between Categories
+        const radar = document.getElementById('charts-population-radar');
+        if (radar && populationCategories.length > 0) {
+            new Chart(radar, {
+                type: 'radar',
+                data: {
+                    labels: populationCategories.map(cat => cat.label),
+                    datasets: [{
+                        label: 'מספר תלמידים',
+                        data: populationCategories.map(cat => categoryTotals[cat.id] || 0),
+                        backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                        borderColor: '#a855f7',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#a855f7',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#a855f7'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            ticks: { 
+                                color: '#94a3b8',
+                                stepSize: 1,
+                                backdropColor: 'transparent'
+                            },
+                            grid: { color: '#334155' },
+                            pointLabels: { 
+                                color: '#cbd5e1',
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+});
+<\/script>
+</body>
+</html>`;
+
+                                        const blob = new Blob([htmlContent], { type: 'text/html' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `mtss-charts-${new Date().toISOString().slice(0, 10)}.html`;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+
+                                        // Auto-download JSON backup
+                                        setTimeout(() => {
+                                            const backupData = {
+                                                version: '2.0',
+                                                exportDate: new Date().toISOString(),
+                                                schoolName,
+                                                items,
+                                                populationsData,
+                                                classStructure,
+                                                classes,
+                                                studentNotes
+                                            };
+                                            const jsonBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                                            const jsonUrl = URL.createObjectURL(jsonBlob);
+                                            const jsonLink = document.createElement('a');
+                                            jsonLink.href = jsonUrl;
+                                            jsonLink.download = `mtss-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                                            jsonLink.click();
+                                            URL.revokeObjectURL(jsonUrl);
+                                        }, 500);
+                                    }}
+ 
+};
+
+window.mtssExportReport = function(schoolName, items, populationsData, classStructure, classes, studentNotes) {
+
+                                            // Get the report content
+                                            const reportElement = document.querySelector('.report-view');
+                                            const clonedElement = reportElement.cloneNode(true);
+
+                                            // Remove no-print elements
+                                            clonedElement.querySelectorAll('.no-print').forEach(el => el.remove());
+
+                                            const htmlContent = `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>דוח מסכם MTSS - ${schoolName || 'מערכת MTSS'}</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap');
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: white;
+            color: #0f172a;
+            margin: 0;
+            padding: 0;
+        }
+        .report-view { padding: 2rem; }
+        .section-title { 
+            background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin: 2rem 0 1.5rem;
+        }
+        .stat-box {
+            background: #f1f5f9;
+            border: 2px solid #cbd5e1;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .item-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 1rem 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th {
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 12px;
+            border: 2px solid #cbd5e1;
+            font-weight: 700;
+        }
+        td {
+            background: white;
+            color: #1e293b;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+        }
+        h1 { font-size: 3rem; font-weight: 900; margin: 0 0 1rem; }
+        h2 { font-size: 1.5rem; font-weight: 700; margin: 1.5rem 0 1rem; }
+        h3 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+        h4 { font-size: 1.125rem; font-weight: 700; margin: 0.75rem 0 0.5rem; }
+        @media print {
+            .page-break { page-break-before: always; }
+            .item-card, .stat-box { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+${clonedElement.outerHTML}
+</body>
+</html>`;
+
+                                            const blob = new Blob([htmlContent], { type: 'text/html' });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `mtss-report-${new Date().toISOString().slice(0, 10)}.html`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+
+                                            // Auto-download JSON backup
+                                            setTimeout(() => {
+                                                const backupData = {
+                                                    version: '2.0',
+                                                    exportDate: new Date().toISOString(),
+                                                    schoolName,
+                                                    items,
+                                                    populationsData,
+                                                    classStructure,
+                                                    classes,
+                                                    studentNotes
+                                                };
+                                                const jsonBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                                                const jsonUrl = URL.createObjectURL(jsonBlob);
+                                                const jsonLink = document.createElement('a');
+                                                jsonLink.href = jsonUrl;
+                                                jsonLink.download = `mtss-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                                                jsonLink.click();
+                                                URL.revokeObjectURL(jsonUrl);
+                                            }, 500);
+                                        }}
+ 
+};
+</script>
+<script type="text/babel" data-presets="react">
         const { useState, useEffect } = React;
 
         // --- קונפיגורציית צבעים מעודכנת (Dark/Neon) ---
@@ -1812,411 +2337,7 @@
                                     <i className="fas fa-arrow-right"></i> חזרה לעריכה
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        const element = document.querySelector('.min-h-screen');
-                                        const clonedElement = element.cloneNode(true);
-
-                                        // Remove buttons from clone
-                                        const buttons = clonedElement.querySelector('.flex.justify-center.gap-4');
-                                        if (buttons) buttons.remove();
-
-                                        // Collect chart data
-                                        const chartsData = {
-                                            learning: items.learning || [],
-                                            support: items.support || [],
-                                            staffSupport: items.staffSupport || [],
-                                            populations: {
-                                                data: populationsData,
-                                                categories: populationCategories,
-                                                classes: classes
-                                            }
-                                        };
-
-                                        const htmlContent = `<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>תצוגת גרפים - MTSS Mapper</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap');
-        body { 
-            font-family: 'Heebo', sans-serif; 
-            margin: 0;
-            padding: 0;
-        }
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        }
-        .bg-gradient-to-br { background: linear-gradient(to bottom right, #0f172a, #581c87, #0f172a); }
-        .rounded-2xl { border-radius: 1rem; }
-        .p-8 { padding: 2rem; }
-        .mb-12 { margin-bottom: 3rem; }
-        .mb-6 { margin-bottom: 1.5rem; }
-        .mb-4 { margin-bottom: 1rem; }
-        .mb-3 { margin-bottom: 0.75rem; }
-        .mb-8 { margin-bottom: 2rem; }
-        .text-center { text-align: center; }
-        .flex { display: flex; }
-        .items-center { align-items: center; }
-        .gap-3 { gap: 0.75rem; }
-        .gap-6 { gap: 1.5rem; }
-        .gap-8 { gap: 2rem; }
-        .justify-center { justify-content: center; }
-        .text-5xl { font-size: 3rem; }
-        .text-3xl { font-size: 1.875rem; }
-        .text-xl { font-size: 1.25rem; }
-        .text-lg { font-size: 1.125rem; }
-        .text-sm { font-size: 0.875rem; }
-        .font-black { font-weight: 900; }
-        .font-bold { font-weight: 700; }
-        .text-purple-300 { color: #d8b4fe; }
-        .text-pink-300 { color: #f9a8d4; }
-        .text-purple-400 { color: #c084fc; }
-        .text-slate-300 { color: #cbd5e1; }
-        .text-slate-400 { color: #94a3b8; }
-        .text-slate-200 { color: #e2e8f0; }
-        .text-white { color: white; }
-        .text-cyan-400 { color: #22d3ee; }
-        .text-emerald-400 { color: #34d399; }
-        .text-blue-400 { color: #60a5fa; }
-        .bg-slate-800 { background-color: rgba(30, 41, 59, 0.5); }
-        .grid { display: grid; }
-        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        @media (min-width: 1024px) {
-            .lg\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        }
-        .min-h-screen { min-height: 100vh; }
-        h1, h2, h3, h4 { margin: 0; }
-        .bg-clip-text {
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .bg-gradient-to-r {
-            background-image: linear-gradient(to right, var(--tw-gradient-stops));
-        }
-        @media print {
-            .min-h-screen { background: white !important; }
-            .glass-panel { background: white !important; border: 1px solid #e2e8f0 !important; }
-            h1, h2, h3, h4 { color: #0f172a !important; }
-        }
-    </style>
-</head>
-<body>
-${clonedElement.outerHTML}
-<script>
-const chartsData = ${JSON.stringify(chartsData)};
-
-
-
-// ===== Helper functions for populations data =====
-const populationsData = chartsData.populations?.data || {};
-const populationCategories = chartsData.populations?.categories || [];
-const classes = chartsData.populations?.classes || [];
-
-function getStudentsForCell(className, categoryId) {
-    return populationsData[className + '-' + categoryId] || [];
-}
-
-function getTotalForCategory(categoryId) {
-    let total = 0;
-    // Iterate over all keys in populationsData
-    Object.keys(populationsData).forEach(key => {
-        // Check if the key ends with this category
-        if (key.endsWith('-' + categoryId)) {
-            const students = populationsData[key];
-            if (Array.isArray(students)) {
-                total += students.length;
-            }
-        }
-    });
-    return total;
-}
-
-function getTotalForClass(className) {
-    let total = 0;
-    // Iterate over all keys in populationsData
-    Object.keys(populationsData).forEach(key => {
-        // Check if the key starts with this className (e.g., "א1-", "א2-")
-        if (key.startsWith(className)) {
-            const students = populationsData[key];
-            if (Array.isArray(students)) {
-                total += students.length;
-            }
-        }
-    });
-    return total;
-}
-
-function getGrandTotal() {
-    let total = 0;
-    // Simply iterate over all students in populationsData
-    Object.values(populationsData).forEach(students => {
-        if (Array.isArray(students)) {
-            total += students.length;
-        }
-    });
-    return total;
-}
-
-window.addEventListener('load', () => {
-    // Create charts for each arena
-    ['learning', 'support', 'staffSupport'].forEach(arena => {
-        const arenaItems = chartsData[arena];
-        if (!arenaItems || arenaItems.length === 0) return;
-
-        const stats = {
-            tier1: arenaItems.filter(i => i.tier === 'tier1').length,
-            tier2: arenaItems.filter(i => i.tier === 'tier2').length,
-            tier3: arenaItems.filter(i => i.tier === 'tier3').length,
-            emotional: arenaItems.filter(i => i.domains && i.domains.includes('emotional')).length,
-            social: arenaItems.filter(i => i.domains && i.domains.includes('social')).length,
-            pedagogical: arenaItems.filter(i => i.domains && i.domains.includes('pedagogical')).length
-        };
-
-        const doughnut = document.getElementById(\`charts-doughnut-\${arena}\`);
-        if (doughnut) {
-            new Chart(doughnut, {
-                type: 'doughnut',
-                data: {
-                    labels: ['100% מענה כיתתי', '25% מענה קבוצתי', '5% מענה פרטני'],
-                    datasets: [{
-                        data: [stats.tier1, stats.tier2, stats.tier3],
-                        backgroundColor: ['#10b981', '#f59e0b', '#ef4444']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1' } } }
-                }
-            });
-        }
-
-        const bar = document.getElementById(\`charts-bar-\${arena}\`);
-        if (bar) {
-            new Chart(bar, {
-                type: 'bar',
-                data: {
-                    labels: ['רגשי', 'חברתי', 'פדגוגי'],
-                    datasets: [{
-                        data: [stats.emotional, stats.social, stats.pedagogical],
-                        backgroundColor: ['#a855f7', '#3b82f6', '#f97316']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-                        x: { ticks: { color: '#cbd5e1' } }
-                    }
-                }
-            });
-        }
-
-        const radar = document.getElementById(\`charts-radar-\${arena}\`);
-        if (radar) {
-            new Chart(radar, {
-                type: 'radar',
-                data: {
-                    labels: ['שכבה 1', 'שכבה 2', 'שכבה 3', 'רגשי', 'חברתי', 'פדגוגי'],
-                    datasets: [{
-                        data: [stats.tier1, stats.tier2, stats.tier3, stats.emotional, stats.social, stats.pedagogical],
-                        backgroundColor: 'rgba(6, 182, 212, 0.2)',
-                        borderColor: '#06b6d4'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { r: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, pointLabels: { color: '#cbd5e1' } } }
-                }
-            });
-        }
-    });
-
-    // Create charts for populations
-    if (populationsData && Object.keys(populationsData).length > 0) {
-        // Calculate category totals
-        const categoryTotals = {};
-        populationCategories.forEach(cat => {
-            categoryTotals[cat.id] = getTotalForCategory(cat.id);
-        });
-
-        // Calculate class totals
-        const classTotals = {};
-        classes.forEach(cls => {
-            classTotals[cls] = getTotalForClass(cls);
-        });
-
-        // Pie Chart - Distribution by Category
-        const pie = document.getElementById('charts-population-pie');
-        if (pie && populationCategories.length > 0) {
-            new Chart(pie, {
-                type: 'doughnut',
-                data: {
-                    labels: populationCategories.map(cat => cat.label),
-                    datasets: [{
-                        data: populationCategories.map(cat => categoryTotals[cat.id] || 0),
-                        backgroundColor: [
-                            '#a855f7', '#ec4899', '#f97316', '#3b82f6', 
-                            '#14b8a6', '#6366f1', '#64748b'
-                        ],
-                        borderWidth: 2,
-                        borderColor: '#1e293b'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#cbd5e1', padding: 15, font: { size: 12 } }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => {
-                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const value = context.parsed;
-                                    const percentage = ((value / total) * 100).toFixed(1);
-                                    return \`\${context.label}: \${value} (\${percentage}%)\`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Bar Chart - Distribution by Class
-        const bar = document.getElementById('charts-population-bar');
-        if (bar && classes.length > 0) {
-            new Chart(bar, {
-                type: 'bar',
-                data: {
-                    labels: classes,
-                    datasets: [{
-                        label: 'תלמידים',
-                        data: classes.map(cls => classTotals[cls] || 0),
-                        backgroundColor: '#06b6d4',
-                        borderColor: '#0891b2',
-                        borderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => \`\${context.parsed.y} תלמידים\`
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { 
-                                color: '#94a3b8',
-                                stepSize: 1
-                            },
-                            grid: { color: '#334155' }
-                        },
-                        x: {
-                            ticks: { color: '#cbd5e1' },
-                            grid: { display: false }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Radar Chart - Comparison between Categories
-        const radar = document.getElementById('charts-population-radar');
-        if (radar && populationCategories.length > 0) {
-            new Chart(radar, {
-                type: 'radar',
-                data: {
-                    labels: populationCategories.map(cat => cat.label),
-                    datasets: [{
-                        label: 'מספר תלמידים',
-                        data: populationCategories.map(cat => categoryTotals[cat.id] || 0),
-                        backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                        borderColor: '#a855f7',
-                        borderWidth: 2,
-                        pointBackgroundColor: '#a855f7',
-                        pointBorderColor: '#fff',
-                        pointHoverBackgroundColor: '#fff',
-                        pointHoverBorderColor: '#a855f7'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        r: {
-                            beginAtZero: true,
-                            ticks: { 
-                                color: '#94a3b8',
-                                stepSize: 1,
-                                backdropColor: 'transparent'
-                            },
-                            grid: { color: '#334155' },
-                            pointLabels: { 
-                                color: '#cbd5e1',
-                                font: { size: 11 }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    }
-});
-<\/script>
-</body>
-</html>`;
-
-                                        const blob = new Blob([htmlContent], { type: 'text/html' });
-                                        const url = URL.createObjectURL(blob);
-                                        const a = document.createElement('a');
-                                        a.href = url;
-                                        a.download = `mtss-charts-${new Date().toISOString().slice(0, 10)}.html`;
-                                        a.click();
-                                        URL.revokeObjectURL(url);
-
-                                        // Auto-download JSON backup
-                                        setTimeout(() => {
-                                            const backupData = {
-                                                version: '2.0',
-                                                exportDate: new Date().toISOString(),
-                                                schoolName,
-                                                items,
-                                                populationsData,
-                                                classStructure,
-                                                classes,
-                                                studentNotes
-                                            };
-                                            const jsonBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-                                            const jsonUrl = URL.createObjectURL(jsonBlob);
-                                            const jsonLink = document.createElement('a');
-                                            jsonLink.href = jsonUrl;
-                                            jsonLink.download = `mtss-backup-${new Date().toISOString().slice(0, 10)}.json`;
-                                            jsonLink.click();
-                                            URL.revokeObjectURL(jsonUrl);
-                                        }, 500);
-                                    }}
+                                    onClick={() => window.mtssExportCharts(items, populationsData, populationCategories, classes, schoolName, classStructure, studentNotes)}
                                     className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl transition-all flex items-center gap-3 shadow-lg"
                                 >
                                     <i className="fas fa-download"></i> הורד HTML + גיבוי
@@ -2737,114 +2858,7 @@ window.addEventListener('load', () => {
 
                                 <div className="flex gap-3">
                                     <button
-                                        onClick={() => {
-                                            // Get the report content
-                                            const reportElement = document.querySelector('.report-view');
-                                            const clonedElement = reportElement.cloneNode(true);
-
-                                            // Remove no-print elements
-                                            clonedElement.querySelectorAll('.no-print').forEach(el => el.remove());
-
-                                            const htmlContent = `<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>דוח מסכם MTSS - ${schoolName || 'מערכת MTSS'}</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap');
-        body {
-            font-family: 'Heebo', sans-serif;
-            background: white;
-            color: #0f172a;
-            margin: 0;
-            padding: 0;
-        }
-        .report-view { padding: 2rem; }
-        .section-title { 
-            background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
-            color: white;
-            padding: 1.5rem;
-            border-radius: 1rem;
-            margin: 2rem 0 1.5rem;
-        }
-        .stat-box {
-            background: #f1f5f9;
-            border: 2px solid #cbd5e1;
-            border-radius: 1rem;
-            padding: 1.5rem;
-            margin: 1rem 0;
-        }
-        .item-card {
-            background: white;
-            border: 2px solid #e2e8f0;
-            border-radius: 0.75rem;
-            padding: 1.25rem;
-            margin: 1rem 0;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        th {
-            background: #f1f5f9;
-            color: #0f172a;
-            padding: 12px;
-            border: 2px solid #cbd5e1;
-            font-weight: 700;
-        }
-        td {
-            background: white;
-            color: #1e293b;
-            padding: 10px;
-            border: 1px solid #e2e8f0;
-        }
-        h1 { font-size: 3rem; font-weight: 900; margin: 0 0 1rem; }
-        h2 { font-size: 1.5rem; font-weight: 700; margin: 1.5rem 0 1rem; }
-        h3 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.5rem; }
-        h4 { font-size: 1.125rem; font-weight: 700; margin: 0.75rem 0 0.5rem; }
-        @media print {
-            .page-break { page-break-before: always; }
-            .item-card, .stat-box { page-break-inside: avoid; }
-        }
-    </style>
-</head>
-<body>
-${clonedElement.outerHTML}
-</body>
-</html>`;
-
-                                            const blob = new Blob([htmlContent], { type: 'text/html' });
-                                            const url = URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
-                                            a.href = url;
-                                            a.download = `mtss-report-${new Date().toISOString().slice(0, 10)}.html`;
-                                            a.click();
-                                            URL.revokeObjectURL(url);
-
-                                            // Auto-download JSON backup
-                                            setTimeout(() => {
-                                                const backupData = {
-                                                    version: '2.0',
-                                                    exportDate: new Date().toISOString(),
-                                                    schoolName,
-                                                    items,
-                                                    populationsData,
-                                                    classStructure,
-                                                    classes,
-                                                    studentNotes
-                                                };
-                                                const jsonBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-                                                const jsonUrl = URL.createObjectURL(jsonBlob);
-                                                const jsonLink = document.createElement('a');
-                                                jsonLink.href = jsonUrl;
-                                                jsonLink.download = `mtss-backup-${new Date().toISOString().slice(0, 10)}.json`;
-                                                jsonLink.click();
-                                                URL.revokeObjectURL(jsonUrl);
-                                            }, 500);
-                                        }}
+                                        onClick={() => window.mtssExportReport(schoolName, items, populationsData, classStructure, classes, studentNotes)}
                                         className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition-all flex items-center gap-2"
                                     >
                                         <i className="fas fa-download"></i> הורד HTML + גיבוי
