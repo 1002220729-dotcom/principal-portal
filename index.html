@@ -285,6 +285,7 @@ body{
 .frame-bar.bar-gantt    {background:var(--teal);}
 .frame-bar.bar-mtss     {background:var(--purple);}
 .frame-bar.bar-calendar {background:#b45309;}
+.frame-bar.bar-teachers {background:#0e7490;}
 .frame-bar .fb-dot{
   width:5px;height:5px;border-radius:50%;
   background:rgba(255,255,255,0.25);transition:all .3s;
@@ -627,6 +628,12 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <span class="ni-icon">💰</span> תקציב
     </button>
 
+    <div class="nav-section-header">צוות</div>
+    <button class="nav-item" id="navTeachers" data-target="teachers" data-perm="teachers" onclick="navClick(this)">
+      <span class="ni-icon">👩‍🏫</span> ניהול מורים
+      <span class="ni-dot" id="ndTeachers"></span>
+    </button>
+
     <div class="nav-section-header" id="navAdminSection" style="display:none;">ניהול</div>
     <button class="nav-item" id="navStaffPerms" style="display:none;" onclick="openStaffPermissions()">
       <span class="ni-icon">🔑</span> הרשאות צוות
@@ -675,6 +682,16 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <iframe id="calendarFrame" src="לוח_שנה.html"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         title="לוח שנה"></iframe>
+    </div>
+
+    <div class="frame-wrapper" id="wrapTeachers">
+      <div class="frame-bar bar-teachers">
+        <div class="fb-dot" id="fbTeachers"></div>
+        👩‍🏫 ניהול מורים
+      </div>
+      <iframe id="teachersFrame" src=""
+        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+        title="ניהול מורים"></iframe>
     </div>
 
   </div>
@@ -1235,7 +1252,7 @@ function applyRoleUI(role, session) {
 
 // Portal-level frames: gantt, mtss
 // Plan sub-sections: s0,s1,...,sinventory,sbudget — communicated via postMessage
-const PORTAL_FRAMES = ['gantt','mtss','calendar'];
+const PORTAL_FRAMES = ['gantt','mtss','calendar','teachers'];
 
 function setNavVisible(sectionId, visible) {
   // Portal nav items with data-perm (gantt, mtss)
@@ -1287,6 +1304,12 @@ function loadAllIframes(perms) {
       });
     }
   });
+
+  // Teachers HR: lazy-loaded on first nav click (see _ensureTeachersLoaded()).
+  // We only resolve and store the effective permission here so the loader
+  // knows whether to flag readonly once the iframe actually loads.
+  const teachersPerm = perms ? (perms.teachers || 'none') : 'edit';
+  PS._teachersPerm = teachersPerm;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2067,7 +2090,7 @@ document.addEventListener('click', function(e) {
 const PS = {
   school:'', year:'',
   planData:null, ganttData:null, mtssData:null,
-  planReady:false, ganttReady:false, mtssReady:false,
+  planReady:false, ganttReady:false, mtssReady:false, teachersReady:false,
   lastSync:null, syncCount:0,
   activeFrame:'plan'
 };
@@ -2093,7 +2116,7 @@ function navClick(btn) {
   document.querySelectorAll('#sideNav .nav-item').forEach(b =>
     b.classList.remove('active','active-teal','active-purple'));
 
-  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple', calendar:'active' };
+  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple', calendar:'active', teachers:'active active-teal' };
   (clsMap[target]||'active').split(' ').forEach(c => btn.classList.add(c));
 
   showFrame(target);
@@ -2101,15 +2124,17 @@ function navClick(btn) {
   const planWin      = document.getElementById('planFrame')?.contentWindow;
   const ganttWin     = document.getElementById('ganttFrame')?.contentWindow;
   const mtssWin      = document.getElementById('mtssFrame')?.contentWindow;
+  const teachersWin  = document.getElementById('teachersFrame')?.contentWindow;
 
   if (target==='plan'      && section) planWin.postMessage({ type:'switch-section', section }, '*');
   if (target==='mtss'      && tab)     mtssWin.postMessage({ type:'switch-tab', tab }, '*');
   if (target==='mtss')                 mtssWin.postMessage({ type:'request-data' }, '*');
+  if (target==='teachers')             _ensureTeachersLoaded();
 }
 
 function showFrame(name) {
   PS.activeFrame = name;
-  ['plan','gantt','mtss','calendar'].forEach(f => {
+  ['plan','gantt','mtss','calendar','teachers'].forEach(f => {
     const w = document.getElementById('wrap'+f.charAt(0).toUpperCase()+f.slice(1));
     if (w) w.classList.toggle('active', f===name);
   });
@@ -2137,8 +2162,8 @@ function updateStatus() {
   document.getElementById('sbCount').className    = 'sb-val'+(PS.syncCount===0?' empty':'');
 }
 function setReady(which, on) {
-  const dotMap = {plan:'ndPlan',gantt:'ndGantt',mtss:'ndMtss'};
-  const fbMap  = {plan:'fbPlan',gantt:'fbGantt',mtss:'fbMtss'};
+  const dotMap = {plan:'ndPlan',gantt:'ndGantt',mtss:'ndMtss',teachers:'ndTeachers'};
+  const fbMap  = {plan:'fbPlan',gantt:'fbGantt',mtss:'fbMtss',teachers:'fbTeachers'};
   document.getElementById(dotMap[which])?.classList.toggle('on',on);
   document.getElementById(fbMap[which])?.classList.toggle('on',on);
 }
@@ -2218,6 +2243,28 @@ async function dbSave(type, payload) {
   } catch (err) { console.warn('dbSave failed', type, err); }
 }
 
+// ═══════════════════════════════════════════════════════
+//  TEACHERS — lazy iframe loader
+//  Called the first time the Teachers nav item is clicked.
+// ═══════════════════════════════════════════════════════
+function _ensureTeachersLoaded() {
+  const frameEl = document.getElementById('teachersFrame');
+  if (!frameEl) return;
+  // Respect the resolved permission (set in loadAllIframes / applyRoleUI)
+  if (PS._teachersPerm === 'none') return;
+  // First visit: load the src
+  if (!frameEl.src || frameEl.src === 'about:blank') {
+    frameEl.src = 'teachers.html';
+  }
+  // If already ready (revisit), push current school/year again
+  if (PS.teachersReady && (PS.school || PS.year)) {
+    frameEl.contentWindow.postMessage({
+      type: 'load-data',
+      payload: { school: PS.school, year: PS.year }
+    }, '*');
+  }
+}
+
 window.addEventListener('message', async (e) => {
   if (!e.data||typeof e.data!=='object') return;
   if (typeof e.data.type!=='string') return;
@@ -2226,12 +2273,14 @@ window.addEventListener('message', async (e) => {
   const ganttWin     = document.getElementById('ganttFrame')?.contentWindow;
   const mtssWin      = document.getElementById('mtssFrame')?.contentWindow;
   const calendarWin  = document.getElementById('calendarFrame')?.contentWindow;
+  const teachersWin  = document.getElementById('teachersFrame')?.contentWindow;
 
   const fromPlan      = e.source===planWin;
   const fromGantt     = e.source===ganttWin;
   const fromMtss      = e.source===mtssWin;
   const fromCalendar  = e.source===calendarWin;
-  if (!fromPlan&&!fromGantt&&!fromMtss&&!fromCalendar) return;
+  const fromTeachers  = e.source===teachersWin;
+  if (!fromPlan&&!fromGantt&&!fromMtss&&!fromCalendar&&!fromTeachers) return;
 
   switch(e.data.type) {
 
@@ -2259,6 +2308,26 @@ window.addEventListener('message', async (e) => {
               else ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
             }).catch(()=>ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
         }
+      }
+      if (e.data.docType==='teachers' && fromTeachers) {
+        PS.teachersReady = true;
+        setReady('teachers', true);
+        setStatus('ניהול מורים מוכן');
+        const teachersFrameEl = document.getElementById('teachersFrame');
+        if (teachersFrameEl?.contentWindow) {
+          if (PS.school || PS.year) {
+            teachersFrameEl.contentWindow.postMessage({
+              type: 'load-data',
+              payload: { school: PS.school, year: PS.year }
+            }, '*');
+          }
+          if (PS._teachersPerm === 'view') {
+            teachersFrameEl.contentWindow.postMessage(
+              { type: 'set-readonly', readonly: true, docType: 'teachers' }, '*'
+            );
+          }
+        }
+        break;
       }
       if (e.data.docType==='inventory') break; // handled inside plan iframe (v38)
       if (e.data.docType==='budget')    break; // handled inside plan iframe (v38)
@@ -2404,12 +2473,12 @@ async function init() {
   console.log('init ran');
 
   const af=localStorage.getItem('portal_active_frame');
-  if(af&&['plan','gantt','mtss','calendar'].includes(af)) {
+  if(af&&['plan','gantt','mtss','calendar','teachers'].includes(af)) {
     showFrame(af);
     const match=document.querySelector(`#sideNav .nav-item[data-target="${af}"]`);
     if(match){
       document.querySelectorAll('#sideNav .nav-item').forEach(b=>b.classList.remove('active','active-teal','active-purple'));
-      const clsMap={plan:'active',gantt:'active active-teal',mtss:'active active-purple',calendar:'active'};
+      const clsMap={plan:'active',gantt:'active active-teal',mtss:'active active-purple',calendar:'active',teachers:'active active-teal'};
       (clsMap[af]||'active').split(' ').forEach(c=>match.classList.add(c));
     }
   }

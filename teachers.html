@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניהול מורים</title>
+<style>
+:root {
+  --primary: #1a3a5c; --primary-d: #12294a; --teal: #01696f;
+  --purple: #7c3aed;
+  --font: 'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;
+  --radius: 10px; --shadow: 0 2px 10px rgba(0,0,0,0.08);
+  --border: #e4e9f0; --bg: #f0f2f5; --card: #fff;
+  --text: #1e293b; --muted: #64748b;
+  --green: #16a34a; --red: #dc2626; --amber: #d97706;
+  --hr-accent: #0e7490;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;}
+body{display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── READONLY BANNER ── */
+.readonly-banner{
+  display:none;background:var(--purple);color:#fff;text-align:center;
+  padding:6px;font-size:0.8rem;font-weight:700;flex-shrink:0;
+}
+body.readonly-mode .readonly-banner{display:block;}
+
+/* ── TOOLBAR ── */
+#toolbar{
+  background:var(--primary);padding:10px 16px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;
+}
+#toolbar h1{color:#fff;font-size:0.95rem;font-weight:800;flex-shrink:0;}
+#toolbar .tb-school{color:rgba(255,255,255,0.6);font-size:0.75rem;margin-right:6px;}
+.tb-spacer{flex:1;}
+.btn-toolbar{
+  background:var(--teal);color:#fff;border:none;border-radius:7px;
+  padding:7px 14px;font-family:var(--font);font-size:0.82rem;font-weight:700;
+  cursor:pointer;white-space:nowrap;transition:background .15s;
+}
+.btn-toolbar:hover{background:#015e63;}
+.btn-toolbar.secondary{background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);}
+.btn-toolbar.secondary:hover{background:rgba(255,255,255,0.2);}
+
+/* ── LAYOUT: 3-column ── */
+#mainArea{
+  flex:1;display:flex;gap:0;overflow:hidden;min-height:0;
+}
+
+/* ── TEACHERS LIST (left panel) ── */
+#panelList{
+  width:220px;min-width:200px;background:var(--card);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;
+}
+#listHeader{
+  background:var(--primary-d);color:rgba(255,255,255,0.8);
+  font-size:0.72rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.6px;padding:8px 12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+#listSearch{
+  padding:7px 10px;border:none;border-bottom:1px solid var(--border);
+  font-family:var(--font);font-size:0.82rem;outline:none;
+  background:#fafbfc;color:var(--text);flex-shrink:0;
+  width:100%;
+}
+#listSearch::placeholder{color:var(--muted);}
+#teacherList{
+  flex:1;overflow-y:auto;list-style:none;padding:4px 0;
+}
+.teacher-item{
+  padding:9px 12px;cursor:pointer;
+  border-bottom:1px solid var(--border);transition:background .12s;
+  font-size:0.83rem;
+}
+.teacher-item:hover{background:#f0f9ff;}
+.teacher-item.active{background:#e0f2fe;border-right:3px solid var(--hr-accent);}
+.teacher-item .ti-name{font-weight:600;color:var(--text);}
+.teacher-item .ti-role{font-size:0.72rem;color:var(--muted);margin-top:2px;}
+.teacher-item .ti-subject{font-size:0.7rem;color:var(--hr-accent);}
+#listEmpty{
+  padding:20px;text-align:center;color:var(--muted);font-size:0.83rem;display:none;
+}
+#listLoading{
+  padding:20px;text-align:center;color:var(--muted);font-size:0.83rem;
+}
+
+/* ── DETAIL PANEL (center) ── */
+#panelDetail{
+  flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;
+}
+#detailPlaceholder{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:0.9rem;flex-direction:column;gap:10px;
+}
+#detailPlaceholder .ph-icon{font-size:2.5rem;opacity:.3;}
+
+#detailContent{display:none;flex:1;flex-direction:column;overflow:hidden;}
+#detailContent.visible{display:flex;}
+
+/* teacher profile card */
+#profileCard{
+  background:var(--card);border-bottom:1px solid var(--border);
+  padding:14px 16px;flex-shrink:0;
+  display:flex;align-items:flex-start;gap:14px;
+}
+.profile-avatar{
+  width:48px;height:48px;border-radius:50%;
+  background:linear-gradient(135deg,var(--hr-accent),var(--primary));
+  color:#fff;font-size:1.2rem;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.profile-info{flex:1;}
+.profile-name{font-size:1rem;font-weight:800;color:var(--primary);}
+.profile-meta{
+  display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;
+}
+.profile-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:0.72rem;background:#f0f9ff;color:var(--hr-accent);
+  border:1px solid #bae6fd;border-radius:6px;padding:2px 7px;font-weight:600;
+}
+.profile-notes{
+  font-size:0.8rem;color:var(--muted);margin-top:6px;line-height:1.4;
+}
+.profile-actions{display:flex;gap:6px;flex-shrink:0;align-self:flex-start;}
+.btn-sm{
+  padding:5px 10px;border-radius:6px;border:1px solid var(--border);
+  background:#fff;font-family:var(--font);font-size:0.76rem;font-weight:600;
+  cursor:pointer;transition:all .12s;color:var(--text);
+}
+.btn-sm:hover{background:#f1f5f9;}
+.btn-sm.danger{border-color:#fecaca;color:var(--red);}
+.btn-sm.danger:hover{background:#fef2f2;}
+.btn-sm.primary{background:var(--teal);color:#fff;border-color:var(--teal);}
+.btn-sm.primary:hover{background:#015e63;}
+
+/* tabs inside detail */
+#detailTabs{
+  display:flex;gap:0;background:var(--card);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.tab-btn{
+  padding:8px 16px;border:none;background:none;font-family:var(--font);
+  font-size:0.8rem;font-weight:600;cursor:pointer;color:var(--muted);
+  border-bottom:2px solid transparent;transition:all .13s;
+}
+.tab-btn.active{color:var(--hr-accent);border-bottom-color:var(--hr-accent);}
+.tab-btn:hover:not(.active){background:#f8fafc;color:var(--text);}
+
+#detailTabContent{flex:1;overflow-y:auto;padding:12px 16px;}
+
+/* sub-section */
+.sub-section{margin-bottom:16px;}
+.sub-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.sub-title{font-size:0.82rem;font-weight:700;color:var(--primary-d);}
+
+/* entries/bonuses table */
+.hr-table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+.hr-table th{
+  text-align:right;padding:6px 10px;font-size:0.7rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+  border-bottom:2px solid var(--border);background:#f8fafc;
+}
+.hr-table td{
+  padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle;
+}
+.hr-table tr:last-child td{border-bottom:none;}
+.hr-table tr:hover td{background:#f8fafc;}
+
+.entry-type-badge{
+  display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:700;
+}
+.type-חיזוק   {background:#dcfce7;color:#166534;}
+.type-אתגר    {background:#fef9c3;color:#92400e;}
+.type-שיחת-משוב{background:#e0f2fe;color:#0369a1;}
+.type-אירוע   {background:#fae8ff;color:#7e22ce;}
+.type-מעבר    {background:#f1f5f9;color:#475569;}
+
+.bonus-amount{font-weight:700;color:var(--green);}
+
+.empty-state{
+  text-align:center;padding:30px 16px;color:var(--muted);font-size:0.83rem;
+}
+
+/* ── NOTES EDIT AREA ── */
+.notes-area{
+  width:100%;min-height:80px;border:1px solid var(--border);border-radius:7px;
+  padding:8px 10px;font-family:var(--font);font-size:0.83rem;resize:vertical;
+  outline:none;transition:border-color .15s;line-height:1.5;
+}
+.notes-area:focus{border-color:var(--teal);}
+
+/* subject input */
+.subject-input{
+  padding:6px 10px;border:1px solid var(--border);border-radius:7px;
+  font-family:var(--font);font-size:0.83rem;outline:none;min-width:180px;
+  transition:border-color .15s;
+}
+.subject-input:focus{border-color:var(--teal);}
+
+/* ── STATUS BAR ── */
+#summaryBar{
+  background:var(--primary-d);color:rgba(255,255,255,0.75);
+  font-size:0.72rem;padding:7px 16px;display:flex;gap:20px;flex-shrink:0;
+}
+.sum-item strong{color:#fff;}
+
+/* ── MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.modal-card{
+  background:#fff;border-radius:14px;padding:28px 28px 22px;
+  max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);
+  max-height:90vh;overflow-y:auto;
+}
+.modal-title{font-size:1rem;font-weight:800;color:var(--primary);margin-bottom:18px;}
+.modal-row{margin-bottom:12px;}
+.modal-label{font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:4px;}
+.modal-input,.modal-select,.modal-textarea{
+  display:block;width:100%;padding:8px 11px;border:1.5px solid var(--border);
+  border-radius:8px;font-family:var(--font);font-size:0.87rem;
+  outline:none;transition:border-color .15s;color:var(--text);
+}
+.modal-input:focus,.modal-select:focus,.modal-textarea:focus{border-color:var(--teal);}
+.modal-textarea{min-height:80px;resize:vertical;line-height:1.5;}
+.modal-select option{background:#fff;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+.btn-modal-ok{
+  padding:8px 20px;background:var(--teal);color:#fff;border:none;
+  border-radius:8px;font-family:var(--font);font-size:0.87rem;font-weight:700;cursor:pointer;
+}
+.btn-modal-ok:hover{background:#015e63;}
+.btn-modal-cancel{
+  padding:8px 16px;background:#f1f5f9;border:1px solid var(--border);
+  border-radius:8px;font-family:var(--font);font-size:0.87rem;cursor:pointer;color:var(--text);
+}
+.btn-modal-cancel:hover{background:#e2e8f0;}
+.modal-err{color:var(--red);font-size:0.79rem;margin-top:6px;display:none;}
+
+/* ── READONLY ── */
+body.readonly-mode .btn-toolbar.write-action,
+body.readonly-mode .btn-sm.write-action,
+body.readonly-mode .btn-modal-ok {
+  pointer-events:none;opacity:.45;
+}
+
+@media(max-width:600px){
+  #panelList{width:160px;min-width:140px;}
+  #profileCard{flex-direction:column;gap:8px;}
+  .profile-actions{flex-direction:row;}
+}
+</style>
+</head>
+<body>
+
+<div class="readonly-banner">👁 מצב צפייה בלבד</div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <h1>👩‍🏫 ניהול מורים</h1>
+  <span class="tb-school" id="tbSchool"></span>
+  <div class="tb-spacer"></div>
+  <button class="btn-toolbar write-action" id="btnAddTeacher" onclick="openAddTeacherModal()">＋ הוסף מורה</button>
+</div>
+
+<!-- MAIN -->
+<div id="mainArea">
+
+  <!-- LEFT: teacher list -->
+  <div id="panelList">
+    <div id="listHeader">
+      <span>מורים</span>
+      <span id="listCount" style="font-size:.7rem;font-weight:400;opacity:.6;"></span>
+    </div>
+    <input id="listSearch" type="search" placeholder="חיפוש שם..." oninput="filterList()">
+    <div id="listLoading">טוען...</div>
+    <div id="listEmpty">אין מורים</div>
+    <ul id="teacherList"></ul>
+  </div>
+
+  <!-- RIGHT: detail -->
+  <div id="panelDetail">
+
+    <div id="detailPlaceholder">
+      <div class="ph-icon">👩‍🏫</div>
+      <div>בחר/י מורה מהרשימה</div>
+    </div>
+
+    <div id="detailContent">
+      <!-- Profile card -->
+      <div id="profileCard">
+        <div class="profile-avatar" id="profileAvatar">?</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profileName">—</div>
+          <div class="profile-meta" id="profileMeta"></div>
+          <div class="profile-notes" id="profileNotes"></div>
+        </div>
+        <div class="profile-actions" id="profileActions">
+          <button class="btn-sm primary write-action" onclick="openEditTeacherModal()">✏️ עריכה</button>
+          <button class="btn-sm danger write-action" onclick="archiveSelectedTeacher()">🗄 ארכיון</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div id="detailTabs">
+        <button class="tab-btn active" onclick="switchTab('entries',this)">📝 רשומות</button>
+        <button class="tab-btn" onclick="switchTab('bonuses',this)">💰 בונוסים</button>
+      </div>
+
+      <div id="detailTabContent">
+        <!-- Entries tab -->
+        <div id="tabEntries">
+          <div class="sub-section">
+            <div class="sub-header">
+              <span class="sub-title">רשומות מורה</span>
+              <button class="btn-sm primary write-action" onclick="openAddEntryModal()">＋ רשומה חדשה</button>
+            </div>
+            <div id="entriesContainer"><div class="empty-state">טוען...</div></div>
+          </div>
+        </div>
+
+        <!-- Bonuses tab -->
+        <div id="tabBonuses" style="display:none;">
+          <div class="sub-section">
+            <div class="sub-header">
+              <span class="sub-title">בונוסים ותגמולים</span>
+              <button class="btn-sm primary write-action" onclick="openAddBonusModal()">＋ בונוס חדש</button>
+            </div>
+            <div id="bonusesContainer"><div class="empty-state">טוען...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div id="summaryBar">
+  <div class="sum-item">מורים: <strong id="sumTeachers">0</strong></div>
+  <div class="sum-item">רשומות: <strong id="sumEntries">0</strong></div>
+  <div class="sum-item">בונוסים: <strong id="sumBonuses">0</strong></div>
+</div>
+
+<!-- ══ MODALS ══ -->
+
+<!-- Add Teacher Modal -->
+<div id="addTeacherModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('addTeacherModal')">
+  <div class="modal-card">
+    <div class="modal-title">＋ הוסף מורה</div>
+    <div class="modal-row">
+      <div class="modal-label">מזהה צוות (Staff ID) *</div>
+      <input id="atStaffId" type="number" class="modal-input" placeholder="מספר זיהוי">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">הערות</div>
+      <textarea id="atNotes" class="modal-textarea" placeholder="הערות (אופציונלי)"></textarea>
+    </div>
+    <div class="modal-err" id="atErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('addTeacherModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitAddTeacher()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Teacher Modal -->
+<div id="editTeacherModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('editTeacherModal')">
+  <div class="modal-card">
+    <div class="modal-title">✏️ עריכת מורה</div>
+    <div class="modal-row">
+      <div class="modal-label">תחום / מקצוע</div>
+      <input id="etSubject" type="text" class="modal-input" placeholder="מקצוע הוראה">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">הערות</div>
+      <textarea id="etNotes" class="modal-textarea" placeholder="הערות"></textarea>
+    </div>
+    <div class="modal-err" id="etErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('editTeacherModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitEditTeacher()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Entry Modal -->
+<div id="addEntryModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('addEntryModal')">
+  <div class="modal-card">
+    <div class="modal-title">＋ רשומה חדשה</div>
+    <div class="modal-row">
+      <div class="modal-label">סוג רשומה *</div>
+      <select id="aeType" class="modal-select">
+        <option value="">— בחר סוג —</option>
+        <option value="חיזוק">חיזוק</option>
+        <option value="אתגר">אתגר</option>
+        <option value="שיחת משוב">שיחת משוב</option>
+        <option value="אירוע">אירוע</option>
+        <option value="מעבר">מעבר</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך *</div>
+      <input id="aeDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תוכן</div>
+      <textarea id="aeContent" class="modal-textarea" placeholder="פרטים..."></textarea>
+    </div>
+    <div class="modal-err" id="aeErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('addEntryModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitAddEntry()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Entry Modal -->
+<div id="editEntryModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('editEntryModal')">
+  <div class="modal-card">
+    <div class="modal-title">✏️ עריכת רשומה</div>
+    <div class="modal-row">
+      <div class="modal-label">סוג רשומה</div>
+      <select id="eeType" class="modal-select">
+        <option value="חיזוק">חיזוק</option>
+        <option value="אתגר">אתגר</option>
+        <option value="שיחת משוב">שיחת משוב</option>
+        <option value="אירוע">אירוע</option>
+        <option value="מעבר">מעבר</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך</div>
+      <input id="eeDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תוכן</div>
+      <textarea id="eeContent" class="modal-textarea"></textarea>
+    </div>
+    <div class="modal-err" id="eeErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('editEntryModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitEditEntry()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Bonus Modal -->
+<div id="addBonusModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('addBonusModal')">
+  <div class="modal-card">
+    <div class="modal-title">＋ בונוס חדש</div>
+    <div class="modal-row">
+      <div class="modal-label">סוג בונוס</div>
+      <input id="abType" type="text" class="modal-input" placeholder="למשל: תמריץ, מצוינות, שעות נוספות">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך *</div>
+      <input id="abDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">סכום</div>
+      <input id="abAmount" type="number" class="modal-input" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תיאור</div>
+      <textarea id="abDesc" class="modal-textarea" placeholder="פרטים..."></textarea>
+    </div>
+    <div class="modal-err" id="abErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('addBonusModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitAddBonus()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Bonus Modal -->
+<div id="editBonusModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('editBonusModal')">
+  <div class="modal-card">
+    <div class="modal-title">✏️ עריכת בונוס</div>
+    <div class="modal-row">
+      <div class="modal-label">סוג בונוס</div>
+      <input id="ebType" type="text" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך</div>
+      <input id="ebDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">סכום</div>
+      <input id="ebAmount" type="number" class="modal-input" min="0" step="0.01">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תיאור</div>
+      <textarea id="ebDesc" class="modal-textarea"></textarea>
+    </div>
+    <div class="modal-err" id="ebErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('editBonusModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitEditBonus()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const WORKER = 'https://principal-api.1002220729.workers.dev';
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmtDate = d => d ? new Date(d).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
+const fmtCurrency = n => n != null ? `₪${Number(n).toLocaleString('he-IL')}` : '—';
+
+// ─── STATE ────────────────────────────────────────
+let STATE = {
+  school: '', year: '',
+  teachers: [],       // all teachers from API
+  selectedId: null,   // currently selected teacher id
+  entries: [],        // entries for selected teacher
+  bonuses: [],        // bonuses for selected teacher
+  readonly: false,
+  _editEntryId: null,
+  _editBonusId: null,
+  _session: null,     // Bearer token if available
+};
+
+// ─── postMessage listener ─────────────────────────
+window.addEventListener('message', e => {
+  if (!e.data || typeof e.data !== 'object') return;
+
+  switch (e.data.type) {
+    case 'load-data': {
+      const p = e.data.payload || {};
+      STATE.school = p.school || STATE.school;
+      STATE.year   = p.year   || STATE.year;
+      // Session token may be forwarded by the shell for auth
+      if (p.sessionToken) STATE._session = p.sessionToken;
+      document.getElementById('tbSchool').textContent =
+        STATE.school ? `${STATE.school} · ${STATE.year}` : '';
+      loadTeachers();
+      break;
+    }
+    case 'set-readonly':
+      STATE.readonly = !!e.data.readonly;
+      document.body.classList.toggle('readonly-mode', STATE.readonly);
+      break;
+    case 'request-data':
+      // Teachers HR does not push data upstream — nothing to do.
+      break;
+  }
+});
+
+// signal ready to parent shell
+window.parent.postMessage({ type: 'iframe-ready', docType: 'teachers' }, '*');
+
+// ─── AUTH HEADER ──────────────────────────────────
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (STATE._session) h['Authorization'] = `Bearer ${STATE._session}`;
+  return h;
+}
+
+// ─── LOAD TEACHERS ────────────────────────────────
+async function loadTeachers() {
+  if (!STATE.school || !STATE.year) return;
+  document.getElementById('listLoading').style.display = '';
+  document.getElementById('listEmpty').style.display   = 'none';
+  document.getElementById('teacherList').innerHTML     = '';
+
+  try {
+    const res  = await fetch(
+      `${WORKER}/api/teachers?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`,
+      { cache: 'no-store', headers: authHeaders() }
+    );
+    if (!res.ok) throw new Error(res.statusText);
+    STATE.teachers = await res.json();
+  } catch {
+    STATE.teachers = [];
+  }
+
+  document.getElementById('listLoading').style.display = 'none';
+  renderTeacherList();
+  document.getElementById('sumTeachers').textContent = STATE.teachers.length;
+}
+
+// ─── RENDER LIST ──────────────────────────────────
+function filterList() { renderTeacherList(); }
+
+function renderTeacherList() {
+  const q     = (document.getElementById('listSearch').value || '').trim().toLowerCase();
+  const list  = document.getElementById('teacherList');
+  const empty = document.getElementById('listEmpty');
+
+  const filtered = q
+    ? STATE.teachers.filter(t => (t.name||'').toLowerCase().includes(q))
+    : STATE.teachers;
+
+  document.getElementById('listCount').textContent = `${filtered.length}`;
+
+  if (filtered.length === 0) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = filtered.map(t => `
+    <li class="teacher-item${STATE.selectedId === t.id ? ' active' : ''}"
+        data-id="${t.id}" onclick="selectTeacher(${t.id})">
+      <div class="ti-name">${esc(t.name || '—')}</div>
+      ${t.roletitle ? `<div class="ti-role">${esc(t.roletitle)}</div>` : ''}
+      ${t.subject   ? `<div class="ti-subject">📚 ${esc(t.subject)}</div>` : ''}
+    </li>
+  `).join('');
+}
+
+// ─── SELECT TEACHER ───────────────────────────────
+async function selectTeacher(id) {
+  STATE.selectedId = id;
+  renderTeacherList(); // update active highlight
+
+  const t = STATE.teachers.find(x => x.id === id);
+  if (!t) return;
+
+  // Show detail pane
+  document.getElementById('detailPlaceholder').style.display = 'none';
+  document.getElementById('detailContent').classList.add('visible');
+
+  // Populate profile
+  const initials = (t.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('profileAvatar').textContent = initials;
+  document.getElementById('profileName').textContent   = t.name || '—';
+
+  const metaBadges = [];
+  if (t.roletitle) metaBadges.push(`<span class="profile-badge">🏷️ ${esc(t.roletitle)}</span>`);
+  if (t.subject)   metaBadges.push(`<span class="profile-badge">📚 ${esc(t.subject)}</span>`);
+  if (t.school)    metaBadges.push(`<span class="profile-badge">🏫 ${esc(t.school)}</span>`);
+  if (t.year)      metaBadges.push(`<span class="profile-badge">📅 ${esc(t.year)}</span>`);
+  document.getElementById('profileMeta').innerHTML = metaBadges.join('');
+  document.getElementById('profileNotes').textContent = t.notes || '';
+
+  // Reset to entries tab
+  switchTab('entries', document.querySelector('.tab-btn.active') || document.querySelector('.tab-btn'));
+  switchTab('entries', document.querySelectorAll('.tab-btn')[0]);
+
+  // Load sub-data (only for principal/systemadmin — API will gate for staffmember)
+  loadEntries(id);
+  loadBonuses(id);
+}
+
+// ─── ENTRIES ──────────────────────────────────────
+async function loadEntries(teacherId) {
+  document.getElementById('entriesContainer').innerHTML = '<div class="empty-state">טוען...</div>';
+  STATE.entries = [];
+  try {
+    const res = await fetch(
+      `${WORKER}/api/teacher-entries?teacherId=${teacherId}`,
+      { cache: 'no-store', headers: authHeaders() }
+    );
+    if (res.ok) STATE.entries = await res.json();
+  } catch { STATE.entries = []; }
+  renderEntries();
+  document.getElementById('sumEntries').textContent = STATE.entries.length;
+}
+
+function renderEntries() {
+  const c = document.getElementById('entriesContainer');
+  if (!STATE.entries.length) {
+    c.innerHTML = '<div class="empty-state">אין רשומות עדיין</div>'; return;
+  }
+  const typeClass = t => `type-${(t||'').replace(/\s/g,'-')}`;
+  c.innerHTML = `
+    <table class="hr-table">
+      <thead><tr>
+        <th>סוג</th><th>תאריך</th><th>תוכן</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${STATE.entries.map(e => `
+        <tr>
+          <td><span class="entry-type-badge ${typeClass(e.entry_type)}">${esc(e.entry_type||'—')}</span></td>
+          <td>${fmtDate(e.entry_date)}</td>
+          <td style="max-width:260px;white-space:pre-wrap;word-break:break-word;">${esc(e.content||'')}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn-sm write-action" onclick="openEditEntryModal(${e.id})">✏️</button>
+            <button class="btn-sm danger write-action" onclick="archiveEntry(${e.id})">🗄</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ─── BONUSES ──────────────────────────────────────
+async function loadBonuses(teacherId) {
+  document.getElementById('bonusesContainer').innerHTML = '<div class="empty-state">טוען...</div>';
+  STATE.bonuses = [];
+  try {
+    const res = await fetch(
+      `${WORKER}/api/teacher-bonuses?teacherId=${teacherId}`,
+      { cache: 'no-store', headers: authHeaders() }
+    );
+    if (res.ok) STATE.bonuses = await res.json();
+  } catch { STATE.bonuses = []; }
+  renderBonuses();
+  document.getElementById('sumBonuses').textContent = STATE.bonuses.length;
+}
+
+function renderBonuses() {
+  const c = document.getElementById('bonusesContainer');
+  if (!STATE.bonuses.length) {
+    c.innerHTML = '<div class="empty-state">אין בונוסים עדיין</div>'; return;
+  }
+  const total = STATE.bonuses.reduce((s, b) => s + (Number(b.amount)||0), 0);
+  c.innerHTML = `
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
+      סה"כ תגמולים: <strong style="color:var(--green);">${fmtCurrency(total)}</strong>
+    </div>
+    <table class="hr-table">
+      <thead><tr>
+        <th>סוג</th><th>תאריך</th><th>סכום</th><th>תיאור</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${STATE.bonuses.map(b => `
+        <tr>
+          <td>${esc(b.bonus_type||'—')}</td>
+          <td>${fmtDate(b.bonus_date)}</td>
+          <td class="bonus-amount">${fmtCurrency(b.amount)}</td>
+          <td style="max-width:200px;word-break:break-word;">${esc(b.description||'')}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn-sm write-action" onclick="openEditBonusModal(${b.id})">✏️</button>
+            <button class="btn-sm danger write-action" onclick="archiveBonus(${b.id})">🗄</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ─── TAB SWITCH ───────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  document.getElementById('tabEntries').style.display = name === 'entries' ? '' : 'none';
+  document.getElementById('tabBonuses').style.display = name === 'bonuses' ? '' : 'none';
+}
+
+// ─── MODAL HELPERS ────────────────────────────────
+function openModal(id)  { document.getElementById(id).style.display = 'flex'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = '';
+}
+function hideErr(id) { document.getElementById(id).style.display = 'none'; }
+
+// ─── ADD TEACHER ──────────────────────────────────
+function openAddTeacherModal() {
+  if (STATE.readonly) return;
+  document.getElementById('atStaffId').value = '';
+  document.getElementById('atNotes').value   = '';
+  hideErr('atErr');
+  openModal('addTeacherModal');
+  setTimeout(() => document.getElementById('atStaffId').focus(), 80);
+}
+
+async function submitAddTeacher() {
+  if (STATE.readonly) return;
+  const staffId = parseInt(document.getElementById('atStaffId').value);
+  const notes   = document.getElementById('atNotes').value.trim();
+  if (!staffId) { showErr('atErr','נדרש מזהה צוות'); return; }
+  if (!STATE.school || !STATE.year) { showErr('atErr','שגיאה: בית ספר / שנה לא מוגדרים'); return; }
+  try {
+    const res = await fetch(`${WORKER}/api/teachers`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ staffId, school: STATE.school, year: STATE.year, notes }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('atErr', data.error || 'שגיאה'); return; }
+    closeModal('addTeacherModal');
+    await loadTeachers();
+    if (data.id) selectTeacher(data.id);
+  } catch(e) { showErr('atErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── EDIT TEACHER ─────────────────────────────────
+function openEditTeacherModal() {
+  if (STATE.readonly) return;
+  const t = STATE.teachers.find(x => x.id === STATE.selectedId);
+  if (!t) return;
+  document.getElementById('etSubject').value = t.subject || '';
+  document.getElementById('etNotes').value   = t.notes   || '';
+  hideErr('etErr');
+  openModal('editTeacherModal');
+}
+
+async function submitEditTeacher() {
+  if (STATE.readonly) return;
+  const subject = document.getElementById('etSubject').value.trim();
+  const notes   = document.getElementById('etNotes').value.trim();
+  if (!STATE.selectedId) return;
+  try {
+    const res = await fetch(`${WORKER}/api/teachers/${STATE.selectedId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ subject, notes }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('etErr', data.error || 'שגיאה'); return; }
+    closeModal('editTeacherModal');
+    // patch local cache
+    const t = STATE.teachers.find(x => x.id === STATE.selectedId);
+    if (t) { t.subject = subject; t.notes = notes; }
+    selectTeacher(STATE.selectedId);
+    renderTeacherList();
+  } catch(e) { showErr('etErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── ARCHIVE TEACHER ──────────────────────────────
+async function archiveSelectedTeacher() {
+  if (STATE.readonly || !STATE.selectedId) return;
+  const t = STATE.teachers.find(x => x.id === STATE.selectedId);
+  if (!confirm(`לארכב את ${t?.name || 'המורה'}?`)) return;
+  try {
+    const res = await fetch(`${WORKER}/api/teachers/${STATE.selectedId}/archive`, {
+      method: 'PUT', headers: authHeaders(), body: '{}',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { alert(data.error || 'שגיאה'); return; }
+    STATE.selectedId = null;
+    document.getElementById('detailContent').classList.remove('visible');
+    document.getElementById('detailPlaceholder').style.display = '';
+    await loadTeachers();
+  } catch(e) { alert('שגיאת רשת: ' + e.message); }
+}
+
+// ─── ADD ENTRY ────────────────────────────────────
+function openAddEntryModal() {
+  if (STATE.readonly || !STATE.selectedId) return;
+  document.getElementById('aeType').value    = '';
+  document.getElementById('aeDate').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('aeContent').value = '';
+  hideErr('aeErr');
+  openModal('addEntryModal');
+}
+
+async function submitAddEntry() {
+  if (STATE.readonly) return;
+  const entryType = document.getElementById('aeType').value;
+  const entryDate = document.getElementById('aeDate').value;
+  const content   = document.getElementById('aeContent').value.trim();
+  if (!entryType) { showErr('aeErr','יש לבחור סוג רשומה'); return; }
+  if (!entryDate) { showErr('aeErr','יש להזין תאריך'); return; }
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-entries`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ teacherId: STATE.selectedId, entryType, content, entryDate }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('aeErr', data.error || 'שגיאה'); return; }
+    closeModal('addEntryModal');
+    await loadEntries(STATE.selectedId);
+  } catch(e) { showErr('aeErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── EDIT ENTRY ───────────────────────────────────
+function openEditEntryModal(id) {
+  if (STATE.readonly) return;
+  const entry = STATE.entries.find(e => e.id === id);
+  if (!entry) return;
+  STATE._editEntryId = id;
+  document.getElementById('eeType').value    = entry.entry_type || '';
+  document.getElementById('eeDate').value    = (entry.entry_date || '').slice(0,10);
+  document.getElementById('eeContent').value = entry.content || '';
+  hideErr('eeErr');
+  openModal('editEntryModal');
+}
+
+async function submitEditEntry() {
+  if (STATE.readonly || !STATE._editEntryId) return;
+  const entryType = document.getElementById('eeType').value;
+  const entryDate = document.getElementById('eeDate').value;
+  const content   = document.getElementById('eeContent').value.trim();
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-entries/${STATE._editEntryId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ entryType, content, entryDate }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('eeErr', data.error || 'שגיאה'); return; }
+    closeModal('editEntryModal');
+    STATE._editEntryId = null;
+    await loadEntries(STATE.selectedId);
+  } catch(e) { showErr('eeErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── ARCHIVE ENTRY ────────────────────────────────
+async function archiveEntry(id) {
+  if (STATE.readonly) return;
+  if (!confirm('לארכב רשומה זו?')) return;
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-entries/${id}/archive`, {
+      method: 'PUT', headers: authHeaders(), body: '{}',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { alert(data.error || 'שגיאה'); return; }
+    await loadEntries(STATE.selectedId);
+  } catch(e) { alert('שגיאת רשת: ' + e.message); }
+}
+
+// ─── ADD BONUS ────────────────────────────────────
+function openAddBonusModal() {
+  if (STATE.readonly || !STATE.selectedId) return;
+  document.getElementById('abType').value   = '';
+  document.getElementById('abDate').value   = new Date().toISOString().slice(0,10);
+  document.getElementById('abAmount').value = '';
+  document.getElementById('abDesc').value   = '';
+  hideErr('abErr');
+  openModal('addBonusModal');
+}
+
+async function submitAddBonus() {
+  if (STATE.readonly) return;
+  const bonusType   = document.getElementById('abType').value.trim();
+  const bonusDate   = document.getElementById('abDate').value;
+  const amount      = parseFloat(document.getElementById('abAmount').value) || 0;
+  const description = document.getElementById('abDesc').value.trim();
+  if (!bonusDate) { showErr('abErr','יש להזין תאריך'); return; }
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-bonuses`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ teacherId: STATE.selectedId, bonusType, description, amount, bonusDate }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('abErr', data.error || 'שגיאה'); return; }
+    closeModal('addBonusModal');
+    await loadBonuses(STATE.selectedId);
+  } catch(e) { showErr('abErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── EDIT BONUS ───────────────────────────────────
+function openEditBonusModal(id) {
+  if (STATE.readonly) return;
+  const bonus = STATE.bonuses.find(b => b.id === id);
+  if (!bonus) return;
+  STATE._editBonusId = id;
+  document.getElementById('ebType').value   = bonus.bonus_type   || '';
+  document.getElementById('ebDate').value   = (bonus.bonus_date || '').slice(0,10);
+  document.getElementById('ebAmount').value = bonus.amount != null ? bonus.amount : '';
+  document.getElementById('ebDesc').value   = bonus.description  || '';
+  hideErr('ebErr');
+  openModal('editBonusModal');
+}
+
+async function submitEditBonus() {
+  if (STATE.readonly || !STATE._editBonusId) return;
+  const bonusType   = document.getElementById('ebType').value.trim();
+  const bonusDate   = document.getElementById('ebDate').value;
+  const amount      = parseFloat(document.getElementById('ebAmount').value) || 0;
+  const description = document.getElementById('ebDesc').value.trim();
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-bonuses/${STATE._editBonusId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ bonusType, description, amount, bonusDate }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('ebErr', data.error || 'שגיאה'); return; }
+    closeModal('editBonusModal');
+    STATE._editBonusId = null;
+    await loadBonuses(STATE.selectedId);
+  } catch(e) { showErr('ebErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── ARCHIVE BONUS ────────────────────────────────
+async function archiveBonus(id) {
+  if (STATE.readonly) return;
+  if (!confirm('לארכב בונוס זה?')) return;
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-bonuses/${id}/archive`, {
+      method: 'PUT', headers: authHeaders(), body: '{}',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { alert(data.error || 'שגיאה'); return; }
+    await loadBonuses(STATE.selectedId);
+  } catch(e) { alert('שגיאת רשת: ' + e.message); }
+}
+</script>
+</body>
+</html>
