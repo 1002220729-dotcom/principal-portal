@@ -269,6 +269,7 @@ body.readonly-mode .btn-modal-ok {
   <h1>👩‍🏫 ניהול מורים</h1>
   <span class="tb-school" id="tbSchool"></span>
   <div class="tb-spacer"></div>
+  <button class="btn-toolbar secondary write-action" id="btnManageStaff" onclick="openStaffManagerModal()">👥 ניהול צוות</button>
   <button class="btn-toolbar write-action" id="btnAddTeacher" onclick="openAddTeacherModal()">＋ הוסף מורה</button>
 </div>
 
@@ -358,8 +359,13 @@ body.readonly-mode .btn-modal-ok {
   <div class="modal-card">
     <div class="modal-title">＋ הוסף מורה</div>
     <div class="modal-row">
-      <div class="modal-label">מזהה צוות (Staff ID) *</div>
-      <input id="atStaffId" type="number" class="modal-input" placeholder="מספר זיהוי">
+      <div class="modal-label">איש/אשת צוות *</div>
+      <select id="atStaffSelect" class="modal-select">
+        <option value="">— טוען רשימת צוות... —</option>
+      </select>
+      <div style="font-size:0.74rem;color:var(--muted);margin-top:4px;">
+        לא מוצא/ת את השם? <a href="#" onclick="event.preventDefault();closeModal('addTeacherModal');openStaffManagerModal();">הוסף/הוסיפי איש צוות חדש</a>
+      </div>
     </div>
     <div class="modal-row">
       <div class="modal-label">הערות</div>
@@ -389,6 +395,50 @@ body.readonly-mode .btn-modal-ok {
     <div class="modal-actions">
       <button class="btn-modal-cancel" onclick="closeModal('editTeacherModal')">ביטול</button>
       <button class="btn-modal-ok" onclick="submitEditTeacher()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staff Manager Modal — full CRUD on the HR staff registry -->
+<div id="staffManagerModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('staffManagerModal')">
+  <div class="modal-card" style="max-width:560px;">
+    <div class="modal-title">👥 ניהול צוות בית הספר</div>
+
+    <div id="smList" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;">
+      <div style="padding:16px;text-align:center;color:var(--muted);font-size:0.83rem;">טוען...</div>
+    </div>
+
+    <div style="border-top:1px dashed var(--border);padding-top:14px;">
+      <div class="modal-label" style="margin-bottom:8px;" id="smFormTitle">＋ הוספת איש/אשת צוות</div>
+      <input type="hidden" id="smEditId" value="">
+      <div class="modal-row">
+        <div class="modal-label">שם מלא *</div>
+        <input id="smName" type="text" class="modal-input" placeholder="שם מלא">
+      </div>
+      <div class="modal-row" style="display:flex;gap:8px;">
+        <div style="flex:1;">
+          <div class="modal-label">תפקיד</div>
+          <input id="smRoletitle" type="text" class="modal-input" placeholder="למשל: מורה, רכז/ת">
+        </div>
+        <div style="flex:1;">
+          <div class="modal-label">מקצוע</div>
+          <input id="smSubject" type="text" class="modal-input" placeholder="מקצוע הוראה">
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-label">אימייל</div>
+        <input id="smEmail" type="email" class="modal-input" placeholder="name@school.org">
+      </div>
+      <div class="modal-err" id="smErr"></div>
+      <div class="modal-actions" style="justify-content:space-between;">
+        <button class="btn-modal-cancel" id="smCancelEditBtn" style="display:none;" onclick="cancelStaffEdit()">ביטול עריכה</button>
+        <div style="flex:1;"></div>
+        <button class="btn-modal-ok" id="smSubmitBtn" onclick="submitStaffForm()">הוסף איש צוות</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('staffManagerModal')">סגור</button>
     </div>
   </div>
 </div>
@@ -520,13 +570,14 @@ const fmtCurrency = n => n != null ? `₪${Number(n).toLocaleString('he-IL')}` :
 let STATE = {
   school: '', year: '',
   teachers: [],       // all teachers from API
+  staffList: [],       // all HR staff rows (for picker + manager)
   selectedId: null,   // currently selected teacher id
   entries: [],        // entries for selected teacher
   bonuses: [],        // bonuses for selected teacher
   readonly: false,
   _editEntryId: null,
   _editBonusId: null,
-  _session: null,     // Bearer token if available
+  _editStaffId: null, // staff row currently being edited in the manager
 };
 
 // ─── postMessage listener ─────────────────────────
@@ -538,8 +589,6 @@ window.addEventListener('message', e => {
       const p = e.data.payload || {};
       STATE.school = p.school || STATE.school;
       STATE.year   = p.year   || STATE.year;
-      // Session token may be forwarded by the shell for auth
-      if (p.sessionToken) STATE._session = p.sessionToken;
       document.getElementById('tbSchool').textContent =
         STATE.school ? `${STATE.school} · ${STATE.year}` : '';
       loadTeachers();
@@ -558,11 +607,12 @@ window.addEventListener('message', e => {
 // signal ready to parent shell
 window.parent.postMessage({ type: 'iframe-ready', docType: 'teachers' }, '*');
 
-// ─── AUTH HEADER ──────────────────────────────────
+// ─── REQUEST HEADERS ───────────────────────────────
+// No Bearer token: HR routes are gated by the portal's own
+// principal/systemadmin UI check, same as every other admin
+// route in this Worker.
 function authHeaders() {
-  const h = { 'Content-Type': 'application/json' };
-  if (STATE._session) h['Authorization'] = `Bearer ${STATE._session}`;
-  return h;
+  return { 'Content-Type': 'application/json' };
 }
 
 // ─── LOAD TEACHERS ────────────────────────────────
@@ -756,21 +806,47 @@ function showErr(id, msg) {
 }
 function hideErr(id) { document.getElementById(id).style.display = 'none'; }
 
+// ─── STAFF LIST (for picker + manager) ────────────
+async function loadStaffList() {
+  if (!STATE.school || !STATE.year) { STATE.staffList = []; return; }
+  try {
+    const res = await fetch(
+      `${WORKER}/api/staff-hr?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`,
+      { cache: 'no-store', headers: authHeaders() }
+    );
+    STATE.staffList = res.ok ? await res.json() : [];
+  } catch { STATE.staffList = []; }
+}
+
 // ─── ADD TEACHER ──────────────────────────────────
-function openAddTeacherModal() {
+async function openAddTeacherModal() {
   if (STATE.readonly) return;
-  document.getElementById('atStaffId').value = '';
-  document.getElementById('atNotes').value   = '';
   hideErr('atErr');
+  document.getElementById('atNotes').value = '';
+
+  const sel = document.getElementById('atStaffSelect');
+  sel.innerHTML = '<option value="">— טוען רשימת צוות... —</option>';
   openModal('addTeacherModal');
-  setTimeout(() => document.getElementById('atStaffId').focus(), 80);
+
+  await loadStaffList();
+
+  // Only offer staff who aren't already an active teacher
+  const teacherStaffIds = new Set(STATE.teachers.map(t => t.staff_id));
+  const available = STATE.staffList.filter(s => !teacherStaffIds.has(s.id));
+
+  if (!available.length) {
+    sel.innerHTML = '<option value="">אין אנשי צוות פנויים — הוסף/הוסיפי דרך "ניהול צוות"</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">— בחר/י שם —</option>' +
+    available.map(s => `<option value="${s.id}">${esc(s.name)}${s.roletitle ? ' · '+esc(s.roletitle) : ''}</option>`).join('');
 }
 
 async function submitAddTeacher() {
   if (STATE.readonly) return;
-  const staffId = parseInt(document.getElementById('atStaffId').value);
+  const staffId = parseInt(document.getElementById('atStaffSelect').value);
   const notes   = document.getElementById('atNotes').value.trim();
-  if (!staffId) { showErr('atErr','נדרש מזהה צוות'); return; }
+  if (!staffId) { showErr('atErr','יש לבחור איש/אשת צוות מהרשימה'); return; }
   if (!STATE.school || !STATE.year) { showErr('atErr','שגיאה: בית ספר / שנה לא מוגדרים'); return; }
   try {
     const res = await fetch(`${WORKER}/api/teachers`, {
@@ -989,6 +1065,113 @@ async function archiveBonus(id) {
     const data = await res.json();
     if (!res.ok || !data.ok) { alert(data.error || 'שגיאה'); return; }
     await loadBonuses(STATE.selectedId);
+  } catch(e) { alert('שגיאת רשת: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════
+//  STAFF MANAGER  (HR registry — independent of teachers)
+//  Lists/adds/edits/deletes rows in the `staff` table via
+//  /api/staff-hr. A staff member only becomes a "teacher"
+//  once added through the separate teachers flow above.
+// ═══════════════════════════════════════════════════
+async function openStaffManagerModal() {
+  if (STATE.readonly) return;
+  cancelStaffEdit();
+  openModal('staffManagerModal');
+  await loadStaffList();
+  renderStaffManagerList();
+}
+
+function renderStaffManagerList() {
+  const c = document.getElementById('smList');
+  if (!STATE.staffList.length) {
+    c.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:0.83rem;">אין אנשי צוות עדיין</div>';
+    return;
+  }
+  const teacherStaffIds = new Set(STATE.teachers.map(t => t.staff_id));
+  c.innerHTML = STATE.staffList.map(s => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-weight:600;font-size:0.85rem;">${esc(s.name)}</div>
+        <div style="font-size:0.74rem;color:var(--muted);">
+          ${s.roletitle ? esc(s.roletitle) : ''}${s.subject ? ' · 📚 '+esc(s.subject) : ''}${s.email ? ' · '+esc(s.email) : ''}
+          ${teacherStaffIds.has(s.id) ? ' · <span style="color:var(--hr-accent);">מורה פעיל/ה</span>' : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn-sm" onclick="startEditStaff(${s.id})">✏️</button>
+        <button class="btn-sm danger" onclick="deleteStaff(${s.id})">🗑</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function startEditStaff(id) {
+  const s = STATE.staffList.find(x => x.id === id);
+  if (!s) return;
+  STATE._editStaffId = id;
+  document.getElementById('smName').value      = s.name      || '';
+  document.getElementById('smRoletitle').value = s.roletitle || '';
+  document.getElementById('smSubject').value    = s.subject   || '';
+  document.getElementById('smEmail').value      = s.email     || '';
+  document.getElementById('smFormTitle').textContent = '✏️ עריכת איש/אשת צוות';
+  document.getElementById('smSubmitBtn').textContent = 'שמור שינויים';
+  document.getElementById('smCancelEditBtn').style.display = '';
+  hideErr('smErr');
+}
+
+function cancelStaffEdit() {
+  STATE._editStaffId = null;
+  document.getElementById('smName').value      = '';
+  document.getElementById('smRoletitle').value = '';
+  document.getElementById('smSubject').value    = '';
+  document.getElementById('smEmail').value      = '';
+  document.getElementById('smFormTitle').textContent = '＋ הוספת איש/אשת צוות';
+  document.getElementById('smSubmitBtn').textContent = 'הוסף איש צוות';
+  document.getElementById('smCancelEditBtn').style.display = 'none';
+  hideErr('smErr');
+}
+
+async function submitStaffForm() {
+  const name      = document.getElementById('smName').value.trim();
+  const roletitle = document.getElementById('smRoletitle').value.trim();
+  const subject   = document.getElementById('smSubject').value.trim();
+  const email     = document.getElementById('smEmail').value.trim();
+  if (!name) { showErr('smErr','שם מלא הוא שדה חובה'); return; }
+  if (!STATE.school || !STATE.year) { showErr('smErr','שגיאה: בית ספר / שנה לא מוגדרים'); return; }
+
+  try {
+    let res, data;
+    if (STATE._editStaffId) {
+      res = await fetch(`${WORKER}/api/staff-hr/${STATE._editStaffId}`, {
+        method: 'PUT', headers: authHeaders(),
+        body: JSON.stringify({ name, roletitle, subject, email }),
+      });
+    } else {
+      res = await fetch(`${WORKER}/api/staff-hr`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ name, school: STATE.school, year: STATE.year, roletitle, subject, email }),
+      });
+    }
+    data = await res.json();
+    if (!res.ok || !data.ok) { showErr('smErr', data.error || 'שגיאה'); return; }
+    cancelStaffEdit();
+    await loadStaffList();
+    renderStaffManagerList();
+  } catch(e) { showErr('smErr','שגיאת רשת: ' + e.message); }
+}
+
+async function deleteStaff(id) {
+  const s = STATE.staffList.find(x => x.id === id);
+  if (!confirm(`למחוק את ${s?.name || 'איש הצוות'} מרשימת הצוות?`)) return;
+  try {
+    const res = await fetch(`${WORKER}/api/staff-hr/${id}`, {
+      method: 'DELETE', headers: authHeaders(),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { alert(data.error || 'שגיאה'); return; }
+    await loadStaffList();
+    renderStaffManagerList();
   } catch(e) { alert('שגיאת רשת: ' + e.message); }
 }
 </script>
