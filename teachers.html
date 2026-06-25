@@ -253,6 +253,57 @@ body.readonly-mode .btn-modal-ok {
   pointer-events:none;opacity:.45;
 }
 
+/* ── EVAL STATUS BADGES ── */
+.eval-badge {
+  display:inline-block;padding:2px 9px;border-radius:10px;font-size:0.7rem;font-weight:700;
+}
+.eval-להערכה   { background:#fef9c3;color:#92400e; }
+.eval-בתהליך   { background:#e0f2fe;color:#0369a1; }
+.eval-הושלם    { background:#dcfce7;color:#166534; }
+.eval-נדחה     { background:#fee2e2;color:#991b1b; }
+
+/* ── EVAL CALENDAR ── */
+#evalCalendar {
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:3px;
+  font-size:0.72rem;
+}
+.cal-header-cell {
+  text-align:center;font-weight:700;color:var(--muted);
+  padding:4px 2px;font-size:0.68rem;
+}
+.cal-cell {
+  min-height:58px;border:1px solid var(--border);border-radius:6px;
+  padding:4px;background:#fafbfc;
+  transition:background .12s;
+}
+.cal-cell.today { border-color:var(--teal);background:#f0fdfa; }
+.cal-cell.other-month { opacity:.4; }
+.cal-day-num {
+  font-size:0.7rem;font-weight:700;color:var(--muted);margin-bottom:3px;
+}
+.cal-day-num.today-num { color:var(--teal); }
+.cal-event {
+  background:var(--hr-accent);color:#fff;border-radius:4px;
+  padding:2px 5px;margin-bottom:2px;font-size:0.67rem;font-weight:600;
+  cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.cal-event.status-הושלם { background:var(--green); }
+.cal-event.status-נדחה   { background:var(--red); }
+.cal-event.status-בתהליך { background:var(--amber); }
+.cal-nav {
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.cal-nav-btn {
+  background:none;border:1px solid var(--border);border-radius:6px;
+  padding:4px 10px;cursor:pointer;font-family:var(--font);font-size:0.8rem;
+  color:var(--text);transition:background .12s;
+}
+.cal-nav-btn:hover { background:#f1f5f9; }
+.cal-month-label { font-weight:700;color:var(--primary);font-size:0.88rem; }
+
 @media(max-width:600px){
   #panelList{width:160px;min-width:140px;}
   #profileCard{flex-direction:column;gap:8px;}
@@ -315,6 +366,7 @@ body.readonly-mode .btn-modal-ok {
       <div id="detailTabs">
         <button class="tab-btn active" onclick="switchTab('entries',this)">📝 רשומות</button>
         <button class="tab-btn" onclick="switchTab('bonuses',this)">💰 בונוסים</button>
+        <button class="tab-btn" onclick="switchTab('eval',this)">📋 הערכה</button>
       </div>
 
       <div id="detailTabContent">
@@ -339,6 +391,17 @@ body.readonly-mode .btn-modal-ok {
             <div id="bonusesContainer"><div class="empty-state">טוען...</div></div>
           </div>
         </div>
+
+        <!-- Eval tab -->
+        <div id="tabEval" style="display:none;">
+          <div class="sub-section">
+            <div class="sub-header">
+              <span class="sub-title">הערכות מורה</span>
+              <button class="btn-sm primary write-action" onclick="openAddEvalModal()">＋ הערכה חדשה</button>
+            </div>
+            <div id="evalContainer"><div class="empty-state">טוען...</div></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -350,6 +413,33 @@ body.readonly-mode .btn-modal-ok {
   <div class="sum-item">מורים: <strong id="sumTeachers">0</strong></div>
   <div class="sum-item">רשומות: <strong id="sumEntries">0</strong></div>
   <div class="sum-item">בונוסים: <strong id="sumBonuses">0</strong></div>
+  <div class="sum-item">הערכות פתוחות: <strong id="sumEvals">0</strong></div>
+  <div class="tb-spacer"></div>
+  <div class="sum-item" style="cursor:pointer;text-decoration:underline;color:rgba(255,255,255,.7);"
+       onclick="toggleGlobalCalendar()">📅 לוח הערכות שנתי</div>
+</div>
+
+<!-- GLOBAL EVAL CALENDAR PANEL -->
+<div id="globalCalPanel" style="display:none;position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.45);
+     display:none;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:14px;padding:22px 24px;max-width:720px;width:100%;
+              box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:1rem;font-weight:800;color:var(--primary);">📅 לוח הערכות מורים – כל הצוות</div>
+      <button class="btn-sm" onclick="toggleGlobalCalendar()" style="font-size:1rem;">✕</button>
+    </div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="shiftCalMonth(-1)">→ חודש קודם</button>
+      <span class="cal-month-label" id="calMonthLabel"></span>
+      <button class="cal-nav-btn" onclick="shiftCalMonth(1)">חודש הבא ←</button>
+    </div>
+    <div id="evalCalendar"></div>
+    <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;font-size:0.75rem;">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--hr-accent);margin-left:4px;"></span>להערכה / בתהליך</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--green);margin-left:4px;"></span>הושלם</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--red);margin-left:4px;"></span>נדחה</span>
+    </div>
+  </div>
 </div>
 
 <!-- ══ MODALS ══ -->
@@ -560,6 +650,103 @@ body.readonly-mode .btn-modal-ok {
   </div>
 </div>
 
+<!-- Add Eval Modal -->
+<div id="addEvalModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('addEvalModal')">
+  <div class="modal-card">
+    <div class="modal-title">＋ הערכה חדשה</div>
+    <div class="modal-row">
+      <div class="modal-label">סוג הערכה *</div>
+      <select id="evType" class="modal-select">
+        <option value="">— בחר סוג —</option>
+        <option value="הערכה שנתית">הערכה שנתית</option>
+        <option value="הערכת ביניים">הערכת ביניים</option>
+        <option value="שיחת משוב">שיחת משוב</option>
+        <option value="תצפית כיתתית">תצפית כיתתית</option>
+        <option value="הערכה עצמית">הערכה עצמית</option>
+        <option value="אחר">אחר</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך מתוכנן *</div>
+      <input id="evDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">מעריך</div>
+      <input id="evEvaluator" type="text" class="modal-input" placeholder="שם המנהל / המעריך">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">סטטוס</div>
+      <select id="evStatus" class="modal-select">
+        <option value="להערכה">להערכה</option>
+        <option value="בתהליך">בתהליך</option>
+        <option value="הושלם">הושלם</option>
+        <option value="נדחה">נדחה</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">הערות</div>
+      <textarea id="evNotes" class="modal-textarea" placeholder="הערות..."></textarea>
+    </div>
+    <div class="modal-err" id="evErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('addEvalModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitAddEval()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Eval Modal -->
+<div id="editEvalModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal('editEvalModal')">
+  <div class="modal-card">
+    <div class="modal-title">✏️ עריכת הערכה</div>
+    <div class="modal-row">
+      <div class="modal-label">סוג הערכה</div>
+      <select id="eeEvType" class="modal-select">
+        <option value="הערכה שנתית">הערכה שנתית</option>
+        <option value="הערכת ביניים">הערכת ביניים</option>
+        <option value="שיחת משוב">שיחת משוב</option>
+        <option value="תצפית כיתתית">תצפית כיתתית</option>
+        <option value="הערכה עצמית">הערכה עצמית</option>
+        <option value="אחר">אחר</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך מתוכנן</div>
+      <input id="eeEvDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">מעריך</div>
+      <input id="eeEvEvaluator" type="text" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">סטטוס</div>
+      <select id="eeEvStatus" class="modal-select">
+        <option value="להערכה">להערכה</option>
+        <option value="בתהליך">בתהליך</option>
+        <option value="הושלם">הושלם</option>
+        <option value="נדחה">נדחה</option>
+      </select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">תאריך ביצוע בפועל</div>
+      <input id="eeEvActualDate" type="date" class="modal-input">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">ציון / דירוג</div>
+      <input id="eeEvScore" type="text" class="modal-input" placeholder="למשל: מצוין, 85, A">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">הערות</div>
+      <textarea id="eeEvNotes" class="modal-textarea"></textarea>
+    </div>
+    <div class="modal-err" id="eeEvErr"></div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal('editEvalModal')">ביטול</button>
+      <button class="btn-modal-ok" onclick="submitEditEval()">שמור</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const WORKER = 'https://principal-api.1002220729.workers.dev';
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -569,15 +756,20 @@ const fmtCurrency = n => n != null ? `₪${Number(n).toLocaleString('he-IL')}` :
 // ─── STATE ────────────────────────────────────────
 let STATE = {
   school: '', year: '',
-  teachers: [],       // all teachers from API
-  staffList: [],       // all HR staff rows (for picker + manager)
-  selectedId: null,   // currently selected teacher id
-  entries: [],        // entries for selected teacher
-  bonuses: [],        // bonuses for selected teacher
+  teachers: [],
+  staffList: [],
+  selectedId: null,
+  entries: [],
+  bonuses: [],
+  evals: [],          // evaluations for selected teacher
+  allEvals: [],       // all evals across all teachers (for global calendar)
   readonly: false,
   _editEntryId: null,
   _editBonusId: null,
-  _editStaffId: null, // staff row currently being edited in the manager
+  _editEvalId:  null,
+  _editStaffId: null,
+  _calYear:  new Date().getFullYear(),
+  _calMonth: new Date().getMonth(),   // 0-based
 };
 
 // ─── postMessage listener ─────────────────────────
@@ -636,6 +828,7 @@ async function loadTeachers() {
   document.getElementById('listLoading').style.display = 'none';
   renderTeacherList();
   document.getElementById('sumTeachers').textContent = STATE.teachers.length;
+  loadAllEvalsForCalendar();
 }
 
 // ─── RENDER LIST ──────────────────────────────────
@@ -701,6 +894,7 @@ async function selectTeacher(id) {
   // Load sub-data (only for principal/systemadmin — API will gate for staffmember)
   loadEntries(id);
   loadBonuses(id);
+  loadEvals(id);
 }
 
 // ─── ENTRIES ──────────────────────────────────────
@@ -795,6 +989,7 @@ function switchTab(name, btn) {
   if (btn) btn.classList.add('active');
   document.getElementById('tabEntries').style.display = name === 'entries' ? '' : 'none';
   document.getElementById('tabBonuses').style.display = name === 'bonuses' ? '' : 'none';
+  document.getElementById('tabEval').style.display    = name === 'eval'    ? '' : 'none';
 }
 
 // ─── MODAL HELPERS ────────────────────────────────
@@ -1069,7 +1264,264 @@ async function archiveBonus(id) {
 }
 
 // ═══════════════════════════════════════════════════
-//  STAFF MANAGER  (HR registry — independent of teachers)
+//  EVALUATIONS
+// ═══════════════════════════════════════════════════
+
+// ─── LOAD EVALS (per teacher) ─────────────────────
+async function loadEvals(teacherId) {
+  document.getElementById('evalContainer').innerHTML = '<div class="empty-state">טוען...</div>';
+  STATE.evals = [];
+  try {
+    const res = await fetch(
+      `${WORKER}/api/teacher-evals?teacherId=${teacherId}`,
+      { cache: 'no-store', headers: authHeaders() }
+    );
+    if (res.ok) STATE.evals = await res.json();
+  } catch { STATE.evals = []; }
+  renderEvals();
+  updateEvalSummary();
+}
+
+// ─── LOAD ALL EVALS (global calendar) ─────────────
+async function loadAllEvalsForCalendar() {
+  if (!STATE.school || !STATE.year) return;
+  STATE.allEvals = [];
+  try {
+    const res = await fetch(
+      `${WORKER}/api/teacher-evals?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`,
+      { cache: 'no-store', headers: authHeaders() }
+    );
+    if (res.ok) STATE.allEvals = await res.json();
+  } catch { STATE.allEvals = []; }
+  renderCalendar();
+  updateEvalSummary();
+}
+
+function updateEvalSummary() {
+  // Count open (להערכה + בתהליך) across all evals
+  const open = STATE.allEvals.filter(e => e.status === 'להערכה' || e.status === 'בתהליך').length;
+  const el = document.getElementById('sumEvals');
+  if (el) el.textContent = open;
+}
+
+// ─── RENDER EVALS TABLE ───────────────────────────
+function renderEvals() {
+  const c = document.getElementById('evalContainer');
+  if (!STATE.evals.length) {
+    c.innerHTML = '<div class="empty-state">אין הערכות עדיין</div>'; return;
+  }
+  c.innerHTML = `
+    <table class="hr-table">
+      <thead><tr>
+        <th>סוג</th><th>תאריך מתוכנן</th><th>סטטוס</th><th>מעריך</th><th>תאריך בפועל</th><th>ציון</th><th>הערות</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${STATE.evals.map(e => `
+        <tr>
+          <td>${esc(e.eval_type||'—')}</td>
+          <td>${fmtDate(e.planned_date)}</td>
+          <td><span class="eval-badge eval-${esc(e.status||'')}">${esc(e.status||'—')}</span></td>
+          <td>${esc(e.evaluator||'—')}</td>
+          <td>${fmtDate(e.actual_date)}</td>
+          <td>${esc(e.score||'—')}</td>
+          <td style="max-width:160px;word-break:break-word;">${esc(e.notes||'')}</td>
+          <td style="white-space:nowrap;">
+            <button class="btn-sm write-action" onclick="openEditEvalModal(${e.id})">✏️</button>
+            <button class="btn-sm danger write-action" onclick="archiveEval(${e.id})">🗄</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ─── ADD EVAL ─────────────────────────────────────
+function openAddEvalModal() {
+  if (STATE.readonly || !STATE.selectedId) return;
+  document.getElementById('evType').value      = '';
+  document.getElementById('evDate').value      = new Date().toISOString().slice(0,10);
+  document.getElementById('evEvaluator').value = '';
+  document.getElementById('evStatus').value    = 'להערכה';
+  document.getElementById('evNotes').value     = '';
+  hideErr('evErr');
+  openModal('addEvalModal');
+}
+
+async function submitAddEval() {
+  if (STATE.readonly) return;
+  const evalType  = document.getElementById('evType').value;
+  const plannedDate = document.getElementById('evDate').value;
+  const evaluator = document.getElementById('evEvaluator').value.trim();
+  const status    = document.getElementById('evStatus').value;
+  const notes     = document.getElementById('evNotes').value.trim();
+  if (!evalType)    { showErr('evErr','יש לבחור סוג הערכה'); return; }
+  if (!plannedDate) { showErr('evErr','יש להזין תאריך מתוכנן'); return; }
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-evals`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        teacherId: STATE.selectedId, evalType, plannedDate,
+        evaluator, status, notes,
+        school: STATE.school, year: STATE.year
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('evErr', data.error || 'שגיאה'); return; }
+    closeModal('addEvalModal');
+    await loadEvals(STATE.selectedId);
+    await loadAllEvalsForCalendar();
+  } catch(e) { showErr('evErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── EDIT EVAL ────────────────────────────────────
+function openEditEvalModal(id) {
+  if (STATE.readonly) return;
+  const ev = STATE.evals.find(e => e.id === id);
+  if (!ev) return;
+  STATE._editEvalId = id;
+  document.getElementById('eeEvType').value       = ev.eval_type    || '';
+  document.getElementById('eeEvDate').value       = (ev.planned_date||'').slice(0,10);
+  document.getElementById('eeEvEvaluator').value  = ev.evaluator    || '';
+  document.getElementById('eeEvStatus').value     = ev.status       || 'להערכה';
+  document.getElementById('eeEvActualDate').value = (ev.actual_date||'').slice(0,10);
+  document.getElementById('eeEvScore').value      = ev.score        || '';
+  document.getElementById('eeEvNotes').value      = ev.notes        || '';
+  hideErr('eeEvErr');
+  openModal('editEvalModal');
+}
+
+async function submitEditEval() {
+  if (STATE.readonly || !STATE._editEvalId) return;
+  const evalType   = document.getElementById('eeEvType').value;
+  const plannedDate= document.getElementById('eeEvDate').value;
+  const evaluator  = document.getElementById('eeEvEvaluator').value.trim();
+  const status     = document.getElementById('eeEvStatus').value;
+  const actualDate = document.getElementById('eeEvActualDate').value;
+  const score      = document.getElementById('eeEvScore').value.trim();
+  const notes      = document.getElementById('eeEvNotes').value.trim();
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-evals/${STATE._editEvalId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({ evalType, plannedDate, evaluator, status, actualDate, score, notes }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showErr('eeEvErr', data.error || 'שגיאה'); return; }
+    closeModal('editEvalModal');
+    STATE._editEvalId = null;
+    await loadEvals(STATE.selectedId);
+    await loadAllEvalsForCalendar();
+  } catch(e) { showErr('eeEvErr','שגיאת רשת: ' + e.message); }
+}
+
+// ─── ARCHIVE EVAL ─────────────────────────────────
+async function archiveEval(id) {
+  if (STATE.readonly) return;
+  if (!confirm('לארכב הערכה זו?')) return;
+  try {
+    const res = await fetch(`${WORKER}/api/teacher-evals/${id}/archive`, {
+      method: 'PUT', headers: authHeaders(), body: '{}',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) { alert(data.error || 'שגיאה'); return; }
+    await loadEvals(STATE.selectedId);
+    await loadAllEvalsForCalendar();
+  } catch(e) { alert('שגיאת רשת: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════
+//  GLOBAL EVAL CALENDAR
+// ═══════════════════════════════════════════════════
+
+function toggleGlobalCalendar() {
+  const panel = document.getElementById('globalCalPanel');
+  const isHidden = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = isHidden ? 'flex' : 'none';
+  if (isHidden) renderCalendar();
+}
+
+function shiftCalMonth(delta) {
+  STATE._calMonth += delta;
+  if (STATE._calMonth > 11) { STATE._calMonth = 0; STATE._calYear++; }
+  if (STATE._calMonth < 0)  { STATE._calMonth = 11; STATE._calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const label = document.getElementById('calMonthLabel');
+  const grid  = document.getElementById('evalCalendar');
+  if (!label || !grid) return;
+
+  const year  = STATE._calYear;
+  const month = STATE._calMonth;
+
+  const monthNames = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
+                      'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  label.textContent = `${monthNames[month]} ${year}`;
+
+  // Build teacher name lookup
+  const teacherName = {};
+  STATE.teachers.forEach(t => { teacherName[t.id] = t.name; });
+
+  // Group evals by planned_date (YYYY-MM-DD) for this month
+  const byDate = {};
+  STATE.allEvals.forEach(ev => {
+    if (!ev.planned_date) return;
+    const d = ev.planned_date.slice(0,10);
+    const [y, m] = d.split('-').map(Number);
+    if (y === year && (m-1) === month) {
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(ev);
+    }
+  });
+
+  // Calendar grid
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0,10);
+
+  const dayLabels = ['א','ב','ג','ד','ה','ו','ש'];
+
+  let html = dayLabels.map(d =>
+    `<div class="cal-header-cell">${d}</div>`
+  ).join('');
+
+  // Blank cells before first day
+  for (let i = 0; i < firstDay; i++) {
+    html += `<div class="cal-cell other-month"><div class="cal-day-num"></div></div>`;
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const evs = byDate[dateStr] || [];
+    const evHtml = evs.map(ev => {
+      const name = teacherName[ev.teacher_id] || `#${ev.teacher_id}`;
+      return `<div class="cal-event status-${esc(ev.status||'')}"
+                   title="${esc(name)} – ${esc(ev.eval_type||'')} (${esc(ev.status||'')})"
+                   onclick="highlightTeacher(${ev.teacher_id})">
+                ${esc(name.split(' ')[0])} – ${esc(ev.eval_type||'')}
+              </div>`;
+    }).join('');
+    html += `
+      <div class="cal-cell${isToday?' today':''}">
+        <div class="cal-day-num${isToday?' today-num':''}">${day}</div>
+        ${evHtml}
+      </div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function highlightTeacher(teacherId) {
+  // Close calendar, select the teacher in the list, switch to eval tab
+  document.getElementById('globalCalPanel').style.display = 'none';
+  selectTeacher(teacherId);
+  setTimeout(() => {
+    const evalBtn = document.querySelectorAll('.tab-btn')[2];
+    if (evalBtn) switchTab('eval', evalBtn);
+  }, 200);
+}
 //  Lists/adds/edits/deletes rows in the `staff` table via
 //  /api/staff-hr. A staff member only becomes a "teacher"
 //  once added through the separate teachers flow above.

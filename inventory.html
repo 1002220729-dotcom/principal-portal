@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מלאי ציוד</title>
+<style>
+:root {
+  --primary: #1a3a5c; --primary-d: #12294a; --teal: #01696f;
+  --font: 'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;
+  --radius: 10px; --shadow: 0 2px 10px rgba(0,0,0,0.08);
+  --border: #e4e9f0; --bg: #f0f2f5; --card: #fff;
+  --text: #1e293b; --muted: #64748b;
+  --green: #16a34a; --red: #dc2626; --amber: #d97706;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;}
+body{display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── TOOLBAR ── */
+#toolbar{
+  background:var(--primary);padding:10px 16px;
+  display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;
+}
+#toolbar h1{color:#fff;font-size:0.95rem;font-weight:800;flex-shrink:0;}
+#toolbar .tb-school{color:rgba(255,255,255,0.6);font-size:0.75rem;margin-right:6px;}
+.tb-spacer{flex:1;}
+#searchInput{
+  padding:6px 12px;border:1px solid rgba(255,255,255,0.25);border-radius:6px;
+  background:rgba(255,255,255,0.12);color:#fff;font-family:var(--font);font-size:0.82rem;
+  width:180px;outline:none;
+}
+#searchInput::placeholder{color:rgba(255,255,255,0.45);}
+#categoryFilter{
+  padding:6px 10px;border:1px solid rgba(255,255,255,0.25);border-radius:6px;
+  background:rgba(255,255,255,0.12);color:#fff;font-family:var(--font);font-size:0.82rem;
+  outline:none;
+}
+#categoryFilter option{color:#1e293b;background:#fff;}
+.btn-add{
+  background:var(--teal);color:#fff;border:none;border-radius:7px;
+  padding:7px 14px;font-family:var(--font);font-size:0.82rem;font-weight:700;
+  cursor:pointer;white-space:nowrap;transition:background .15s;
+}
+.btn-add:hover{background:#015e63;}
+
+/* ── SCROLL AREA ── */
+#scrollArea{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+
+/* ── CATEGORY ACCORDION ── */
+.cat-block{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+.cat-header{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:var(--primary);color:#fff;cursor:pointer;user-select:none;
+  border:none;width:100%;font-family:var(--font);text-align:right;
+}
+.cat-header:hover{background:#1e4470;}
+.cat-name{font-size:0.88rem;font-weight:700;flex:1;}
+.cat-count{font-size:0.72rem;opacity:0.65;background:rgba(255,255,255,0.15);
+  padding:2px 8px;border-radius:10px;}
+.cat-arrow{font-size:0.7rem;transition:transform .2s;}
+.cat-block.open .cat-arrow{transform:rotate(180deg);}
+.cat-body{display:none;padding:10px;}
+.cat-block.open .cat-body{display:block;}
+
+/* ── TABLE ── */
+.inv-table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+.inv-table th{
+  text-align:right;padding:6px 10px;font-size:0.7rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.6px;color:var(--muted);
+  border-bottom:2px solid var(--border);background:#f8fafc;
+}
+.inv-table td{
+  padding:7px 10px;border-bottom:1px solid var(--border);
+  vertical-align:middle;
+}
+.inv-table tr:last-child td{border-bottom:none;}
+.inv-table tr:hover td{background:#f8fafc;}
+
+/* inline editable cell */
+.editable{
+  cursor:pointer;border-radius:4px;padding:3px 6px;transition:background .15s;
+  min-width:40px;display:inline-block;
+}
+.editable:hover{background:#eef2ff;}
+.editable:focus{
+  outline:2px solid var(--teal);background:#fff;cursor:text;
+}
+
+/* condition badge */
+.cond{display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.72rem;font-weight:700;cursor:pointer;}
+.cond-good   {background:#dcfce7;color:#166534;}
+.cond-repair {background:#fef9c3;color:#92400e;}
+.cond-discard{background:#fee2e2;color:#991b1b;}
+
+/* row actions */
+.btn-del-row{
+  background:none;border:none;cursor:pointer;color:var(--red);font-size:0.9rem;
+  padding:3px 6px;border-radius:4px;transition:background .15s;
+}
+.btn-del-row:hover{background:#fee2e2;}
+
+/* add row button */
+.btn-add-row{
+  background:none;border:1px dashed var(--teal);color:var(--teal);
+  border-radius:6px;padding:5px 14px;font-family:var(--font);font-size:0.8rem;
+  cursor:pointer;margin-top:8px;transition:background .15s;
+}
+.btn-add-row:hover{background:rgba(1,105,111,0.06);}
+
+/* rename / delete category */
+.cat-edit-btn{
+  background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.5);
+  font-size:0.75rem;padding:2px 5px;border-radius:3px;
+}
+.cat-edit-btn:hover{color:#fff;background:rgba(255,255,255,0.12);}
+
+/* ── ADD CATEGORY AREA ── */
+#addCatArea{
+  background:var(--card);border-radius:var(--radius);
+  border:2px dashed var(--border);padding:12px;text-align:center;
+}
+#addCatArea button{
+  background:none;border:none;color:var(--teal);font-family:var(--font);
+  font-size:0.85rem;font-weight:700;cursor:pointer;
+}
+
+/* ── SUMMARY BAR ── */
+#summaryBar{
+  background:var(--primary-d);color:rgba(255,255,255,0.75);
+  font-size:0.72rem;padding:7px 16px;display:flex;gap:20px;flex-shrink:0;
+}
+.sum-item strong{color:#fff;}
+
+/* ── READONLY MODE ── */
+body.readonly-mode input,
+body.readonly-mode button:not(.readonly-exempt),
+body.readonly-mode select,
+body.readonly-mode textarea,
+body.readonly-mode [contenteditable]{pointer-events:none;opacity:.6;}
+.readonly-banner{
+  display:none;background:#7c3aed;color:#fff;text-align:center;
+  padding:6px;font-size:0.8rem;font-weight:700;flex-shrink:0;
+}
+body.readonly-mode .readonly-banner{display:block;}
+</style>
+</head>
+<body>
+
+<div class="readonly-banner">👁 מצב צפייה בלבד</div>
+
+<div id="toolbar">
+  <h1>📦 מלאי ציוד</h1>
+  <span class="tb-school" id="tbSchool"></span>
+  <div class="tb-spacer"></div>
+  <input id="searchInput" type="search" placeholder="חיפוש פריט...">
+  <select id="categoryFilter"><option value="">כל הקטגוריות</option></select>
+  <button class="btn-add" onclick="openAddCategory()">＋ קטגוריה חדשה</button>
+  <button class="btn-add" onclick="saveToPortal()" style="background:#16a34a;">💾 שמור</button>
+</div>
+
+<div id="scrollArea">
+  <div id="catContainer"></div>
+  <div id="addCatArea">
+    <button onclick="openAddCategory()">＋ הוסף קטגוריה חדשה</button>
+  </div>
+</div>
+
+<div id="summaryBar">
+  <div class="sum-item">סה"כ פריטים: <strong id="sumTotal">0</strong></div>
+  <div class="sum-item">לתיקון: <strong id="sumRepair" style="color:#fcd34d;">0</strong></div>
+  <div class="sum-item">למחיקה: <strong id="sumDiscard" style="color:#fca5a5;">0</strong></div>
+</div>
+
+<script>
+const WORKER = 'https://hacala-api.1002220729.workers.dev';
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+let STATE = { school:'', year:'', categories:{} };
+// categories: { [catName]: [ {id,itemName,quantity,condition,notes}, ... ] }
+
+// ─── postMessage ──────────────────────────────────
+window.addEventListener('message', e => {
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type === 'load-data') {
+    const { school, year } = e.data.payload || {};
+    STATE.school = school || STATE.school;
+    STATE.year   = year   || STATE.year;
+    document.getElementById('tbSchool').textContent =
+      STATE.school ? `${STATE.school} · ${STATE.year}` : '';
+    loadFromWorker();
+  }
+  if (e.data.type === 'set-readonly') {
+    document.body.classList.toggle('readonly-mode', !!e.data.readonly);
+  }
+  if (e.data.type === 'request-data') saveToPortal();
+});
+
+// signal ready
+window.parent.postMessage({ type:'iframe-ready', docType:'inventory' }, '*');
+
+// ─── LOAD ──────────────────────────────────────────
+async function loadFromWorker() {
+  if (!STATE.school || !STATE.year) return;
+  try {
+    const res  = await fetch(`${WORKER}/api/inventory?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`);
+    const rows = await res.json();
+    STATE.categories = {};
+    (rows || []).forEach(r => {
+      const cat = r.category || 'כללי';
+      if (!STATE.categories[cat]) STATE.categories[cat] = [];
+      STATE.categories[cat].push({ id: r.id, itemName: r.item_name, quantity: r.quantity, condition: r.condition, notes: r.notes });
+    });
+    render();
+  } catch { render(); }
+}
+
+// ─── RENDER ────────────────────────────────────────
+function render() {
+  const filterCat  = document.getElementById('categoryFilter').value;
+  const filterText = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const container  = document.getElementById('catContainer');
+  container.innerHTML = '';
+
+  // Rebuild category filter options
+  const cf = document.getElementById('categoryFilter');
+  const prev = cf.value;
+  cf.innerHTML = '<option value="">כל הקטגוריות</option>';
+  Object.keys(STATE.categories).forEach(cat => {
+    const o = document.createElement('option');
+    o.value = cat; o.textContent = cat;
+    cf.appendChild(o);
+  });
+  cf.value = prev;
+
+  let totTotal = 0, totRepair = 0, totDiscard = 0;
+
+  Object.entries(STATE.categories).forEach(([catName, rows]) => {
+    if (filterCat && catName !== filterCat) return;
+    const filtered = filterText
+      ? rows.filter(r => (r.itemName||'').toLowerCase().includes(filterText) || (r.notes||'').toLowerCase().includes(filterText))
+      : rows;
+
+    totTotal   += filtered.reduce((a,r) => a + (parseInt(r.quantity)||0), 0);
+    totRepair  += filtered.filter(r => r.condition==='repair').length;
+    totDiscard += filtered.filter(r => r.condition==='discard').length;
+
+    const block = document.createElement('div');
+    block.className = 'cat-block open';
+    block.dataset.cat = catName;
+
+    block.innerHTML = `
+      <button class="cat-header" onclick="toggleCat(this.closest('.cat-block'))">
+        <span class="cat-name">${esc(catName)}</span>
+        <span class="cat-count">${filtered.length} פריטים</span>
+        <button class="cat-edit-btn" onclick="event.stopPropagation();renameCat('${esc(catName)}')" title="שנה שם">✏️</button>
+        <button class="cat-edit-btn" onclick="event.stopPropagation();deleteCat('${esc(catName)}')" title="מחק קטגוריה">🗑</button>
+        <span class="cat-arrow">▼</span>
+      </button>
+      <div class="cat-body">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>שם פריט</th><th>כמות</th><th>מצב</th><th>הערות</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-${esc(catName)}">
+          ${filtered.map(r => rowHTML(catName, r)).join('')}
+          </tbody>
+        </table>
+        <button class="btn-add-row" onclick="addRow('${esc(catName)}')">＋ הוסף שורה</button>
+      </div>`;
+    container.appendChild(block);
+  });
+
+  document.getElementById('sumTotal').textContent   = totTotal;
+  document.getElementById('sumRepair').textContent  = totRepair;
+  document.getElementById('sumDiscard').textContent = totDiscard;
+}
+
+function rowHTML(cat, r) {
+  const condLabel = { good:'תקין', repair:'לתיקון', discard:'למחיקה' };
+  const condClass = { good:'cond-good', repair:'cond-repair', discard:'cond-discard' };
+  return `<tr data-id="${r.id||''}" data-cat="${esc(cat)}">
+    <td><span class="editable" contenteditable="true" data-field="itemName"
+      onblur="cellBlur(this)">${esc(r.itemName)}</span></td>
+    <td><span class="editable" contenteditable="true" data-field="quantity"
+      onblur="cellBlur(this)" style="width:50px;">${esc(r.quantity)}</span></td>
+    <td><span class="cond ${condClass[r.condition]||'cond-good'}" data-field="condition"
+      onclick="cycleCondition(this)">${condLabel[r.condition]||'תקין'}</span></td>
+    <td><span class="editable" contenteditable="true" data-field="notes"
+      onblur="cellBlur(this)">${esc(r.notes||'')}</span></td>
+    <td><button class="btn-del-row" onclick="deleteRow(this)" title="מחק שורה">🗑</button></td>
+  </tr>`;
+}
+
+// ─── INTERACTIONS ──────────────────────────────────
+function toggleCat(block) { block.classList.toggle('open'); }
+
+function cellBlur(span) {
+  const tr  = span.closest('tr');
+  const cat = tr.dataset.cat;
+  const id  = tr.dataset.id;
+  const field = span.dataset.field;
+  const val = span.textContent.trim();
+  const rows = STATE.categories[cat] || [];
+  const row  = id ? rows.find(r => String(r.id) === id) : null;
+  if (row) row[field] = val;
+  updateSummary();
+}
+
+function cycleCondition(span) {
+  const order = ['good','repair','discard'];
+  const labels = { good:'תקין', repair:'לתיקון', discard:'למחיקה' };
+  const classes = { good:'cond-good', repair:'cond-repair', discard:'cond-discard' };
+  const tr  = span.closest('tr');
+  const cat = tr.dataset.cat;
+  const id  = tr.dataset.id;
+  const rows = STATE.categories[cat] || [];
+  const row  = id ? rows.find(r => String(r.id) === id) : null;
+  const cur  = row ? row.condition : 'good';
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  if (row) row.condition = next;
+  span.className = `cond ${classes[next]}`;
+  span.textContent = labels[next];
+  updateSummary();
+}
+
+function addRow(cat) {
+  if (!STATE.categories[cat]) STATE.categories[cat] = [];
+  const newRow = { id: null, itemName: 'פריט חדש', quantity: 1, condition: 'good', notes: '' };
+  STATE.categories[cat].push(newRow);
+  const tbody = document.getElementById(`tbody-${cat}`);
+  if (tbody) {
+    const tr = document.createElement('tr');
+    tr.dataset.cat = cat;
+    tr.dataset.id  = '';
+    tr.innerHTML = rowHTML(cat, newRow).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '');
+    // re-render is simpler
+  }
+  render();
+}
+
+function deleteRow(btn) {
+  const tr  = btn.closest('tr');
+  const cat = tr.dataset.cat;
+  const id  = tr.dataset.id;
+  const rows = STATE.categories[cat] || [];
+  const idx  = id
+    ? rows.findIndex(r => String(r.id) === id)
+    : rows.findIndex(r => !r.id);
+  if (idx > -1) rows.splice(idx, 1);
+  render();
+}
+
+function deleteCat(cat) {
+  if (!confirm(`מחוק את הקטגוריה "${cat}" וכל הפריטים בה?`)) return;
+  delete STATE.categories[cat];
+  render();
+}
+
+function renameCat(oldName) {
+  const newName = prompt('שם חדש לקטגוריה:', oldName);
+  if (!newName || newName === oldName) return;
+  STATE.categories[newName] = STATE.categories[oldName];
+  delete STATE.categories[oldName];
+  render();
+}
+
+function openAddCategory() {
+  const name = prompt('שם הקטגוריה החדשה:');
+  if (!name) return;
+  if (!STATE.categories[name]) STATE.categories[name] = [];
+  render();
+}
+
+function updateSummary() {
+  let totTotal = 0, totRepair = 0, totDiscard = 0;
+  Object.values(STATE.categories).forEach(rows => {
+    totTotal   += rows.reduce((a,r) => a + (parseInt(r.quantity)||0), 0);
+    totRepair  += rows.filter(r => r.condition==='repair').length;
+    totDiscard += rows.filter(r => r.condition==='discard').length;
+  });
+  document.getElementById('sumTotal').textContent   = totTotal;
+  document.getElementById('sumRepair').textContent  = totRepair;
+  document.getElementById('sumDiscard').textContent = totDiscard;
+}
+
+// ─── SAVE ──────────────────────────────────────────
+async function saveToPortal() {
+  // Sync editable cells before saving
+  document.querySelectorAll('[contenteditable]').forEach(el => {
+    const tr  = el.closest('tr');
+    if (!tr) return;
+    const cat   = tr.dataset.cat;
+    const id    = tr.dataset.id;
+    const field = el.dataset.field;
+    const val   = el.textContent.trim();
+    const rows  = STATE.categories[cat] || [];
+    const row   = id ? rows.find(r => String(r.id) === id) : rows.find(r => !r.id);
+    if (row && field) row[field] = val;
+  });
+
+  // Build flat array for Worker
+  const allRows = [];
+  Object.entries(STATE.categories).forEach(([cat, rows]) => {
+    rows.forEach(r => allRows.push({ ...r, category: cat,
+      school: STATE.school, year: STATE.year }));
+  });
+
+  window.parent.postMessage({
+    type: 'save-request',
+    docType: 'inventory',
+    payload: { school: STATE.school, year: STATE.year, rows: allRows },
+  }, '*');
+}
+
+// ─── SEARCH / FILTER ──────────────────────────────
+document.getElementById('searchInput').addEventListener('input', render);
+document.getElementById('categoryFilter').addEventListener('change', render);
+</script>
+</body>
+</html>

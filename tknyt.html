@@ -631,6 +631,9 @@
     <button class="nav-item" data-section="s_schedule" onclick="switchSection('s_schedule', this)">
       <span class="icon">📚</span> שיבוץ מקצועות
     </button>
+    <button class="nav-item" data-section="s_hanam_hrs" onclick="switchSection('s_hanam_hrs', this)">
+      <span class="icon">♿</span> משאבי חנ"מ
+    </button>
     <div class="nav-section">משאבים</div>
     <button class="nav-item" data-section="sinventory" onclick="switchSection('sinventory', this)">
       <span class="icon">📦</span> מלאי ציוד
@@ -720,9 +723,77 @@
             <label>סגן/סגנית</label>
             <input type="text" id="coordinatorName" placeholder="שם" oninput="markDirty()">
           </div>
+          <div class="form-group">
+            <label>מדד טיפוח</label>
+            <input type="text" id="gi_tipuach" placeholder="ערך מדד טיפוח" oninput="markDirty()">
+          </div>
+          <div class="form-group">
+            <label>מדד רשותי</label>
+            <input type="text" id="gi_rashuti" placeholder="ערך מדד רשותי" oninput="markDirty()">
+          </div>
           <div class="form-group form-full">
             <label>חזון בית הספר</label>
             <textarea id="gi_vision" rows="3" placeholder="תיאור חזון..." oninput="markDirty()"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- חנ"מ -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🎓</span> חינוך נוסף מיוחד (חנ"מ)</div>
+        <div style="margin-bottom:14px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.875rem;font-weight:600;color:var(--text);">
+            <input type="checkbox" id="gi_hasHanam" onchange="toggleHanamSection();markDirty();"
+              style="width:16px;height:16px;cursor:pointer;accent-color:var(--primary-light);">
+            יש חינוך נוסף מיוחד (חנ"מ) בבית הספר
+          </label>
+        </div>
+        <div id="hanamSection" style="display:none;">
+          <p class="text-muted" style="margin-bottom:12px;">סמן את סוגי החנ"מ הקיימים והזן את מספר הכיתות לכל סוג:</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+
+            <!-- ל"ל -->
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:14px;background:#f8fafd;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--primary);margin-bottom:10px;">
+                <input type="checkbox" id="gi_hanam_ll" onchange="markDirty()"
+                  style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary-light);">
+                לקויות למידה (ל"ל)
+              </label>
+              <div class="form-group">
+                <label>מספר כיתות ל"ל</label>
+                <input type="number" id="gi_hanam_ll_count" placeholder="0" min="0"
+                  style="max-width:120px;" oninput="markDirty()">
+              </div>
+            </div>
+
+            <!-- כו"ח -->
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:14px;background:#f8fafd;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--primary);margin-bottom:10px;">
+                <input type="checkbox" id="gi_hanam_kvch" onchange="markDirty()"
+                  style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary-light);">
+                כבדי שמיעה וחירשים (כו"ח)
+              </label>
+              <div class="form-group">
+                <label>מספר כיתות כו"ח</label>
+                <input type="number" id="gi_hanam_kvch_count" placeholder="0" min="0"
+                  style="max-width:120px;" oninput="markDirty()">
+              </div>
+            </div>
+
+            <!-- תקשורת -->
+            <div style="border:1.5px solid var(--border);border-radius:8px;padding:14px;background:#f8fafd;">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--primary);margin-bottom:10px;">
+                <input type="checkbox" id="gi_hanam_tik" onchange="markDirty()"
+                  style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary-light);">
+                תקשורת
+              </label>
+              <div class="form-group">
+                <label>מספר כיתות תקשורת</label>
+                <input type="number" id="gi_hanam_tik_count" placeholder="0" min="0"
+                  style="max-width:120px;" oninput="markDirty()">
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -772,27 +843,7 @@
     <div id="s1" class="section">
       <div class="section-title"><span class="icon">📊</span> תמונת מצב ואתגרי ליבה</div>
 
-      <div class="card">
-        <div class="card-title"><span class="icon">✅</span> חוזקות מרכזיות</div>
-        <div class="form-group">
-          <textarea id="ss_strengths" rows="4" placeholder="פרט את החוזקות העיקריות של בית הספר..." oninput="markDirty()"></textarea>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title"><span class="icon">⚠️</span> אתגרי ליבה</div>
-        <div class="form-group">
-          <textarea id="ss_challenges" rows="4" placeholder="פרט את האתגרים המרכזיים..." oninput="markDirty()"></textarea>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title"><span class="icon">🌟</span> הזדמנויות</div>
-        <div class="form-group">
-          <textarea id="ss_opportunities" rows="3" placeholder="הזדמנויות קיימות..." oninput="markDirty()"></textarea>
-        </div>
-      </div>
-
+      <!-- 1. נתוני רקע -->
       <div class="card">
         <div class="card-title"><span class="icon">📊</span> נתוני רקע מרכזיים</div>
         <p class="text-muted" style="margin-bottom:12px;font-size:0.75rem;">
@@ -800,6 +851,81 @@
         </p>
         <div id="backgroundDataCard" class="form-grid">
           <!-- rendered dynamically by updateBackgroundDataFields() -->
+        </div>
+
+        <!-- השכלת מורים -->
+        <div style="margin-top:18px;">
+          <div style="font-size:0.875rem;font-weight:700;color:var(--primary);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+            <span>🎓</span> השכלת צוות ההוראה
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" style="font-size:0.8125rem;">
+              <thead>
+                <tr>
+                  <th>רמת השכלה</th>
+                  <th style="width:130px">מספר מורים</th>
+                  <th style="width:130px">אחוז מהצוות</th>
+                  <th>הערות</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>תואר ראשון (B.Ed / B.A)</td>
+                  <td><input type="number" id="bgEdu_b1_count" min="0" placeholder="0" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_b1_pct"   placeholder="%" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_b1_notes" placeholder="" oninput="markDirty()"></td>
+                </tr>
+                <tr>
+                  <td>תואר שני (M.Ed / M.A)</td>
+                  <td><input type="number" id="bgEdu_b2_count" min="0" placeholder="0" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_b2_pct"   placeholder="%" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_b2_notes" placeholder="" oninput="markDirty()"></td>
+                </tr>
+                <tr>
+                  <td>תואר שלישי (דוקטורט)</td>
+                  <td><input type="number" id="bgEdu_b3_count" min="0" placeholder="0" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_b3_pct"   placeholder="%" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_b3_notes" placeholder="" oninput="markDirty()"></td>
+                </tr>
+                <tr>
+                  <td>ללא תואר אקדמי</td>
+                  <td><input type="number" id="bgEdu_none_count" min="0" placeholder="0" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_none_pct"   placeholder="%" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_none_notes" placeholder="" oninput="markDirty()"></td>
+                </tr>
+                <tr>
+                  <td>הכשרה / קורס (ללא תואר)</td>
+                  <td><input type="number" id="bgEdu_cert_count" min="0" placeholder="0" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_cert_pct"   placeholder="%" oninput="markDirty()"></td>
+                  <td><input type="text"   id="bgEdu_cert_notes" placeholder="" oninput="markDirty()"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. אתגרי ליבה -->
+      <div class="card">
+        <div class="card-title"><span class="icon">⚠️</span> אתגרי ליבה</div>
+        <div class="form-group">
+          <textarea id="ss_challenges" rows="4" placeholder="פרט את האתגרים המרכזיים..." oninput="markDirty()"></textarea>
+        </div>
+      </div>
+
+      <!-- 3. הזדמנויות -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🌟</span> הזדמנויות</div>
+        <div class="form-group">
+          <textarea id="ss_opportunities" rows="3" placeholder="הזדמנויות קיימות..." oninput="markDirty()"></textarea>
+        </div>
+      </div>
+
+      <!-- חוזקות מרכזיות -->
+      <div class="card">
+        <div class="card-title"><span class="icon">✅</span> חוזקות מרכזיות</div>
+        <div class="form-group">
+          <textarea id="ss_strengths" rows="4" placeholder="פרט את החוזקות העיקריות של בית הספר..." oninput="markDirty()"></textarea>
         </div>
       </div>
 
@@ -1078,6 +1204,80 @@
         <div id="scheduleGridWrap" class="table-wrap">
           <div style="color:var(--text-muted);text-align:center;padding:32px;">הגדר כיתות ומקצועות ולחץ "בנה טבלת שיבוץ"</div>
         </div>
+      </div>
+    </div>
+
+    <!-- ========== SECTION: משאבי חנ"מ ========== -->
+    <div id="s_hanam_hrs" class="section">
+      <div class="section-title"><span class="icon">♿</span> משאבי חנ"מ – שעות סל ושילוב</div>
+
+      <!-- סיכום סל שעות חנ"מ -->
+      <div class="card">
+        <div class="card-title"><span class="icon">📊</span> סל שעות חנ"מ כולל</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>שעות סל חנ"מ (משרד החינוך)</label>
+            <input type="number" id="hanam_hrs_ministry" placeholder="0" min="0"
+              oninput="markDirty(); updateHanamSummary()">
+          </div>
+          <div class="form-group">
+            <label>שעות שילוב (תמיכה כוללת)</label>
+            <input type="number" id="hanam_hrs_integration" placeholder="0" min="0"
+              oninput="markDirty(); updateHanamSummary()">
+          </div>
+          <div class="form-group">
+            <label>שעות מקצועות פרא-רפואיים</label>
+            <input type="number" id="hanam_hrs_para" placeholder="0" min="0"
+              oninput="markDirty(); updateHanamSummary()">
+          </div>
+          <div class="form-group">
+            <label>שעות נוספות (רשות / עמותה)</label>
+            <input type="number" id="hanam_hrs_extra" placeholder="0" min="0"
+              oninput="markDirty(); updateHanamSummary()">
+          </div>
+          <div class="form-group">
+            <label>סה"כ שעות בסל חנ"מ</label>
+            <input type="number" id="hanam_hrs_total" placeholder="0" readonly
+              style="background:#f4f6f9;font-weight:700;">
+          </div>
+          <div class="form-group">
+            <label>שעות מנוצלות (מחושב)</label>
+            <input type="number" id="hanam_hrs_used" placeholder="0" readonly
+              style="background:#f4f6f9;font-weight:700;">
+          </div>
+          <div class="form-group">
+            <label>שעות פנויות</label>
+            <input type="number" id="hanam_hrs_free" placeholder="0" readonly
+              style="background:#f4f6f9;font-weight:700;color:var(--success);">
+          </div>
+        </div>
+        <div id="hanam_hrs_bar" style="margin-top:14px;"></div>
+      </div>
+
+      <!-- טבלת מורי/מטפלי חנ"מ -->
+      <div class="card">
+        <div class="card-title"><span class="icon">👨‍🏫</span> שיבוץ שעות – מורים ומטפלים בחנ"מ</div>
+        <div class="table-wrap">
+          <table class="data-table" id="hanamHoursTable">
+            <thead>
+              <tr>
+                <th style="min-width:130px">שם המורה / מטפל</th>
+                <th style="min-width:110px">תפקיד</th>
+                <th style="min-width:80px">שעות סל</th>
+                <th style="min-width:80px">שעות שילוב</th>
+                <th style="min-width:80px">שעות פרטני</th>
+                <th style="min-width:80px">שעות תפקיד</th>
+                <th style="min-width:110px">מקור שעות</th>
+                <th style="min-width:80px">סה"כ שעות</th>
+                <th style="min-width:90px">כיתות / תלמידים</th>
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="hanamHoursBody"></tbody>
+          </table>
+        </div>
+        <button class="add-row-btn" onclick="addHanamHoursRow()">+ הוסף מורה / מטפל</button>
       </div>
     </div>
 
@@ -1423,11 +1623,26 @@ function buildDefaultAppData() {
     municipality: '',
     supervisor: '',
     vision: '',
+    tipuach: '',
+    rashuti: '',
+    hanam: {
+      hasHanam: false,
+      ll:    { active: false, count: '' },
+      kvch:  { active: false, count: '' },
+      tik:   { active: false, count: '' }
+    },
     staffRows: [],
     focusAreas: [],
     statusSnapshot: {
       strengths: '', challenges: '', opportunities: '',
-      attendance: '', exams: '', matric: '', parentSat: '', notes: ''
+      attendance: '', exams: '', matric: '', parentSat: '', notes: '',
+      teacherEdu: {
+        b1:   { count: '', pct: '', notes: '' },
+        b2:   { count: '', pct: '', notes: '' },
+        b3:   { count: '', pct: '', notes: '' },
+        none: { count: '', pct: '', notes: '' },
+        cert: { count: '', pct: '', notes: '' }
+      }
     },
     strategicGoals: [],
     arenas: buildDefaultArenas(),
@@ -1437,6 +1652,8 @@ function buildDefaultAppData() {
     roleHolderRows: [],
     hoursRows: [],
     hoursConfig: { ministry: '', external: '' },
+    hanamHoursRows: [],
+    hanamHoursConfig: { ministry: '', integration: '', para: '', extra: '' },
     scheduleConfig: { classes: [], subjects: [] },
     scheduleCells: {},
     inventory: [],
@@ -1506,11 +1723,21 @@ function migrateContentIfNeeded(payload) {
   const scalarFields = [
     'schoolName','principalName','city','numStudents','numClasses','specialClasses',
     'coordinatorName','schoolCode','year','stream','level','teachers',
-    'municipality','supervisor','vision'
+    'municipality','supervisor','vision','tipuach','rashuti'
   ];
   scalarFields.forEach(k => {
     if (payload[k] === undefined || payload[k] === null) payload[k] = '';
   });
+
+  if (!payload.hanam || typeof payload.hanam !== 'object') {
+    payload.hanam = { hasHanam: false, ll: { active: false, count: '' }, kvch: { active: false, count: '' }, tik: { active: false, count: '' } };
+  } else {
+    if (typeof payload.hanam.hasHanam === 'undefined') payload.hanam.hasHanam = false;
+    ['ll','kvch','tik'].forEach(k => {
+      if (!payload.hanam[k] || typeof payload.hanam[k] !== 'object')
+        payload.hanam[k] = { active: false, count: '' };
+    });
+  }
 
   if (!payload.coordinatorName && payload.yesodiCoordinatorName) {
     payload.coordinatorName = payload.yesodiCoordinatorName;
@@ -1523,8 +1750,11 @@ function migrateContentIfNeeded(payload) {
   if (!Array.isArray(payload.summaries)) payload.summaries = [];
   if (!Array.isArray(payload.roleHolderRows)) payload.roleHolderRows = [];
   if (!Array.isArray(payload.hoursRows))       payload.hoursRows = [];
+  if (!Array.isArray(payload.hanamHoursRows))  payload.hanamHoursRows = [];
   if (!payload.hoursConfig || typeof payload.hoursConfig !== 'object')
     payload.hoursConfig = { ministry: '', external: '' };
+  if (!payload.hanamHoursConfig || typeof payload.hanamHoursConfig !== 'object')
+    payload.hanamHoursConfig = { ministry: '', integration: '', para: '', extra: '' };
   if (!payload.scheduleConfig || typeof payload.scheduleConfig !== 'object')
     payload.scheduleConfig = { classes: [], subjects: [] };
   if (!payload.scheduleCells || typeof payload.scheduleCells !== 'object')
@@ -1551,6 +1781,21 @@ function migrateContentIfNeeded(payload) {
   } else {
     Object.keys(defaultSS).forEach(k => {
       if (payload.statusSnapshot[k] === undefined) payload.statusSnapshot[k] = '';
+    });
+  }
+  // Migrate teacherEdu if missing
+  if (!payload.statusSnapshot.teacherEdu || typeof payload.statusSnapshot.teacherEdu !== 'object') {
+    payload.statusSnapshot.teacherEdu = {
+      b1:   { count: '', pct: '', notes: '' },
+      b2:   { count: '', pct: '', notes: '' },
+      b3:   { count: '', pct: '', notes: '' },
+      none: { count: '', pct: '', notes: '' },
+      cert: { count: '', pct: '', notes: '' }
+    };
+  } else {
+    ['b1','b2','b3','none','cert'].forEach(k => {
+      if (!payload.statusSnapshot.teacherEdu[k] || typeof payload.statusSnapshot.teacherEdu[k] !== 'object')
+        payload.statusSnapshot.teacherEdu[k] = { count: '', pct: '', notes: '' };
     });
   }
   // v35 migration: carry over old flat keys → new bg* keys
@@ -1663,6 +1908,12 @@ function markDirty() {
   document.getElementById('saveStatus').textContent = '● שינויים לא שמורים';
 }
 
+function toggleHanamSection() {
+  const cb = document.getElementById('gi_hasHanam');
+  const sec = document.getElementById('hanamSection');
+  if (cb && sec) sec.style.display = cb.checked ? 'block' : 'none';
+}
+
 function showSaveToast(msg, type) {
   showToast(msg, type || '');
 }
@@ -1702,6 +1953,18 @@ function collectFormDataBase() {
   appData.municipality    = val('gi_municipality');
   appData.supervisor      = val('gi_supervisor');
   appData.vision          = val('gi_vision');
+  appData.tipuach         = val('gi_tipuach');
+  appData.rashuti         = val('gi_rashuti');
+
+  const hasHanamEl = document.getElementById('gi_hasHanam');
+  if (hasHanamEl) {
+    if (!appData.hanam || typeof appData.hanam !== 'object')
+      appData.hanam = { hasHanam: false, ll: { active: false, count: '' }, kvch: { active: false, count: '' }, tik: { active: false, count: '' } };
+    appData.hanam.hasHanam = hasHanamEl.checked;
+    appData.hanam.ll   = { active: !!document.getElementById('gi_hanam_ll')?.checked,   count: val('gi_hanam_ll_count')   };
+    appData.hanam.kvch = { active: !!document.getElementById('gi_hanam_kvch')?.checked, count: val('gi_hanam_kvch_count') };
+    appData.hanam.tik  = { active: !!document.getElementById('gi_hanam_tik')?.checked,  count: val('gi_hanam_tik_count')  };
+  }
 
   const ss = appData.statusSnapshot;
   ['strengths','challenges','opportunities'].forEach(k => { ss[k] = val(`ss_${k}`); });
@@ -1716,6 +1979,7 @@ function collectFormDataBase() {
   collectRoutinesFromDOM();
   collectRoleHoldersFromDOM();
   collectHoursFromDOM();
+  collectHanamHoursFromDOM();
   collectScheduleFromDOM();
   collectInventoryFromDOM();
   collectBudgetFromDOM();
@@ -1991,11 +2255,36 @@ function _applyLoadedData(payload) {
   setVal('gi_municipality', appData.municipality || '');
   setVal('gi_supervisor',   appData.supervisor   || '');
   setVal('gi_vision',       appData.vision       || '');
+  setVal('gi_tipuach',      appData.tipuach      || '');
+  setVal('gi_rashuti',      appData.rashuti      || '');
+
+  const hanam = appData.hanam || {};
+  const hasHanamEl = document.getElementById('gi_hasHanam');
+  if (hasHanamEl) {
+    hasHanamEl.checked = !!hanam.hasHanam;
+    toggleHanamSection();
+  }
+  const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+  setCheck('gi_hanam_ll',   hanam.ll?.active);
+  setCheck('gi_hanam_kvch', hanam.kvch?.active);
+  setCheck('gi_hanam_tik',  hanam.tik?.active);
+  setVal('gi_hanam_ll_count',   hanam.ll?.count   || '');
+  setVal('gi_hanam_kvch_count', hanam.kvch?.count || '');
+  setVal('gi_hanam_tik_count',  hanam.tik?.count  || '');
 
   const ss = appData.statusSnapshot || {};
   ['strengths','challenges','opportunities'].forEach(k => { setVal(`ss_${k}`, ss[k] || ''); });
   // v35: render dynamic background fields for the current level, then populate values
   updateBackgroundDataFields();
+
+  // Restore teacher education table
+  const te = ss.teacherEdu || {};
+  ['b1','b2','b3','none','cert'].forEach(k => {
+    const row = te[k] || {};
+    setVal(`bgEdu_${k}_count`, row.count || '');
+    setVal(`bgEdu_${k}_pct`,   row.pct   || '');
+    setVal(`bgEdu_${k}_notes`, row.notes || '');
+  });
 
   renderStaffTable();
   renderFocusAreas();
@@ -2008,6 +2297,13 @@ function _applyLoadedData(payload) {
   renderHoursTable();
   setVal('hrs_ministry', appData.hoursConfig?.ministry || '');
   setVal('hrs_external', appData.hoursConfig?.external || '');
+
+  renderHanamHoursTable();
+  setVal('hanam_hrs_ministry',    appData.hanamHoursConfig?.ministry    || '');
+  setVal('hanam_hrs_integration', appData.hanamHoursConfig?.integration || '');
+  setVal('hanam_hrs_para',        appData.hanamHoursConfig?.para        || '');
+  setVal('hanam_hrs_extra',       appData.hanamHoursConfig?.extra       || '');
+  updateHanamSummary();
   setVal('sched_classes',  (appData.scheduleConfig?.classes  || []).join(', '));
   setVal('sched_subjects', (appData.scheduleConfig?.subjects || []).join(', '));
   if ((appData.scheduleConfig?.classes || []).length > 0) renderScheduleGrid();
@@ -3059,6 +3355,17 @@ function collectBackgroundDataFromDOM() {
     const el = document.getElementById(f.id);
     if (el) appData.statusSnapshot[f.id] = el.value || '';
   });
+
+  // Collect teacher education table
+  if (!appData.statusSnapshot.teacherEdu || typeof appData.statusSnapshot.teacherEdu !== 'object')
+    appData.statusSnapshot.teacherEdu = {};
+  ['b1','b2','b3','none','cert'].forEach(k => {
+    appData.statusSnapshot.teacherEdu[k] = {
+      count: val(`bgEdu_${k}_count`),
+      pct:   val(`bgEdu_${k}_pct`),
+      notes: val(`bgEdu_${k}_notes`)
+    };
+  });
 }
 
 function updateBackgroundDataFields() {
@@ -3417,6 +3724,146 @@ function updateHoursSummary() {
   // Bar
   const bar = document.getElementById('hrs_summary_bar');
   if (!bar || total === 0) { if (bar) bar.innerHTML = ''; return; }
+  const usedPct = Math.min(100, Math.round(used / total * 100));
+  const freePct = 100 - usedPct;
+  bar.innerHTML = `
+    <div class="hrs-bar-wrap">
+      <div class="hrs-bar-seg used" style="width:${usedPct}%">${usedPct > 8 ? usedPct + '%' : ''}</div>
+      <div class="hrs-bar-seg free" style="width:${freePct}%">${freePct > 8 ? freePct + '%' : ''}</div>
+    </div>
+    <div class="hrs-legend">
+      <span class="hrs-legend-item"><span class="hrs-legend-dot" style="background:var(--primary-light)"></span>מנוצל: ${used} שע' (${usedPct}%)</span>
+      <span class="hrs-legend-item"><span class="hrs-legend-dot" style="background:var(--success)"></span>פנוי: ${Math.max(0, free)} שע' (${freePct}%)</span>
+      <span class="hrs-legend-item" style="color:var(--text-muted)">סה"כ סל: ${total} שע'</span>
+    </div>
+  `;
+}
+
+// =============================================================
+//  HANAM HOURS (משאבי חנ"מ)
+// =============================================================
+const HANAM_ROLES = ['מורה לחינוך מיוחד','מרכז/ת שילוב','מטפל/ת בעיסוק','קלינאי/ת תקשורת',
+  'פסיכולוג/ית','עו"ס','מדריך/ה','סייע/ת חינוכי/ת','אחר'];
+
+const HANAM_SOURCES = ['סל חנ"מ – משרד','שעות שילוב','תמיכה כוללת','רשות מקומית','עמותה / תל"ן','אחר'];
+
+function renderHanamHoursTable() {
+  const tbody = document.getElementById('hanamHoursBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (appData.hanamHoursRows || []).forEach(r => appendHanamHoursRow(r));
+  updateHanamSummary();
+}
+
+function appendHanamHoursRow(r) {
+  r.id = r.id || newId();
+  const tbody = document.getElementById('hanamHoursBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.rid = r.id;
+  const roleOpts = HANAM_ROLES.map(s =>
+    `<option value="${s}" ${r.role === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  const srcOpts = HANAM_SOURCES.map(s =>
+    `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  tr.innerHTML = `
+    <td><input class="hn_name"    value="${esc(r.name    || '')}" placeholder="שם" oninput="markDirty(); updateHanamSummary()"></td>
+    <td>
+      <select class="hn_role" onchange="markDirty()">
+        <option value="">בחר תפקיד</option>${roleOpts}
+      </select>
+    </td>
+    <td><input class="hn_sal"     value="${esc(r.sal     || '')}" type="number" min="0" placeholder="0" style="min-width:55px" oninput="markDirty(); calcHanamRowTotal(this); updateHanamSummary()"></td>
+    <td><input class="hn_integ"   value="${esc(r.integ   || '')}" type="number" min="0" placeholder="0" style="min-width:55px" oninput="markDirty(); calcHanamRowTotal(this); updateHanamSummary()"></td>
+    <td><input class="hn_private" value="${esc(r.private || '')}" type="number" min="0" placeholder="0" style="min-width:55px" oninput="markDirty(); calcHanamRowTotal(this); updateHanamSummary()"></td>
+    <td><input class="hn_role_h"  value="${esc(r.roleH   || '')}" type="number" min="0" placeholder="0" style="min-width:55px" oninput="markDirty(); calcHanamRowTotal(this); updateHanamSummary()"></td>
+    <td>
+      <select class="hn_source" onchange="markDirty()">
+        <option value="">בחר מקור</option>${srcOpts}
+      </select>
+    </td>
+    <td><input class="hn_total" value="${esc(r.total || '')}" type="number" min="0" placeholder="0" style="min-width:55px;font-weight:700;background:#f4f6f9;" readonly></td>
+    <td><input class="hn_classes" value="${esc(r.classes || '')}" placeholder='א1, ב2...' oninput="markDirty()"></td>
+    <td><input class="hn_notes"   value="${esc(r.notes   || '')}" placeholder="הערות" oninput="markDirty()"></td>
+    <td><button class="btn-icon" onclick="removeHanamHoursRow('${r.id}')">🗑</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function calcHanamRowTotal(inp) {
+  const tr = inp.closest('tr');
+  if (!tr) return;
+  const get = cls => parseFloat(tr.querySelector(cls)?.value || 0) || 0;
+  const total = get('.hn_sal') + get('.hn_integ') + get('.hn_private') + get('.hn_role_h');
+  const el = tr.querySelector('.hn_total');
+  if (el) el.value = total || '';
+}
+
+function addHanamHoursRow() {
+  if (!appData.hanamHoursRows) appData.hanamHoursRows = [];
+  const r = { id: newId(), name: '', role: '', sal: '', integ: '', private: '', roleH: '', source: '', total: '', classes: '', notes: '' };
+  appData.hanamHoursRows.push(r);
+  appendHanamHoursRow(r);
+  markDirty();
+}
+
+function removeHanamHoursRow(rid) {
+  appData.hanamHoursRows = (appData.hanamHoursRows || []).filter(r => r.id !== rid);
+  const tr = document.querySelector(`#hanamHoursBody tr[data-rid="${rid}"]`);
+  if (tr) tr.remove();
+  updateHanamSummary();
+  markDirty();
+}
+
+function collectHanamHoursFromDOM() {
+  const rows = document.querySelectorAll('#hanamHoursBody tr[data-rid]');
+  appData.hanamHoursRows = Array.from(rows).map(tr => ({
+    id:      tr.dataset.rid,
+    name:    tr.querySelector('.hn_name')?.value    || '',
+    role:    tr.querySelector('.hn_role')?.value    || '',
+    sal:     tr.querySelector('.hn_sal')?.value     || '',
+    integ:   tr.querySelector('.hn_integ')?.value   || '',
+    private: tr.querySelector('.hn_private')?.value || '',
+    roleH:   tr.querySelector('.hn_role_h')?.value  || '',
+    source:  tr.querySelector('.hn_source')?.value  || '',
+    total:   tr.querySelector('.hn_total')?.value   || '',
+    classes: tr.querySelector('.hn_classes')?.value || '',
+    notes:   tr.querySelector('.hn_notes')?.value   || '',
+  }));
+  appData.hanamHoursConfig = {
+    ministry:    val('hanam_hrs_ministry'),
+    integration: val('hanam_hrs_integration'),
+    para:        val('hanam_hrs_para'),
+    extra:       val('hanam_hrs_extra'),
+  };
+}
+
+function updateHanamSummary() {
+  const ministry    = parseFloat(val('hanam_hrs_ministry'))    || 0;
+  const integration = parseFloat(val('hanam_hrs_integration')) || 0;
+  const para        = parseFloat(val('hanam_hrs_para'))        || 0;
+  const extra       = parseFloat(val('hanam_hrs_extra'))       || 0;
+  const total       = ministry + integration + para + extra;
+
+  let used = 0;
+  document.querySelectorAll('#hanamHoursBody tr[data-rid]').forEach(tr => {
+    const get = cls => parseFloat(tr.querySelector(cls)?.value || 0) || 0;
+    used += get('.hn_sal') + get('.hn_integ') + get('.hn_private') + get('.hn_role_h');
+  });
+  const free = total - used;
+
+  const setR = (id, v) => { const el = document.getElementById(id); if (el) el.value = v >= 0 ? v : 0; };
+  setR('hanam_hrs_total', total);
+  setR('hanam_hrs_used',  used);
+  setR('hanam_hrs_free',  Math.max(0, free));
+
+  const freeEl = document.getElementById('hanam_hrs_free');
+  if (freeEl) freeEl.style.color = free < 0 ? 'var(--accent)' : 'var(--success)';
+
+  const bar = document.getElementById('hanam_hrs_bar');
+  if (!bar) return;
+  if (total === 0) { bar.innerHTML = ''; return; }
   const usedPct = Math.min(100, Math.round(used / total * 100));
   const freePct = 100 - usedPct;
   bar.innerHTML = `
@@ -4790,6 +5237,7 @@ Object.assign(window, {
   switchSection, switchArena, switchQuarter,
   markDirty, showSaveToast, confirmSaved,
   onSchoolNameInput, onArenaLabelChange,
+  toggleHanamSection,
   addStaffRow, removeStaffRow,
   addFocusArea, removeFocusArea,
   addGoalRow, removeGoalRow,
@@ -4802,6 +5250,8 @@ Object.assign(window, {
   addRoleHolderRow, removeRoleHolderRow,
   addHoursRow, removeHoursRow,
   calcRowTotal, updateHoursSummary,
+  addHanamHoursRow, removeHanamHoursRow,
+  calcHanamRowTotal, updateHanamSummary,
   buildScheduleGrid, onScheduleCellChange,
   addInventoryCategory, addInventoryRow,
   removeInventoryCategory, removeInventoryRow,
