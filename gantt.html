@@ -909,7 +909,10 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
 <div class="month-zoom-overlay" id="monthZoomOverlay" onclick="closeMonthZoom(event)">
   <div class="month-zoom-panel" id="monthZoomPanel">
     <div class="mz-header">
-      <span class="mz-title" id="mzTitle">—</span>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <span class="mz-title" id="mzTitle">—</span>
+        <span id="mzHebTitle" style="font-size:0.78rem;font-weight:500;color:var(--color-text-muted);"></span>
+      </div>
       <div class="mz-nav">
         <button class="mz-nav-btn" onclick="navigateMonthZoom(-1)" title="חודש קודם">›</button>
         <button class="mz-nav-btn" onclick="navigateMonthZoom(1)" title="חודש הבא">‹</button>
@@ -2432,6 +2435,11 @@ function renderMonthZoom() {
     return (ms >= p.start && ms <= p.end) || (me >= p.start && me <= p.end) || (p.start >= ms && p.end <= me);
   });
   document.getElementById('mzTitle').textContent = monthName + (period ? '  ' + period.emoji : '');
+  const hebTitleEl = document.getElementById('mzHebTitle');
+  if (hebTitleEl) {
+    hebTitleEl.textContent = hebrewDatesVisible ? getHebrewMonthLabel(year, month) : '';
+    hebTitleEl.style.display = hebrewDatesVisible ? '' : 'none';
+  }
 
   // כותרות ימים
   const wdEl = document.getElementById('mzWeekdays');
@@ -2651,6 +2659,19 @@ function getHebrewDay(date) {
   const n = _parseIntlDay(day);
   if (!Number.isNaN(n)) return numToHebrewLetters(n);
   return day; // last-resort: return raw string from Intl
+}
+
+/**
+ * Returns the Hebrew month name(s) covering a Gregorian month.
+ * e.g. September 2026 → "תשרי" or October 2026 → "תשרי – חשוון"
+ */
+function getHebrewMonthLabel(gregYear, gregMonth /* 0-based */) {
+  try {
+    const fmt = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { month: 'long' });
+    const firstHeb = fmt.format(new Date(gregYear, gregMonth, 1));
+    const lastHeb  = fmt.format(new Date(gregYear, gregMonth + 1, 0));
+    return firstHeb === lastHeb ? firstHeb : `${firstHeb} – ${lastHeb}`;
+  } catch (_) { return ''; }
 }
 
 function toggleHebrewDates() {
@@ -2884,8 +2905,12 @@ function renderCalendar() {
     const hdr = document.createElement('div');
     hdr.className = 'cal-month-header';
     const monthName = monthStart.toLocaleDateString('he-IL', {month:'long', year:'numeric'});
+    const hebMonthLabel = hebrewDatesVisible ? getHebrewMonthLabel(year, month) : '';
     hdr.innerHTML = `
-      <span class="cal-month-name">${monthName}</span>
+      <div style="display:flex;flex-direction:column;gap:1px;">
+        <span class="cal-month-name">${monthName}</span>
+        ${hebMonthLabel ? `<span style="font-size:10px;font-weight:500;color:var(--color-text-muted);opacity:0.8;">${hebMonthLabel}</span>` : ''}
+      </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span style="font-size:10px;color:var(--color-text-faint);" title="לחץ להגדלה">🔍</span>
         <span class="cal-month-period-dot"

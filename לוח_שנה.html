@@ -2,7 +2,7 @@
 <!--
   ╔══════════════════════════════════════════════════════════════════╗
   ║  tknyt_-bvdh_mnhl_v36_calendar.html                            ║
-  ║  MEETINGS CALENDAR MODULE — יומן מנהל                        ║
+  ║  MEETINGS CALENDAR MODULE — יומן פגישות                        ║
   ║                                                                  ║
   ║  HOW TO INTEGRATE INTO tknyt_-bvdh_mnhl_v33.html (or later):   ║
   ║                                                                  ║
@@ -34,7 +34,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>יומן מנהל — בדיקה עצמאית</title>
+<title>יומן פגישות — בדיקה עצמאית</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
@@ -209,7 +209,7 @@ body {
 
   <button class="nav-item" data-section="scalendar"
           onclick="switchSection('scalendar', this)">
-    <span class="icon">📅</span> יומן מנהל
+    <span class="icon">📅</span> יומן פגישות
   </button>
      ══════════════════════════════════════════════════════ -->
 
@@ -222,7 +222,7 @@ body {
 
   <!-- Header -->
   <div class="section-title">
-    <span class="icon">📅</span> יומן מנהל
+    <span class="icon">📅</span> יומן פגישות
     <button class="btn btn-outline"
       style="background:var(--primary);color:#fff;font-size:0.75rem;padding:5px 14px;margin-right:auto"
       onclick="syncFromGantt()" id="ganttSyncBtn">
@@ -630,13 +630,64 @@ function updateLastSyncLabel() {
 }
 
 // ════════════════════════════════════════════════════════════
+// ── HEBREW DATE HELPERS ──
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Converts a Hebrew day-of-month number (1–30) to Hebrew letter notation.
+ * e.g. 1→א׳  2→ב׳  10→י׳  15→ט״ו  29→כ״ט
+ */
+function hebrewDayLetters(n) {
+  const ones = ['','א','ב','ג','ד','ה','ו','ז','ח','ט'];
+  const tens = ['','י','כ'];
+  if (n === 15) return 'ט״ו';
+  if (n === 16) return 'ט״ז';
+  const t = Math.floor(n / 10);
+  const o = n % 10;
+  if (t === 0) return ones[o] + '׳';
+  if (o === 0) return tens[t] + '׳';
+  return tens[t] + '״' + ones[o];
+}
+
+/**
+ * Returns the Hebrew day as letter notation for a given Gregorian date.
+ */
+function gregDayToHebrewLetters(year, month, day) {
+  try {
+    const numFmt = new Intl.DateTimeFormat('en-u-ca-hebrew', { day: 'numeric' });
+    const num = parseInt(numFmt.format(new Date(year, month, day)), 10);
+    return hebrewDayLetters(num);
+  } catch (_) { return ''; }
+}
+
+/**
+ * Returns the Hebrew month name(s) that appear in a given Gregorian month.
+ * A Gregorian month can span 1–2 Hebrew months, e.g. "תשרי – חשוון".
+ */
+function getHebrewMonthLabel(gregYear, gregMonth /* 0-based */) {
+  const daysInMonth = new Date(gregYear, gregMonth + 1, 0).getDate();
+  const firstDate = new Date(gregYear, gregMonth, 1);
+  const lastDate  = new Date(gregYear, gregMonth, daysInMonth);
+  const fmt = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { month: 'long' });
+  const firstHeb = fmt.format(firstDate);
+  const lastHeb  = fmt.format(lastDate);
+  return firstHeb === lastHeb ? firstHeb : `${firstHeb} – ${lastHeb}`;
+}
+
+// ════════════════════════════════════════════════════════════
 // ── MONTH VIEW ──
 // ════════════════════════════════════════════════════════════
 function renderMeetingMonthView() {
   const titleEl = document.getElementById('meetingMonthTitle');
   if (titleEl) {
-    titleEl.textContent = new Date(_meetingViewYear, _meetingViewMonth, 1)
+    const gregLabel = new Date(_meetingViewYear, _meetingViewMonth, 1)
       .toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+    const hebLabel  = getHebrewMonthLabel(_meetingViewYear, _meetingViewMonth);
+
+    titleEl.innerHTML =
+      `<span style="color:var(--primary)">${gregLabel}</span>` +
+      `<span style="color:var(--text-muted);font-size:0.85em;font-weight:500;margin-right:14px">` +
+      `${hebLabel}</span>`;
   }
 
   const grid = document.getElementById('meetingCalGrid');
@@ -702,12 +753,16 @@ function renderMeetingMonthView() {
       </div>`;
     }
 
+    const hebDay = gregDayToHebrewLetters(_meetingViewYear, _meetingViewMonth, d);
+
     html += `<div
       style="min-height:80px;border:${border};border-radius:6px;padding:4px;
              background:${bgColor};cursor:pointer"
       onclick="openMeetingModal(null,'${dateStr}')">
-      <div style="font-size:0.75rem;font-weight:700;color:${numColor};
-                  text-align:center;margin-bottom:4px">${d}</div>
+      <div style="display:flex;align-items:baseline;justify-content:center;gap:5px;margin-bottom:4px">
+        <span style="font-size:0.75rem;font-weight:700;color:${numColor}">${d}</span>
+        <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);opacity:0.75">${hebDay}</span>
+      </div>
       ${evtsHtml}
     </div>`;
   }
@@ -1211,7 +1266,7 @@ function printMeetings() {
 
   const win = window.open('', '_blank', 'width=900,height=700');
   win.document.write(`<!DOCTYPE html><html lang="he" dir="rtl">
-  <head><meta charset="UTF-8"><title>יומן מנהל</title>
+  <head><meta charset="UTF-8"><title>יומן פגישות</title>
   <style>
     body { font-family: 'Arial Hebrew', Arial, sans-serif; direction: rtl; padding: 24px; font-size: 13px; }
     h1 { color: #1a3a5c; margin-bottom: 4px; }
@@ -1224,7 +1279,7 @@ function printMeetings() {
   </style>
   </head>
   <body>
-    <h1>📅 יומן מנהל</h1>
+    <h1>📅 יומן פגישות</h1>
     <div class="sub">הודפס: ${new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
     <table>
       <thead><tr>
