@@ -93,6 +93,30 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
   border-radius: 999px;
   border: 2px solid #fff;
 }
+
+/* AUTOSAVE INDICATOR */
+#autosaveIndicator {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-xs); color: var(--color-text-muted);
+  opacity: 0; transition: opacity 0.3s;
+  padding: 4px 10px; border-radius: var(--radius-full);
+  background: var(--color-surface-2); border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+#autosaveIndicator.visible   { opacity: 1; }
+#autosaveIndicator.saving    { color: #2563a8; }
+#autosaveIndicator.saved     { color: #16a34a; }
+#autosaveIndicator.error     { color: #dc2626; }
+#autosaveIndicator .as-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: currentColor;
+}
+#autosaveIndicator.saving .as-dot {
+  animation: as-pulse 0.8s ease-in-out infinite;
+}
+@keyframes as-pulse {
+  0%,100% { opacity: 1; } 50% { opacity: 0.2; }
+}
 .add-event-btn {
   background: var(--color-surface-2); color: var(--color-primary);
   border: 1px solid var(--color-primary); cursor: pointer;
@@ -822,6 +846,10 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       שמור
     </button>
+    <span id="autosaveIndicator" title="מצב שמירה אוטומטית">
+      <span class="as-dot"></span>
+      <span id="autosaveText">נשמר</span>
+    </span>
     <button class="today-btn" onclick="scrollToToday()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       היום
@@ -1059,6 +1087,7 @@ function toggleActionSelection(periodId, section, idx) {
     selectedActions[key] = true;
   }
   saveSelectedActions();
+  setDirtyLocal(true);   // ← שמירה אוטומטית
   openDetail(periodId);
   if (currentView === 'calendar') renderCalendar();
 }
@@ -1105,6 +1134,7 @@ function normalizePayload(payload = {}) {
 function setDirtyLocal(value = true) {
   isDirtyLocal = !!value;
   updateSaveButtonState();
+  if (isDirtyLocal) scheduleAutosave();
 }
 
 function updateSaveButtonState() {
@@ -1113,6 +1143,85 @@ function updateSaveButtonState() {
   btn.disabled = false;
   btn.classList.toggle('is-dirty', isDirtyLocal);
   btn.title = isDirtyLocal ? 'יש שינויים שלא נשמרו' : 'כל השינויים נשמרו';
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTOSAVE ENGINE
+// ═══════════════════════════════════════════════════════════
+const AUTOSAVE_DELAY = 3000; // 3 שניות אחרי שינוי אחרון
+let _autosaveTimer   = null;
+let _autosaveActive  = false;
+
+function setAutosaveIndicator(state, text) {
+  const el   = document.getElementById('autosaveIndicator');
+  const txt  = document.getElementById('autosaveText');
+  if (!el || !txt) return;
+  el.className = `visible ${state}`;
+  txt.textContent = text;
+}
+
+function hideAutosaveIndicator() {
+  const el = document.getElementById('autosaveIndicator');
+  if (el) el.classList.remove('visible');
+}
+
+function scheduleAutosave() {
+  if (_autosaveTimer) clearTimeout(_autosaveTimer);
+  setAutosaveIndicator('saving', 'ממתין לשמירה...');
+  _autosaveTimer = setTimeout(doAutosave, AUTOSAVE_DELAY);
+}
+
+function doAutosave() {
+  if (_autosaveActive) return;   // כבר באמצע שמירה
+  if (!isDirtyLocal)  return;    // אין שינויים
+
+  // בדיקה שיש חלון הורה שיכול לקבל postMessage
+  try {
+    if (!window.parent || window.parent === window) {
+      // אין פורטל — שמירה לוקאלית בלבד
+      localStorageSave();
+      return;
+    }
+  } catch (_) {
+    localStorageSave();
+    return;
+  }
+
+  _autosaveActive = true;
+  setAutosaveIndicator('saving', 'שומר אוטומטית...');
+
+  // שלח לפורטל ההורה
+  window.parent.postMessage({
+    type:    'save-request',
+    docType: 'gantt',
+    payload: buildPayload(),
+    auto:    true           // סימון שזו שמירה אוטומטית
+  }, '*');
+
+  // fallback — אם אין save-confirm תוך 6 שניות, שחרר
+  setTimeout(() => {
+    if (_autosaveActive) {
+      _autosaveActive = false;
+      // גיבוי ב-localStorage
+      localStorageSave();
+    }
+  }, 6000);
+}
+
+// גיבוי ב-localStorage כשאין פורטל
+function localStorageSave() {
+  try {
+    const payload = buildPayload();
+    localStorage.setItem('gantt_autosave', JSON.stringify(payload));
+    localStorage.setItem('gantt_autosave_ts', new Date().toISOString());
+    setAutosaveIndicator('saved', 'נשמר גיבוי מקומי');
+    setTimeout(hideAutosaveIndicator, 3000);
+    setDirtyLocal(false);
+  } catch (e) {
+    setAutosaveIndicator('error', 'שמירה נכשלה');
+    setTimeout(hideAutosaveIndicator, 4000);
+  }
+  _autosaveActive = false;
 }
 
 function buildPayload() {
@@ -1211,9 +1320,17 @@ function requestSave() {
   const btn = document.getElementById('saveBtn');
   if (btn) btn.disabled = true;
 
+  if (_autosaveTimer) { clearTimeout(_autosaveTimer); _autosaveTimer = null; }
+  setAutosaveIndicator('saving', 'שומר...');
+
   try {
     if (window.parent && window.parent !== window) {
-      sendSaveRequestToParent();
+      window.parent.postMessage({
+        type: 'save-request',
+        docType: 'gantt',
+        payload: buildPayload(),
+        auto: false
+      }, '*');
       setTimeout(() => {
         const currentBtn = document.getElementById('saveBtn');
         if (currentBtn && currentBtn.disabled) {
@@ -1225,7 +1342,8 @@ function requestSave() {
   } catch (_) {}
 
   if (btn) btn.disabled = false;
-  showToast('לא זוהה פורטל אב. השמירה זמינה רק מתוך הפורטל.', 'error');
+  // No parent portal — try localStorage fallback
+  localStorageSave();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1402,11 +1520,20 @@ function initMessageBus() {
     if (msg.type === 'save-confirm') {
       const btn = document.getElementById('saveBtn');
       if (btn) btn.disabled = false;
+      _autosaveActive = false;
 
-      if (msg.message) {
-        showToast(msg.message, /נשמר|נשמרו|success/i.test(msg.message) ? 'success' : 'error');
+      const isAuto = !!msg.auto;
+
+      if (msg.success === false || /שגיאה|error|fail/i.test(msg.message || '')) {
+        setAutosaveIndicator('error', 'שמירה נכשלה');
+        setTimeout(hideAutosaveIndicator, 4000);
+        if (!isAuto && msg.message) showToast(msg.message, 'error');
       } else {
-        showToast('התקבל אישור שמירה מהפורטל.', 'success');
+        setAutosaveIndicator('saved', 'נשמר ✓');
+        setTimeout(hideAutosaveIndicator, 3000);
+        if (!isAuto) {
+          showToast(msg.message || 'התקבל אישור שמירה מהפורטל.', 'success');
+        }
       }
 
       setDirtyLocal(false);
@@ -3009,6 +3136,7 @@ function dpmRemove() {
   delete selectedActionDates[key];
   saveSelectedActions();
   saveActionDates();
+  setDirtyLocal(true);   // ← שמירה אוטומטית
   dpmCancel();
   if (_dpm.periodId) openDetail(_dpm.periodId);
   if (currentView === 'calendar') renderCalendar();
@@ -3040,6 +3168,7 @@ function dpmConfirm() {
   // Store dates
   selectedActionDates[key] = { dateStart, dateEnd };
   saveActionDates();
+  setDirtyLocal(true);   // ← שמירה אוטומטית
 
   dpmCancel();
 
