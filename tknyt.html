@@ -1285,6 +1285,61 @@
         </div>
         <button class="add-row-btn" onclick="addHanamHoursRow()">+ הוסף מורה / מטפל</button>
       </div>
+
+      <!-- סייעות -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🤝</span> סייעות חינוכיות</div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group">
+            <label>סה"כ סייעות בבית הספר</label>
+            <input type="number" id="hanam_para_total_count" placeholder="0" min="0"
+              oninput="markDirty()">
+          </div>
+          <div class="form-group">
+            <label>הערות כלליות לסייעות</label>
+            <input type="text" id="hanam_para_notes" placeholder="הערות..."
+              oninput="markDirty()">
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="hanamParaTable">
+            <thead>
+              <tr>
+                <th style="min-width:130px">שם הסייעת</th>
+                <th style="min-width:130px">כיתה / תלמיד</th>
+                <th style="min-width:110px">סוג סיוע</th>
+                <th style="min-width:110px">מקור מימון</th>
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="hanamParaBody"></tbody>
+          </table>
+        </div>
+        <button class="add-row-btn" onclick="addHanamParaRow()">+ הוסף סייעת</button>
+      </div>
+
+      <!-- תרפיסטים ובעלי תפקידים -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🩺</span> תרפיסטים ובעלי תפקידים טיפוליים</div>
+        <div class="table-wrap">
+          <table class="data-table" id="hanamTherapyTable">
+            <thead>
+              <tr>
+                <th style="min-width:160px">סוג תרפיה / תפקיד</th>
+                <th style="min-width:130px">שם בעל התפקיד</th>
+                <th style="min-width:110px">ימי נוכחות</th>
+                <th style="min-width:80px">שעות שבועיות</th>
+                <th style="min-width:110px">מקור מימון</th>
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="hanamTherapyBody"></tbody>
+          </table>
+        </div>
+        <button class="add-row-btn" onclick="addHanamTherapyRow()">+ הוסף תרפיסט / בעל תפקיד</button>
+      </div>
     </div>
 
   <!-- ========== SECTION: מלאי ציוד ========== -->
@@ -1660,6 +1715,9 @@ function buildDefaultAppData() {
     hoursConfig: { ministry: '', external: '' },
     hanamHoursRows: [],
     hanamHoursConfig: { ministry: '', integration: '', para: '', extra: '' },
+    hanamParaRows: [],
+    hanamParaConfig: { totalCount: '', notes: '' },
+    hanamTherapyRows: [],
     scheduleConfig: { classes: [], subjects: [] },
     scheduleCells: {},
     inventory: [],
@@ -1757,10 +1815,14 @@ function migrateContentIfNeeded(payload) {
   if (!Array.isArray(payload.roleHolderRows)) payload.roleHolderRows = [];
   if (!Array.isArray(payload.hoursRows))       payload.hoursRows = [];
   if (!Array.isArray(payload.hanamHoursRows))  payload.hanamHoursRows = [];
+  if (!Array.isArray(payload.hanamParaRows))    payload.hanamParaRows = [];
+  if (!Array.isArray(payload.hanamTherapyRows)) payload.hanamTherapyRows = [];
   if (!payload.hoursConfig || typeof payload.hoursConfig !== 'object')
     payload.hoursConfig = { ministry: '', external: '' };
   if (!payload.hanamHoursConfig || typeof payload.hanamHoursConfig !== 'object')
     payload.hanamHoursConfig = { ministry: '', integration: '', para: '', extra: '' };
+  if (!payload.hanamParaConfig || typeof payload.hanamParaConfig !== 'object')
+    payload.hanamParaConfig = { totalCount: '', notes: '' };
   if (!payload.scheduleConfig || typeof payload.scheduleConfig !== 'object')
     payload.scheduleConfig = { classes: [], subjects: [] };
   if (!payload.scheduleCells || typeof payload.scheduleCells !== 'object')
@@ -1986,6 +2048,8 @@ function collectFormDataBase() {
   collectRoleHoldersFromDOM();
   collectHoursFromDOM();
   collectHanamHoursFromDOM();
+  collectHanamParaFromDOM();
+  collectHanamTherapyFromDOM();
   collectScheduleFromDOM();
   collectInventoryFromDOM();
   collectBudgetFromDOM();
@@ -2311,6 +2375,12 @@ function _applyLoadedData(payload) {
   setVal('hanam_hrs_para',        appData.hanamHoursConfig?.para        || '');
   setVal('hanam_hrs_extra',       appData.hanamHoursConfig?.extra       || '');
   updateHanamSummary();
+
+  renderHanamParaTable();
+  setVal('hanam_para_total_count', appData.hanamParaConfig?.totalCount || '');
+  setVal('hanam_para_notes',       appData.hanamParaConfig?.notes      || '');
+
+  renderHanamTherapyTable();
   setVal('sched_classes',  (appData.scheduleConfig?.classes  || []).join(', '));
   setVal('sched_subjects', (appData.scheduleConfig?.subjects || []).join(', '));
   if ((appData.scheduleConfig?.classes || []).length > 0) renderScheduleGrid();
@@ -3897,6 +3967,158 @@ function updateHanamSummary() {
 }
 
 // =============================================================
+//  HANAM PARA (סייעות חינוכיות)
+// =============================================================
+const PARA_TYPES   = ['סייעת אישית','סייעת כיתתית','סייעת סיעודית','סייעת שילוב','אחר'];
+const PARA_SOURCES = ['משרד החינוך','רשות מקומית','עמותה / תל"ן','הורים','אחר'];
+
+function renderHanamParaTable() {
+  const tbody = document.getElementById('hanamParaBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (appData.hanamParaRows || []).forEach(r => appendHanamParaRow(r));
+}
+
+function appendHanamParaRow(r) {
+  r.id = r.id || newId();
+  const tbody = document.getElementById('hanamParaBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.rid = r.id;
+  const typeOpts = PARA_TYPES.map(s =>
+    `<option value="${s}" ${r.type === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  const srcOpts = PARA_SOURCES.map(s =>
+    `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  tr.innerHTML = `
+    <td><input class="pa_name"    value="${esc(r.name    || '')}" placeholder="שם הסייעת"    oninput="markDirty()"></td>
+    <td><input class="pa_student" value="${esc(r.student || '')}" placeholder='כיתה / שם תלמיד' oninput="markDirty()"></td>
+    <td>
+      <select class="pa_type" onchange="markDirty()">
+        <option value="">בחר סוג</option>${typeOpts}
+      </select>
+    </td>
+    <td>
+      <select class="pa_source" onchange="markDirty()">
+        <option value="">בחר מקור</option>${srcOpts}
+      </select>
+    </td>
+    <td><input class="pa_notes"   value="${esc(r.notes   || '')}" placeholder="הערות"          oninput="markDirty()"></td>
+    <td><button class="btn-icon" onclick="removeHanamParaRow('${r.id}')">🗑</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function addHanamParaRow() {
+  if (!appData.hanamParaRows) appData.hanamParaRows = [];
+  const r = { id: newId(), name: '', student: '', type: '', source: '', notes: '' };
+  appData.hanamParaRows.push(r);
+  appendHanamParaRow(r);
+  markDirty();
+}
+
+function removeHanamParaRow(rid) {
+  appData.hanamParaRows = (appData.hanamParaRows || []).filter(r => r.id !== rid);
+  const tr = document.querySelector(`#hanamParaBody tr[data-rid="${rid}"]`);
+  if (tr) tr.remove();
+  markDirty();
+}
+
+function collectHanamParaFromDOM() {
+  const rows = document.querySelectorAll('#hanamParaBody tr[data-rid]');
+  appData.hanamParaRows = Array.from(rows).map(tr => ({
+    id:      tr.dataset.rid,
+    name:    tr.querySelector('.pa_name')?.value    || '',
+    student: tr.querySelector('.pa_student')?.value || '',
+    type:    tr.querySelector('.pa_type')?.value    || '',
+    source:  tr.querySelector('.pa_source')?.value  || '',
+    notes:   tr.querySelector('.pa_notes')?.value   || '',
+  }));
+  appData.hanamParaConfig = {
+    totalCount: val('hanam_para_total_count'),
+    notes:      val('hanam_para_notes'),
+  };
+}
+
+// =============================================================
+//  HANAM THERAPY (תרפיסטים ובעלי תפקידים)
+// =============================================================
+const THERAPY_TYPES = [
+  'ריפוי בעיסוק','קלינאות תקשורת','פיזיותרפיה','פסיכולוגיה חינוכית',
+  'עבודה סוציאלית','מוזיקותרפיה','אמנותרפיה','הידרותרפיה','פסיכודרמה',
+  'ייעוץ חינוכי','דרמהתרפיה','אחר'
+];
+const THERAPY_SOURCES = ['משרד החינוך','רשות מקומית','קופת חולים / בריאות','עמותה / תל"ן','הורים','אחר'];
+
+function renderHanamTherapyTable() {
+  const tbody = document.getElementById('hanamTherapyBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (appData.hanamTherapyRows || []).forEach(r => appendHanamTherapyRow(r));
+}
+
+function appendHanamTherapyRow(r) {
+  r.id = r.id || newId();
+  const tbody = document.getElementById('hanamTherapyBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.rid = r.id;
+  const typeOpts = THERAPY_TYPES.map(s =>
+    `<option value="${s}" ${r.type === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  const srcOpts = THERAPY_SOURCES.map(s =>
+    `<option value="${s}" ${r.source === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  tr.innerHTML = `
+    <td>
+      <select class="th_type" onchange="markDirty()">
+        <option value="">בחר תרפיה</option>${typeOpts}
+      </select>
+    </td>
+    <td><input class="th_name"  value="${esc(r.name  || '')}" placeholder="שם מלא"         oninput="markDirty()"></td>
+    <td><input class="th_days"  value="${esc(r.days  || '')}" placeholder="ב', ד'..."       oninput="markDirty()"></td>
+    <td><input class="th_hours" value="${esc(r.hours || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty()"></td>
+    <td>
+      <select class="th_source" onchange="markDirty()">
+        <option value="">בחר מקור</option>${srcOpts}
+      </select>
+    </td>
+    <td><input class="th_notes" value="${esc(r.notes || '')}" placeholder="הערות"           oninput="markDirty()"></td>
+    <td><button class="btn-icon" onclick="removeHanamTherapyRow('${r.id}')">🗑</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function addHanamTherapyRow() {
+  if (!appData.hanamTherapyRows) appData.hanamTherapyRows = [];
+  const r = { id: newId(), type: '', name: '', days: '', hours: '', source: '', notes: '' };
+  appData.hanamTherapyRows.push(r);
+  appendHanamTherapyRow(r);
+  markDirty();
+}
+
+function removeHanamTherapyRow(rid) {
+  appData.hanamTherapyRows = (appData.hanamTherapyRows || []).filter(r => r.id !== rid);
+  const tr = document.querySelector(`#hanamTherapyBody tr[data-rid="${rid}"]`);
+  if (tr) tr.remove();
+  markDirty();
+}
+
+function collectHanamTherapyFromDOM() {
+  const rows = document.querySelectorAll('#hanamTherapyBody tr[data-rid]');
+  appData.hanamTherapyRows = Array.from(rows).map(tr => ({
+    id:     tr.dataset.rid,
+    type:   tr.querySelector('.th_type')?.value   || '',
+    name:   tr.querySelector('.th_name')?.value   || '',
+    days:   tr.querySelector('.th_days')?.value   || '',
+    hours:  tr.querySelector('.th_hours')?.value  || '',
+    source: tr.querySelector('.th_source')?.value || '',
+    notes:  tr.querySelector('.th_notes')?.value  || '',
+  }));
+}
+
+// =============================================================
 //  SCHEDULE GRID (שיבוץ מקצועות לכיתות)
 // =============================================================
 function buildScheduleGrid() {
@@ -5269,6 +5491,8 @@ Object.assign(window, {
   calcRowTotal, updateHoursSummary,
   addHanamHoursRow, removeHanamHoursRow,
   calcHanamRowTotal, updateHanamSummary,
+  addHanamParaRow, removeHanamParaRow,
+  addHanamTherapyRow, removeHanamTherapyRow,
   buildScheduleGrid, onScheduleCellChange,
   addInventoryCategory, addInventoryRow,
   removeInventoryCategory, removeInventoryRow,
