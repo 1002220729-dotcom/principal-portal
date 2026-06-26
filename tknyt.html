@@ -668,7 +668,7 @@
           </div>
           <div class="form-group">
             <label>שנת לימודים</label>
-            <input type="text" id="gi_year" placeholder='שנה' oninput="markDirty()">
+            <input type="text" id="gi_year" placeholder='שנה' oninput="markDirty()" onchange="onYearInput(this)">
           </div>
           <div class="form-group">
             <label>שם המנהל/ת</label>
@@ -2350,6 +2350,16 @@ function onSchoolNameInput(inp) {
   }
 }
 
+  // =============================================================
+  //  year-changed — סנכרון שנת לימודים דו-כיווני עם הפורטל
+  // =============================================================
+  function onYearInput(inp) {
+    markDirty();
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'year-changed', year: inp.value }, PORTAL_ORIGIN);
+    }
+  }
+
 // =============================================================
 //  postMessage LISTENER
 // =============================================================
@@ -2440,7 +2450,7 @@ window.addEventListener('message', (e) => {
   if (e.data.type === 'load-data') {
     if (!e.data.payload || typeof e.data.payload !== 'object') return;
     clearTimeout(_schoolUpdateTimer);
-    window.__portalYear   = e.data.year       || '';
+    window.__portalYear   = e.data.year       || window.__portalYear || '';
     window.__portalSchool = e.data.schoolName || '';
     if (_domReady) {
       _applyLoadedData(e.data.payload);
@@ -5243,7 +5253,7 @@ document.addEventListener('DOMContentLoaded', () => {
 Object.assign(window, {
   switchSection, switchArena, switchQuarter,
   markDirty, showSaveToast, confirmSaved,
-  onSchoolNameInput, onArenaLabelChange,
+  onSchoolNameInput, onArenaLabelChange, onYearInput,
   toggleHanamSection,
   addStaffRow, removeStaffRow,
   addFocusArea, removeFocusArea,

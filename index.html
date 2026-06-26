@@ -915,6 +915,8 @@ const SECTION_LIST = SECTION_GROUPS.flatMap(g => g.sections.map(s => s.id));
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const lsGet = k => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch{return null;} };
 const lsSet = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch{} };
+  // lsMerge: עדכון חלקי ל-localStorage בלי לדרוס שדות אחרים
+  const lsMerge = (k, partial) => { try { const cur = lsGet(k) || {}; lsSet(k, {...cur, ...partial}); } catch{} };
 
 function parseJwt(token) {
   const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
@@ -2235,8 +2237,22 @@ function buildGanttPayload(items, year, school) {
 //  inside the async broker without a SyntaxError.
 // ═══════════════════════════════════════════════════════
 async function dbSave(type, payload) {
-  const school = PS.school || '';
-  const year   = PS.year   || '';
+  // מקור אמת ראשון: payload החי מהטופס; fallback: PS
+  const school = (payload?.schoolName || PS.school || '').trim();
+  const year   = (payload?.year       || PS.year   || '').trim();
+  // סנכרן PS ו-portal_plan אם הגיעו ערכים חדשים מה-payload
+  if (payload?.schoolName && payload.schoolName !== PS.school) {
+    PS.school = payload.schoolName;
+    lsMerge('portal_plan', { schoolName: payload.schoolName });
+    const _ds = getPortalSession();
+    if (_ds) setPortalSession({..._ds, school: payload.schoolName});
+  }
+  if (payload?.year && payload.year !== PS.year) {
+    PS.year = payload.year;
+    lsMerge('portal_plan', { year: payload.year });
+    const _dy = getPortalSession();
+    if (_dy) setPortalSession({..._dy, year: payload.year});
+  }
   try {
     await fetch(`${WORKER_URL_AUTH}/api/data`, {
       method: 'POST',
@@ -2406,8 +2422,24 @@ window.addEventListener('message', async (e) => {
 
     case 'school-changed':
       if (e.data.school) {
-        PS.school=e.data.school; updateBadges(); updateStatus();
-        if (fromPlan&&PS.ganttReady) ganttWin.postMessage({type:'school-data-update',schoolName:e.data.school},'*');
+        PS.school = e.data.school;
+        lsMerge('portal_plan', { schoolName: e.data.school });
+        const _scSession = getPortalSession();
+        if (_scSession) setPortalSession({..._scSession, school: e.data.school});
+        updateBadges(); updateStatus();
+        if (fromPlan && PS.ganttReady)
+          ganttWin.postMessage({type:'school-data-update', schoolName: e.data.school},'*');
+      }
+      break;
+
+    case 'year-changed':
+      if (e.data.year) {
+        PS.year = e.data.year;
+        lsMerge('portal_plan', { year: e.data.year });
+        const _yrSession = getPortalSession();
+        if (_yrSession) setPortalSession({..._yrSession, year: e.data.year});
+        updateBadges(); updateStatus();
+        console.log('portal: year-changed ->', e.data.year);
       }
       break;
 
