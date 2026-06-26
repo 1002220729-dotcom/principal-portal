@@ -2308,7 +2308,7 @@ window.addEventListener('message', async (e) => {
   switch(e.data.type) {
 
     case 'iframe-ready':
-      if (e.data.docType==='principal') {
+      if (e.data.docType==='plan'||e.data.docType==='principal') {
         PS.planReady=true; setReady('plan',true); setStatus('תכנית עבודה מוכנה');
         if (PS.planData) {
           planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
@@ -2358,7 +2358,7 @@ window.addEventListener('message', async (e) => {
       break;
 
     case 'save-request': {
-      if (e.data.docType==='principal'||fromPlan) {
+      if (e.data.docType==='plan'||e.data.docType==='principal'||fromPlan) {
         PS.planData=e.data.payload;
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
         if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
