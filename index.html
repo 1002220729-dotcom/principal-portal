@@ -2098,8 +2098,8 @@ document.addEventListener('click', function(e) {
 // ═══════════════════════════════════════════════════════
 const PS = {
   school:'', year:'',
-  planData:null, ganttData:null, mtssData:null,
-  planReady:false, ganttReady:false, mtssReady:false, teachersReady:false,
+  planData:null, ganttData:null, mtssData:null, calendarData:null, teachersData:null,
+  planReady:false, ganttReady:false, mtssReady:false, calendarReady:false, teachersReady:false,
   lastSync:null, syncCount:0,
   activeFrame:'plan'
 };
@@ -2342,17 +2342,34 @@ window.addEventListener('message', async (e) => {
         setStatus('ניהול מורים מוכן');
         const teachersFrameEl = document.getElementById('teachersFrame');
         if (teachersFrameEl?.contentWindow) {
-          if (PS.school || PS.year) {
-            teachersFrameEl.contentWindow.postMessage({
-              type: 'load-data',
-              payload: { school: PS.school, year: PS.year }
-            }, '*');
+          if (PS.teachersData) {
+            teachersFrameEl.contentWindow.postMessage({ type:'load-data', payload:PS.teachersData }, '*');
+          } else if (PS.school || PS.year) {
+            fetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+              .then(r=>r.json()).then(st=>{
+                if(st){PS.teachersData=st;teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:st},'*');}
+                else teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:{school:PS.school,year:PS.year}},'*');
+              }).catch(()=>teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:{school:PS.school,year:PS.year}},'*'));
           }
           if (PS._teachersPerm === 'view') {
             teachersFrameEl.contentWindow.postMessage(
               { type: 'set-readonly', readonly: true, docType: 'teachers' }, '*'
             );
           }
+        }
+        break;
+      }
+      if (e.data.docType==='calendar' && fromCalendar) {
+        PS.calendarReady = true;
+        setStatus('יומן מנהל מוכן');
+        if (PS.calendarData) {
+          calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
+        } else if (PS.school||PS.year) {
+          fetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            .then(r=>r.json()).then(sc=>{
+              if(sc){PS.calendarData=sc;calendarWin.postMessage({type:'load-data',payload:sc},'*');}
+              else calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+            }).catch(()=>{});
         }
         break;
       }
@@ -2383,13 +2400,28 @@ window.addEventListener('message', async (e) => {
         mtssWin.postMessage({type:'save-confirm',message:'MTSS נשמר ✓'},'*');
         updateStatus(); setStatus('MTSS נשמר'); toast('💾 MTSS נשמר','mtss');
       }
+      if (e.data.docType==='calendar'||fromCalendar) {
+        PS.calendarData=e.data.payload;
+        await dbSave('calendar', e.data.payload);
+        calendarWin.postMessage({type:'save-confirm',message:'יומן נשמר ✓'},'*');
+        updateStatus(); setStatus('יומן מנהל נשמר'); toast('💾 יומן מנהל נשמר','ok');
+      }
+      if (e.data.docType==='teachers'||fromTeachers) {
+        PS.teachersData=e.data.payload;
+        await dbSave('teachers', e.data.payload);
+        const twf = document.getElementById('teachersFrame')?.contentWindow;
+        if (twf) twf.postMessage({type:'save-confirm',message:'מורים נשמרו ✓'},'*');
+        updateStatus(); setStatus('ניהול מורים נשמר'); toast('💾 ניהול מורים נשמר','ok');
+      }
       break;
     }
 
     case 'trigger-save':
-      if (planWin)  planWin.postMessage({type:'trigger-save'},'*');
-      if (ganttWin) ganttWin.postMessage({type:'request-data'},'*');
-      if (mtssWin)  mtssWin.postMessage({type:'request-data'},'*');
+      if (planWin)     planWin.postMessage({type:'trigger-save'},'*');
+      if (ganttWin)    ganttWin.postMessage({type:'request-data'},'*');
+      if (mtssWin)     mtssWin.postMessage({type:'request-data'},'*');
+      if (calendarWin) calendarWin.postMessage({type:'request-data'},'*');
+      if (teachersWin) teachersWin.postMessage({type:'request-data'},'*');
       break;
 
     case 'sync-gantt':
@@ -2450,8 +2482,10 @@ window.addEventListener('message', async (e) => {
     }
 
     case 'request-data':
-      if (fromGantt&&PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
-      if (fromMtss&&PS.mtssData)   mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+      if (fromGantt&&PS.ganttData)       ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
+      if (fromMtss&&PS.mtssData)         mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+      if (fromCalendar&&PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
+      if (fromTeachers&&PS.teachersData) { const tf=document.getElementById('teachersFrame')?.contentWindow; if(tf) tf.postMessage({type:'load-data',payload:PS.teachersData},'*'); }
       break;
 
     // ── RELAY: calendar requests Gantt data for meeting sync ──
@@ -2554,10 +2588,12 @@ async function init() {
     } catch { return null; }
   }
 
-  const [sp, sg, sm] = await Promise.all([dbLoad('plan'), dbLoad('gantt'), dbLoad('mtss')]);
+  const [sp, sg, sm, sc, st] = await Promise.all([dbLoad('plan'), dbLoad('gantt'), dbLoad('mtss'), dbLoad('calendar'), dbLoad('teachers')]);
   if(sp){ PS.planData=sp;  PS.school=sp.schoolName||PS.school; PS.year=sp.year||PS.year; }
   if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
   if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
+  if(sc){ PS.calendarData=sc; }
+  if(st){ PS.teachersData=st; }
   updateBadges(); updateStatus();
 }
 
@@ -2628,6 +2664,21 @@ function reloadFrameData() {
   }
   if (mtssWin) mtssWin.postMessage({ type: 'request-data' }, '*');
   if (calWin)  calWin.postMessage({ type: 'request-data' }, '*');
+
+  // טעינה מחדש של יומן ומורים
+  const teachersFrameElR = document.getElementById('teachersFrame');
+  if ((PS.school || PS.year) && PS.calendarReady && calWin) {
+    fetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
+      .then(r => r.json()).then(sc => {
+        if (sc) { PS.calendarData = sc; calWin.postMessage({ type: 'load-data', payload: sc }, '*'); }
+      }).catch(() => {});
+  }
+  if (PS.teachersReady && teachersFrameElR?.contentWindow) {
+    fetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
+      .then(r => r.json()).then(st => {
+        if (st) { PS.teachersData = st; teachersFrameElR.contentWindow.postMessage({ type: 'load-data', payload: st }, '*'); }
+      }).catch(() => {});
+  }
 }
 
 let _lastFocusTime = 0;
