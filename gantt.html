@@ -1053,6 +1053,7 @@ function createEmptyState() {
     year: '',
     instructorEmail: '',
     updatedAt: '',
+    schoolLevel: '',   // יסודי | חטיבת ביניים | תיכון | על יסודי
     data: {
       globalPlans: [],
       schoolPlans: [],
@@ -1125,6 +1126,7 @@ function normalizePayload(payload = {}) {
   base.year = payload.year || '';
   base.instructorEmail = payload.instructorEmail || '';
   base.updatedAt = payload.updatedAt || '';
+  base.schoolLevel = payload.schoolLevel || payload.level || '';
 
   base.data.globalPlans = Array.isArray(data.globalPlans) ? data.globalPlans.map(normalizeEvent) : [];
   base.data.schoolPlans = Array.isArray(data.schoolPlans) ? data.schoolPlans.map(normalizeEvent) : [];
@@ -1232,6 +1234,7 @@ function buildPayload() {
   return cloneDeep({
     ...ganttState,
     docType: 'gantt',
+    schoolLevel: ganttState.schoolLevel || '',
     data: {
       globalPlans: ganttState.data.globalPlans.map(normalizeEvent),
       schoolPlans: ganttState.data.schoolPlans.map(normalizeEvent),
@@ -1256,6 +1259,7 @@ function applyPayload(payload, { replace = true } = {}) {
     merged.year = normalized.year || ganttState.year;
     merged.instructorEmail = normalized.instructorEmail || ganttState.instructorEmail;
     merged.updatedAt = normalized.updatedAt || ganttState.updatedAt;
+    merged.schoolLevel = normalized.schoolLevel || ganttState.schoolLevel;
     merged.data.globalPlans = normalized.data.globalPlans.length ? normalized.data.globalPlans : ganttState.data.globalPlans;
     merged.data.schoolPlans = normalized.data.schoolPlans.length ? normalized.data.schoolPlans : ganttState.data.schoolPlans;
     merged.data.schoolBlueprint = normalized.data.schoolBlueprint.length ? normalized.data.schoolBlueprint : ganttState.data.schoolBlueprint;
@@ -1264,6 +1268,7 @@ function applyPayload(payload, { replace = true } = {}) {
   }
 
   updateContextBar();
+  renderTodayStrip();
   renderGantt();
   renderProgress();
 
@@ -1517,6 +1522,15 @@ function initMessageBus() {
 
     if (msg.type === 'request-data') {
       sendSaveRequestToParent();
+      return;
+    }
+
+    // קבלת רמת המוסד מ-tknyt (sync-gantt)
+    if (msg.type === 'sync-gantt') {
+      if (msg.schoolLevel !== undefined) {
+        ganttState.schoolLevel = msg.schoolLevel || '';
+        renderTodayStrip();
+      }
       return;
     }
 
@@ -2140,16 +2154,41 @@ function getTypeName(t) { return {general:'כללי',school:'בית ספר',blue
 function getTypeClass(t) { return {general:'type-general',school:'type-school',blueprint:'type-blueprint'}[t]||'type-general'; }
 function getCurriculumName(c) { return {elementary:'ניהול',inclusion:'פדגוגי',both:'כוח אדם',events:'אירועים',routine:'שגרה'}[c]||c; }
 
+/**
+ * Returns the last day of the school year (June) by institution level.
+ * יסודי:            30 יוני
+ * חטיבת ביניים:     25 יוני
+ * תיכון / על יסודי: 20 יוני
+ */
+function getJuneEndByLevel(level, endYear) {
+  const l = (level || '').trim();
+  if (l === 'יסודי')                          return new Date(endYear, 5, 30);
+  if (l === 'חטיבת ביניים')                   return new Date(endYear, 5, 25);
+  if (l === 'תיכון' || l === 'על יסודי')      return new Date(endYear, 5, 20);
+  return new Date(endYear, 5, 30); // ברירת מחדל = יסודי
+}
+
 // ═══════════════════════════════════════════════════════════
 // TODAY STRIP
 // ═══════════════════════════════════════════════════════════
 function renderTodayStrip() {
-  const now = new Date();
-  document.getElementById('todayDateDisplay').textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const cur = PERIODS.find(p => now>=p.start && now<=p.end);
+  const now  = new Date();
+  const juneEnd = getJuneEndByLevel(ganttState.schoolLevel, SCHOOL_YEAR_END_GREG);
+
+  document.getElementById('todayDateDisplay').textContent =
+    now.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  // Check active period — override june end for this check
+  const cur = PERIODS.find(p => {
+    if (p.id === 'june') return now >= p.start && now <= juneEnd;
+    if (p.id === 'summer') return now > juneEnd && now <= YEAR_END;
+    return now >= p.start && now <= p.end;
+  });
+
+  const levelNote = ganttState.schoolLevel ? ` (${ganttState.schoolLevel})` : '';
   document.getElementById('todayPeriodText').textContent = cur
-    ? '— ' + (cur.isHoliday ? '🎉 '+cur.name : '📌 תקופה נוכחית: '+cur.name)
-    : '— מחוץ לתקופת הלימודים';
+    ? '— ' + (cur.isHoliday ? '🎉 ' + cur.name : '📌 תקופה נוכחית: ' + cur.name)
+    : `— מחוץ לתקופת הלימודים${levelNote}`;
 }
 
 // ═══════════════════════════════════════════════════════════

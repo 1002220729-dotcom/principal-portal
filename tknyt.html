@@ -2227,11 +2227,12 @@ function syncToGantt() {
   });
 
   window.parent.postMessage({
-    type:    'sync-gantt',
-    docType: DOC_TYPE,
-    year:    appData.year || window.__portalYear || '',
-    school:  appData.schoolName || '',
-    items:   ganttItems
+    type:        'sync-gantt',
+    docType:     DOC_TYPE,
+    year:        appData.year || window.__portalYear || '',
+    school:      appData.schoolName || '',
+    schoolLevel: appData.level || '',
+    items:       ganttItems
   }, PORTAL_ORIGIN);
 
   // FIX #3: showToast ישיר (לא showSaveToast) – לא מאפס isDirty
