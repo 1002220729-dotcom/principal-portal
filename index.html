@@ -2420,7 +2420,7 @@ window.addEventListener('message', async (e) => {
       break;
     }
 
-    case 'school-changed':
+    case 'school-changed': {
       if (e.data.school) {
         PS.school = e.data.school;
         lsMerge('portal_plan', { schoolName: e.data.school });
@@ -2431,8 +2431,9 @@ window.addEventListener('message', async (e) => {
           ganttWin.postMessage({type:'school-data-update', schoolName: e.data.school},'*');
       }
       break;
+    }
 
-    case 'year-changed':
+    case 'year-changed': {
       if (e.data.year) {
         PS.year = e.data.year;
         lsMerge('portal_plan', { year: e.data.year });
@@ -2442,6 +2443,7 @@ window.addEventListener('message', async (e) => {
         console.log('portal: year-changed ->', e.data.year);
       }
       break;
+    }
 
     case 'request-data':
       if (fromGantt&&PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
