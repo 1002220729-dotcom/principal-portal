@@ -2311,35 +2311,33 @@ function syncToGantt() {
 // =============================================================
 //  APPLY LOADED DATA (RESTORE)
 // =============================================================
-let _loadAppliedOnce = false; // מניעת החלת load-data פעמיים
+let _loadAppliedOnce = false; // מניעת החלת load-data ריק אחרי שנטענו נתונים
 
 function _applyLoadedData(payload) {
   if (!payload) return;
+  payload = migrateContentIfNeeded(payload);
 
-  // אם הנתונים כבר הוחלו פעם ו-DOM מכיל נתונים שהמשתמש הזין — לא לדרוס
-  if (_loadAppliedOnce && isDirty) {
-    console.warn('[tknyt] _applyLoadedData: skip — user has unsaved changes (isDirty=true)');
+  // Guard: אם כבר נטענו נתונים, ומגיע payload ריק — לא לדרוס
+  const incomingHasData = !!(
+    payload.schoolName ||
+    Object.values(payload.arenas  || {}).some(a => (a.rows || []).length > 0) ||
+    Object.values(payload.quarters|| {}).some(q => (q.rows || []).length > 0) ||
+    (payload.hoursRows         || []).length > 0 ||
+    (payload.staffRows         || []).length > 0 ||
+    (payload.managementRoutines|| []).length > 0 ||
+    (payload.inventory         || []).length > 0
+  );
+  if (_loadAppliedOnce && !incomingHasData) {
+    console.warn('[tknyt] _applyLoadedData: blocked empty payload (data already loaded)');
     return;
   }
-
-  payload  = migrateContentIfNeeded(payload);
-
-  // בדיקת "payload ריק" — אם אין נתונים משמעותיים וה-DOM כבר מלא, לא לדרוס
-  const payloadHasData = (
-    payload.schoolName ||
-    Object.values(payload.arenas || {}).some(a => (a.rows || []).length > 0) ||
-    Object.values(payload.quarters || {}).some(q => (q.rows || []).length > 0) ||
-    (payload.hoursRows || []).length > 0 ||
-    (payload.staffRows || []).length > 0 ||
-    (payload.managementRoutines || []).length > 0
-  );
-  if (_loadAppliedOnce && !payloadHasData) {
-    console.warn('[tknyt] _applyLoadedData: skip — payload is empty and data already loaded');
+  if (_loadAppliedOnce && isDirty) {
+    console.warn('[tknyt] _applyLoadedData: blocked — user has unsaved changes');
     return;
   }
 
   _loadAppliedOnce = true;
-  appData  = payload;
+  appData = payload;
 
   setVal('schoolName',      appData.schoolName      || '');
   setVal('principalName',   appData.principalName   || '');
@@ -2552,12 +2550,12 @@ window.addEventListener('message', (e) => {
     clearTimeout(_schoolUpdateTimer);
     window.__portalYear   = e.data.year       || window.__portalYear || '';
     window.__portalSchool = e.data.schoolName || '';
-    console.log('[tknyt] load-data received | school:', window.__portalSchool, '| year:', window.__portalYear,
-      '| arenas rows:', Object.values(e.data.payload?.arenas||{}).reduce((s,a)=>s+(a.rows?.length||0),0),
-      '| quarters rows:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0),
-      '| hoursRows:', (e.data.payload?.hoursRows||[]).length,
-      '| inventory cats:', (e.data.payload?.inventory||[]).length
-    );
+    const _p = e.data.payload;
+    console.log('[tknyt] load-data | school:', window.__portalSchool, '| year:', window.__portalYear,
+      '| arenas:', Object.values(_p.arenas||{}).reduce((s,a)=>s+(a.rows||[]).length,0),
+      '| quarters:', Object.values(_p.quarters||{}).reduce((s,q)=>s+(q.rows||[]).length,0),
+      '| hours:', (_p.hoursRows||[]).length, '| staff:', (_p.staffRows||[]).length,
+      '| _loadAppliedOnce:', _loadAppliedOnce, '| isDirty:', isDirty);
     if (_domReady) {
       _applyLoadedData(e.data.payload);
     } else {

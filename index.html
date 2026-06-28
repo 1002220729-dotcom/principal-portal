@@ -2704,19 +2704,13 @@ function reloadFrameData() {
   if (!PS.school && !PS.year) return;
   console.log('[portal] reloadFrameData triggered | school:', PS.school, '| planData exists:', !!PS.planData);
 
-  const planWin    = document.getElementById('planFrame')?.contentWindow;
+  // תכנית עבודה (tknyt): לעולם לא שולחים load-data מ-reloadFrameData.
+  // tknyt מנהל את המצב שלו פנימית; כל שליחה מכאן דורסת נתונים שלא נשמרו.
+  // הנתונים נטענים פעם אחת דרך iframe-ready handler בלבד.
+
   const ganttWin   = document.getElementById('ganttFrame')?.contentWindow;
   const mtssWin    = document.getElementById('mtssFrame')?.contentWindow;
   const calWin     = document.getElementById('calendarFrame')?.contentWindow;
-
-  // תכנית עבודה: לא טוענים מחדש בכל focus — רק כאשר יש נתון חדש בPS
-  // (מניעת דריסת נתונים שהמשתמש הזין ועדיין לא שמר)
-  // הגאנט ניתן לטעינה חוזרת כי הוא read-only בפורטל
-  if ((PS.school || PS.year) && planWin && PS.planData) {
-    // שלח רק אם הנתונים ב-PS חדשים יותר מהאחרון שנשלח
-    // (פשוט: שלח רק אם planData קיים — ה-iframe מחזיק guard isDirty)
-    planWin.postMessage({ type: 'load-data', payload: PS.planData, year: PS.planData.year || PS.year, schoolName: PS.planData.schoolName || PS.school }, '*');
-  }
   if ((PS.school || PS.year) && ganttWin) {
     fetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => r.json()).then(sg => {
