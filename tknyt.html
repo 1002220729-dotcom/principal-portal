@@ -2609,9 +2609,9 @@ window.addEventListener('message', (e) => {
 
     showSaveToast('🔄 נתוני בסיס עודכנו');
     clearTimeout(_schoolUpdateTimer);
-    _schoolUpdateTimer = setTimeout(() => {
-      if (_domReady) saveRaw(); // FIX: saveRaw לא מגדיר meta.lastModified
-    }, 400);
+    console.log('[tknyt] school-data-update received — fields updated, no auto-save');
+    // לא שומרים כאן — school-data-update מגיע לפני שהמשתמש הזין נתונים
+    // השמירה תקרא ידנית ע"י המשתמש או דרך trigger-save מהפורטל
     return;
   }
 });

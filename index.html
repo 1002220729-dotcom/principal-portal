@@ -2405,7 +2405,11 @@ window.addEventListener('message', async (e) => {
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
         if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
         const _dbgArenas = Object.values(e.data.payload?.arenas||{}).reduce((s,a)=>s+(a.rows?.length||0),0);
-        console.log('[portal] saving plan | school:', PS.school, '| year:', PS.year, '| arena rows:', _dbgArenas, '| quarters:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0));
+        console.log('[portal] saving plan | school:', PS.school, '| year:', PS.year,
+          '| arena rows:', _dbgArenas,
+          '| quarters:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0),
+          '| ss.strengths len:', (e.data.payload?.statusSnapshot?.strengths||'').length,
+          '| staff:', (e.data.payload?.staffRows||[]).length);
         await dbSave('plan', e.data.payload);
         planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');
         updateStatus(); setStatus('תכנית עבודה נשמרה'); toast('💾 תכנית עבודה נשמרה','ok');
