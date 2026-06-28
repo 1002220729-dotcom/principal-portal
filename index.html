@@ -2106,6 +2106,7 @@ const PS = {
   activeFrame:'plan',
   _initDone: false,
   _pendingIframeReady: [],   // iframe-ready events that arrived before init() finished
+  _planLoadSent: false,      // האם כבר שלחנו load-data ל-planFrame — מונע שליחה כפולה
 };
 
 // ═══════════════════════════════════════════════════════
@@ -2335,14 +2336,19 @@ window.addEventListener('message', async (e) => {
       }
       if (e.data.docType==='plan'||e.data.docType==='principal') {
         PS.planReady=true; setReady('plan',true); setStatus('תכנית עבודה מוכנה');
-        if (PS.planData) {
-          planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
-        } else if (PS.school||PS.year) {
-          fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
-            .then(r=>r.json()).then(sp=>{
-              if(sp){PS.planData=sp;planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*');}
-              else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
-            }).catch(()=>planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+        if (!PS._planLoadSent) {
+          PS._planLoadSent = true;
+          if (PS.planData) {
+            planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
+          } else if (PS.school||PS.year) {
+            fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+              .then(r=>r.json()).then(sp=>{
+                if(sp){PS.planData=sp;planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*');}
+                else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+              }).catch(()=>planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+          }
+        } else {
+          console.log('[portal] iframe-ready plan: load already sent, skipping duplicate');
         }
       }
       if (e.data.docType==='gantt') {
@@ -2405,10 +2411,11 @@ window.addEventListener('message', async (e) => {
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
         if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
         const _dbgArenas = Object.values(e.data.payload?.arenas||{}).reduce((s,a)=>s+(a.rows?.length||0),0);
+        const _dbgSsKeys = Object.keys(e.data.payload?.statusSnapshot||{}).filter(k=>k!=='teacherEdu'&&(e.data.payload.statusSnapshot[k]||'').length>0);
         console.log('[portal] saving plan | school:', PS.school, '| year:', PS.year,
           '| arena rows:', _dbgArenas,
           '| quarters:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0),
-          '| ss.strengths len:', (e.data.payload?.statusSnapshot?.strengths||'').length,
+          '| ss fields with data:', _dbgSsKeys,
           '| staff:', (e.data.payload?.staffRows||[]).length);
         await dbSave('plan', e.data.payload);
         planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');
@@ -2635,11 +2642,16 @@ async function init() {
     const teachersFrm = document.getElementById('teachersFrame');
     const dt = ev.data.docType;
     if ((dt==='plan'||dt==='principal') && planWin) {
-      if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
-      else if (PS.school||PS.year) {
-        fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
-          .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},'*');} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'); }).catch(()=>{});
-      } else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      if (!PS._planLoadSent) {
+        PS._planLoadSent = true;
+        if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
+        else if (PS.school||PS.year) {
+          fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},'*');} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'); }).catch(()=>{});
+        } else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      } else {
+        console.log('[portal] pending replay plan: load already sent, skipping');
+      }
     }
     if (dt==='gantt' && ganttWin) {
       if (PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');

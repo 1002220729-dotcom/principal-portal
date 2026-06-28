@@ -2373,8 +2373,16 @@ function _applyLoadedData(payload) {
 
   const ss = appData.statusSnapshot || {};
   ['strengths','challenges','opportunities'].forEach(k => { setVal(`ss_${k}`, ss[k] || ''); });
-  // v35: render dynamic background fields for the current level, then populate values
-  updateBackgroundDataFields();
+  // v35: בנה את שדות הרקע לפי הרמה הנוכחית ומלא מ-appData.statusSnapshot
+  // חשוב: לא לקרוא ל-updateBackgroundDataFields() כי היא מתחילה ב-collectBackgroundDataFromDOM
+  // שמוחק את הנתונים שזה עתה הגיעו מהשרת לפני שמלאנו אותם ב-DOM
+  const _bgContainer = document.getElementById('backgroundDataCard');
+  if (_bgContainer) {
+    const _bgLevel  = appData.level || val('gi_level') || '';
+    const _bgFields = (typeof LEVEL_BACKGROUND_FIELDS !== 'undefined' ? LEVEL_BACKGROUND_FIELDS[_bgLevel] : null) || DEFAULT_BACKGROUND_FIELDS;
+    _bgContainer.innerHTML = buildBackgroundFieldsHTML(_bgFields);
+    populateBackgroundFields(_bgFields);
+  }
 
   // Restore teacher education table
   const te = ss.teacherEdu || {};
@@ -2551,10 +2559,12 @@ window.addEventListener('message', (e) => {
     window.__portalYear   = e.data.year       || window.__portalYear || '';
     window.__portalSchool = e.data.schoolName || '';
     const _p = e.data.payload;
+    const _ssKeys = Object.keys(_p.statusSnapshot || {}).filter(k => k !== 'teacherEdu' && (_p.statusSnapshot[k] || '').length > 0);
     console.log('[tknyt] load-data | school:', window.__portalSchool, '| year:', window.__portalYear,
       '| arenas:', Object.values(_p.arenas||{}).reduce((s,a)=>s+(a.rows||[]).length,0),
       '| quarters:', Object.values(_p.quarters||{}).reduce((s,q)=>s+(q.rows||[]).length,0),
       '| hours:', (_p.hoursRows||[]).length, '| staff:', (_p.staffRows||[]).length,
+      '| ss fields with data:', _ssKeys,
       '| _loadAppliedOnce:', _loadAppliedOnce, '| isDirty:', isDirty);
     if (_domReady) {
       _applyLoadedData(e.data.payload);
