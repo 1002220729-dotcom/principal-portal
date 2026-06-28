@@ -1988,6 +1988,7 @@ function showSaveToast(msg, type) {
 
 function confirmSaved() {
   isDirty = false;
+  _loadAppliedOnce = false; // אחרי שמירה — load-data הבא יוכל לרענן
   document.getElementById('saveStatus').textContent = '✓ נשמר';
 }
 
@@ -2310,9 +2311,34 @@ function syncToGantt() {
 // =============================================================
 //  APPLY LOADED DATA (RESTORE)
 // =============================================================
+let _loadAppliedOnce = false; // מניעת החלת load-data פעמיים
+
 function _applyLoadedData(payload) {
   if (!payload) return;
+
+  // אם הנתונים כבר הוחלו פעם ו-DOM מכיל נתונים שהמשתמש הזין — לא לדרוס
+  if (_loadAppliedOnce && isDirty) {
+    console.warn('[tknyt] _applyLoadedData: skip — user has unsaved changes (isDirty=true)');
+    return;
+  }
+
   payload  = migrateContentIfNeeded(payload);
+
+  // בדיקת "payload ריק" — אם אין נתונים משמעותיים וה-DOM כבר מלא, לא לדרוס
+  const payloadHasData = (
+    payload.schoolName ||
+    Object.values(payload.arenas || {}).some(a => (a.rows || []).length > 0) ||
+    Object.values(payload.quarters || {}).some(q => (q.rows || []).length > 0) ||
+    (payload.hoursRows || []).length > 0 ||
+    (payload.staffRows || []).length > 0 ||
+    (payload.managementRoutines || []).length > 0
+  );
+  if (_loadAppliedOnce && !payloadHasData) {
+    console.warn('[tknyt] _applyLoadedData: skip — payload is empty and data already loaded');
+    return;
+  }
+
+  _loadAppliedOnce = true;
   appData  = payload;
 
   setVal('schoolName',      appData.schoolName      || '');
