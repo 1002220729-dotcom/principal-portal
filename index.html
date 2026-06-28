@@ -1219,6 +1219,8 @@ function applyRoleUI(role, session) {
   // Populate PS from session early — before iframes load
   if (session.school) PS.school = session.school;
   if (session.year)   PS.year   = session.year;
+  // אם יש session עם school/year — הiframes יכולים לקבל נתונים מיד
+  // (pending iframe-ready events יטופלו ב-init() אחרי dbLoad)
 
   // Hide login, show app
   document.getElementById('loginScreen').style.display = 'none';
@@ -2101,7 +2103,9 @@ const PS = {
   planData:null, ganttData:null, mtssData:null, calendarData:null, teachersData:null,
   planReady:false, ganttReady:false, mtssReady:false, calendarReady:false, teachersReady:false,
   lastSync:null, syncCount:0,
-  activeFrame:'plan'
+  activeFrame:'plan',
+  _initDone: false,
+  _pendingIframeReady: [],   // iframe-ready events that arrived before init() finished
 };
 
 // ═══════════════════════════════════════════════════════
@@ -2241,9 +2245,10 @@ function buildGanttPayload(items, year, school) {
 //  inside the async broker without a SyntaxError.
 // ═══════════════════════════════════════════════════════
 async function dbSave(type, payload) {
-  // מקור אמת ראשון: payload החי מהטופס; fallback: PS
-  const school = (payload?.schoolName || PS.school || '').trim();
-  const year   = (payload?.year       || PS.year   || '').trim();
+  // מקור אמת ראשון: payload החי מהטופס; fallback: PS; fallback: session
+  const session = getPortalSession();
+  const school = (payload?.schoolName || PS.school || session?.school || '').trim();
+  const year   = (payload?.year       || PS.year   || session?.year   || '').trim();
   // סנכרן PS ו-portal_plan אם הגיעו ערכים חדשים מה-payload
   if (payload?.schoolName && payload.schoolName !== PS.school) {
     PS.school = payload.schoolName;
@@ -2256,6 +2261,10 @@ async function dbSave(type, payload) {
     lsMerge('portal_plan', { year: payload.year });
     const _dy = getPortalSession();
     if (_dy) setPortalSession({..._dy, year: payload.year});
+  }
+  if (!school || !year) {
+    console.warn('[portal] dbSave: missing school or year — skipping', { type, school, year });
+    return;
   }
   try {
     await fetch(`${WORKER_URL_AUTH}/api/data`, {
@@ -2312,6 +2321,18 @@ window.addEventListener('message', async (e) => {
   switch(e.data.type) {
 
     case 'iframe-ready':
+      // אם init() עדיין לא סיים — שמור ב-pending ועבד אחרי שה-session מוכן
+      if (!PS._initDone && !PS.school && !PS.year) {
+        console.log('[portal] iframe-ready PENDING (init not done yet):', e.data.docType);
+        PS._pendingIframeReady.push({ data: e.data, source: e.source });
+        // רק סמן כ-ready (ללא load)
+        if (e.data.docType==='plan'||e.data.docType==='principal') { PS.planReady=true; setReady('plan',true); }
+        if (e.data.docType==='gantt')    { PS.ganttReady=true; setReady('gantt',true); }
+        if (e.data.docType==='mtss')     { PS.mtssReady=true;  setReady('mtss',true);  }
+        if (e.data.docType==='calendar') { PS.calendarReady=true; }
+        if (e.data.docType==='teachers') { PS.teachersReady=true; setReady('teachers',true); }
+        break;
+      }
       if (e.data.docType==='plan'||e.data.docType==='principal') {
         PS.planReady=true; setReady('plan',true); setStatus('תכנית עבודה מוכנה');
         if (PS.planData) {
@@ -2383,6 +2404,8 @@ window.addEventListener('message', async (e) => {
         PS.planData=e.data.payload;
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
         if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
+        const _dbgArenas = Object.values(e.data.payload?.arenas||{}).reduce((s,a)=>s+(a.rows?.length||0),0);
+        console.log('[portal] saving plan | school:', PS.school, '| year:', PS.year, '| arena rows:', _dbgArenas, '| quarters:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0));
         await dbSave('plan', e.data.payload);
         planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');
         updateStatus(); setStatus('תכנית עבודה נשמרה'); toast('💾 תכנית עבודה נשמרה','ok');
@@ -2595,6 +2618,42 @@ async function init() {
   if(sc){ PS.calendarData=sc; }
   if(st){ PS.teachersData=st; }
   updateBadges(); updateStatus();
+
+  // init הסתיים — עכשיו ניתן לטעון iframes שחיכו
+  PS._initDone = true;
+  const pending = PS._pendingIframeReady.splice(0);
+  for (const ev of pending) {
+    // שלח load-data לכל iframe שחיכה
+    const planWin     = document.getElementById('planFrame')?.contentWindow;
+    const ganttWin    = document.getElementById('ganttFrame')?.contentWindow;
+    const mtssWin     = document.getElementById('mtssFrame')?.contentWindow;
+    const calendarWin = document.getElementById('calendarFrame')?.contentWindow;
+    const teachersFrm = document.getElementById('teachersFrame');
+    const dt = ev.data.docType;
+    if ((dt==='plan'||dt==='principal') && planWin) {
+      if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
+      else if (PS.school||PS.year) {
+        fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+          .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},'*');} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'); }).catch(()=>{});
+      } else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+    }
+    if (dt==='gantt' && ganttWin) {
+      if (PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
+      else if (PS.school||PS.year) ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+    }
+    if (dt==='mtss' && mtssWin) {
+      if (PS.mtssData) mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+      else if (PS.school||PS.year) mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+    }
+    if (dt==='calendar' && calendarWin) {
+      if (PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
+      else if (PS.school||PS.year) calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+    }
+    if (dt==='teachers' && teachersFrm?.contentWindow) {
+      if (PS.teachersData) teachersFrm.contentWindow.postMessage({type:'load-data',payload:PS.teachersData},'*');
+    }
+  }
+  if (!pending.length) PS._initDone = true; // already set above, belt-and-suspenders
 }
 
 document.addEventListener('DOMContentLoaded', function () {

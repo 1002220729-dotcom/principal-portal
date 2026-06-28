@@ -2056,6 +2056,10 @@ function collectFormDataBase() {
 
   if (!appData.year)       appData.year       = window.__portalYear   || '';
   if (!appData.schoolName) appData.schoolName = window.__portalSchool || '';
+  // גיבוי נוסף: אם עדיין ריק, קח מה-URL params
+  if (!appData.year) {
+    try { appData.year = new URLSearchParams(window.parent?.location?.search || '').get('year') || ''; } catch(_) {}
+  }
   appData.meta.docType = DOC_TYPE;
   return appData;
 }
@@ -2522,6 +2526,12 @@ window.addEventListener('message', (e) => {
     clearTimeout(_schoolUpdateTimer);
     window.__portalYear   = e.data.year       || window.__portalYear || '';
     window.__portalSchool = e.data.schoolName || '';
+    console.log('[tknyt] load-data received | school:', window.__portalSchool, '| year:', window.__portalYear,
+      '| arenas rows:', Object.values(e.data.payload?.arenas||{}).reduce((s,a)=>s+(a.rows?.length||0),0),
+      '| quarters rows:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0),
+      '| hoursRows:', (e.data.payload?.hoursRows||[]).length,
+      '| inventory cats:', (e.data.payload?.inventory||[]).length
+    );
     if (_domReady) {
       _applyLoadedData(e.data.payload);
     } else {
