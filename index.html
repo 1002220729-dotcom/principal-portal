@@ -2436,7 +2436,11 @@ window.addEventListener('message', async (e) => {
       }
       if (e.data.docType==='calendar'||fromCalendar) {
         PS.calendarData=e.data.payload;
-        await dbSave('calendar', e.data.payload);
+        // ודא שה-school/year מוגדרים ב-payload (לוח_שנה שולח אותם, אבל כ-fallback נוסיף מ-PS)
+        if (!PS.calendarData.school && PS.school) PS.calendarData.school = PS.school;
+        if (!PS.calendarData.year   && PS.year)   PS.calendarData.year   = PS.year;
+        console.log('[portal] saving calendar | school:', PS.calendarData.school, '| year:', PS.calendarData.year, '| events:', (PS.calendarData.meetings?.events||[]).length);
+        await dbSave('calendar', PS.calendarData);
         calendarWin.postMessage({type:'save-confirm',message:'יומן נשמר ✓'},'*');
         updateStatus(); setStatus('יומן מנהל נשמר'); toast('💾 יומן מנהל נשמר','ok');
       }

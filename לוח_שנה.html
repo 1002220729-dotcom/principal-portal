@@ -1030,6 +1030,7 @@ function saveMeetingModal() {
   markDirty();
   closeMeetingModal();
   renderMeetingsCalendar();
+  saveToPortal();
   showToast(id ? 'הפגישה עודכנה ✓' : 'הפגישה נוספה ✓', 'success');
 }
 
@@ -1040,6 +1041,7 @@ function deleteMeeting(id) {
   markDirty();
   closeMeetingModal();
   renderMeetingsCalendar();
+  saveToPortal();
   showToast('הפגישה נמחקה', 'success');
 }
 
@@ -1050,6 +1052,7 @@ function duplicateMeeting(id) {
   appData.meetings.events.push(dup);
   markDirty();
   renderMeetingsCalendar();
+  saveToPortal();
   showToast('הפגישה שוכפלה', 'success');
 }
 
@@ -1171,6 +1174,7 @@ function processSyncFromGantt(ganttPayload) {
   };
   markDirty();
   renderMeetingsCalendar();
+  saveToPortal();
   showToast(`סונכרנו ${imported} פגישות מהגאנט`, 'success');
 }
 
@@ -1189,7 +1193,47 @@ function processSyncFromGantt(ganttPayload) {
 //   }
 // ════════════════════════════════════════════════════════════
 
-// Standalone demo: listen for the response directly
+// ================================================================
+// PORTAL COMMUNICATION
+// ================================================================
+const DOC_TYPE      = 'calendar';
+const PORTAL_ORIGIN = '*';
+const _inPortal     = window.parent !== window;
+
+let _portalSchool = '';
+let _portalYear   = '';
+
+function saveToPortal() {
+  if (!_inPortal) return;
+  const _evCount = (appData.meetings?.events||[]).length;
+  console.log('[calendar] saveToPortal | school:', _portalSchool, '| year:', _portalYear, '| events:', _evCount);
+  window.parent.postMessage({
+    type: 'save-request',
+    docType: DOC_TYPE,
+    payload: {
+      docType:  DOC_TYPE,
+      school:   _portalSchool,
+      year:     _portalYear,
+      meetings: appData.meetings
+    }
+  }, PORTAL_ORIGIN);
+}
+
+function _applyPortalData(payload) {
+  if (!payload) return;
+  if (payload.meetings && typeof payload.meetings === 'object') {
+    appData.meetings = payload.meetings;
+    if (!Array.isArray(appData.meetings.events)) appData.meetings.events = [];
+    if (!appData.meetings.settings) appData.meetings.settings = { syncedFromGantt: false, lastSyncAt: '' };
+  }
+  if (payload.school) _portalSchool = payload.school;
+  if (payload.year)   _portalYear   = payload.year;
+  console.log('[calendar] _applyPortalData | school:', _portalSchool, '| year:', _portalYear, '| events:', (appData.meetings?.events||[]).length);
+  renderMeetingsCalendar();
+  showToast('\u2705 \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d9\u05d5\u05de\u05df \u05e0\u05d8\u05e2\u05e0\u05d5');
+}
+
+// Unified message listener: portal + gantt sync
 window.addEventListener('message', e => {
   const msg = e.data;
   if (!msg || typeof msg !== 'object') return;
@@ -1198,196 +1242,33 @@ window.addEventListener('message', e => {
     _waitingForGanttSync = false;
     processSyncFromGantt(msg.payload);
     const btn = document.getElementById('ganttSyncBtn');
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 סנכרן מגאנט'; }
+    if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udd04 \u05e1\u05e0\u05db\u05e8\u05df \u05de\u05d2\u05d0\u05e0\u05d8'; }
+    return;
+  }
+  if (msg.type === 'load-data')                             { _applyPortalData(msg.payload); return; }
+  if (msg.type === 'trigger-save' || msg.type === 'request-data') { saveToPortal(); return; }
+  if (msg.type === 'save-confirm')                          { showToast(msg.message || '\u2705 \u05e0\u05e9\u05de\u05e8'); return; }
+  if (msg.type === 'school-data-update') {
+    if (msg.schoolName) _portalSchool = msg.schoolName;
+    if (msg.year)       _portalYear   = msg.year;
     return;
   }
 });
 
-// ════════════════════════════════════════════════════════════
-// ── EXPORT & PRINT ──
-// ════════════════════════════════════════════════════════════
-function exportMeetingsCSV() {
-  const rows = [['תאריך','שעה','כותרת','סוג','עדיפות','סטטוס','מיקום','משתתפים','סדר יום','סיכום']];
-  const events = [...(appData.meetings.events || [])]
-    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-  events.forEach(e => {
-    rows.push([
-      e.date || '',
-      `${e.timeStart || ''}–${e.timeEnd || ''}`,
-      e.title || '',
-      _meetTypeLabel(e.type),
-      _priorityLabel(e.priority),
-      _statusLabel(e.status),
-      e.location || '',
-      e.attendees || '',
-      (e.agenda || '').replace(/\n/g, ' | '),
-      (e.summary || '').replace(/\n/g, ' | ')
-    ]);
-  });
-
-  const BOM = '\uFEFF';
-  const csv = BOM + rows.map(r =>
-    r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-  ).join('\r\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `פגישות_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
-}
-
-function printMeetings() {
-  const events = [...(appData.meetings.events || [])]
-    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-  const rows = events.map(e => `
-    <tr>
-      <td>${_fmtDateShort(e.date)}</td>
-      <td>${esc(e.timeStart || '—')}${e.timeEnd ? '–'+esc(e.timeEnd) : ''}</td>
-      <td><strong>${esc(e.title)}</strong></td>
-      <td>${_meetTypeIcon(e.type)} ${_meetTypeLabel(e.type)}</td>
-      <td>${_statusLabel(e.status)}</td>
-      <td>${esc(e.location || '—')}</td>
-      <td>${esc(e.attendees || '—')}</td>
-    </tr>
-    ${(e.agenda || e.summary) ? `
-    <tr style="background:#f8fafc;">
-      <td colspan="7" style="padding:8px 12px;font-size:12px;color:#555;">
-        ${e.agenda ? '<strong>סדר יום:</strong> ' + esc(e.agenda) + '<br>' : ''}
-        ${e.summary ? '<strong>סיכום:</strong> ' + esc(e.summary) : ''}
-      </td>
-    </tr>` : ''}`
-  ).join('');
-
-  const win = window.open('', '_blank', 'width=900,height=700');
-  win.document.write(`<!DOCTYPE html><html lang="he" dir="rtl">
-  <head><meta charset="UTF-8"><title>יומן פגישות</title>
-  <style>
-    body { font-family: 'Arial Hebrew', Arial, sans-serif; direction: rtl; padding: 24px; font-size: 13px; }
-    h1 { color: #1a3a5c; margin-bottom: 4px; }
-    .sub { color: #64748b; font-size: 12px; margin-bottom: 18px; }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #e8f0fb; color: #1a3a5c; font-weight: bold; padding: 8px 10px; text-align: right; border: 1px solid #d0d7e3; }
-    td { padding: 7px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
-    tr:nth-child(4n+1) { background: #fafbfc; }
-    @media print { body { padding: 0; } }
-  </style>
-  </head>
-  <body>
-    <h1>📅 יומן פגישות</h1>
-    <div class="sub">הודפס: ${new Date().toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>
-    <table>
-      <thead><tr>
-        <th>תאריך</th><th>שעה</th><th>כותרת</th><th>סוג</th><th>סטטוס</th><th>מיקום</th><th>משתתפים</th>
-      </tr></thead>
-      <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#94a3b8;">אין פגישות</td></tr>'}</tbody>
-    </table>
-  </body></html>`);
-  win.document.close();
-  setTimeout(() => win.print(), 400);
-}
-
-// ════════════════════════════════════════════════════════════
-// ── KEYBOARD: ESC closes modal ──
-// In the real file this is already handled; add only the
-// meetingModal branch to the existing ESC handler:
-//   if (document.getElementById('meetingModal').style.display !== 'none')
-//     closeMeetingModal();
-// ════════════════════════════════════════════════════════════
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' &&
-      document.getElementById('meetingModal').style.display === 'flex') {
-    closeMeetingModal();
-  }
-});
-
-// ════════════════════════════════════════════════════════════
-// ── STANDALONE DEMO: init ──
-// ════════════════════════════════════════════════════════════
 (function demoInit() {
-  // Add a few sample events for visual QA
+  if (_inPortal) {
+    window.parent.postMessage({ type: 'iframe-ready', docType: DOC_TYPE }, PORTAL_ORIGIN);
+    renderMeetingsCalendar();
+    return;
+  }
+  // standalone demo
   const today = new Date().toISOString().slice(0, 10);
   const tmr   = new Date(Date.now() + 86400000).toISOString().slice(0,10);
   const last  = new Date(Date.now() - 3*86400000).toISOString().slice(0,10);
-
   appData.meetings.events = [
-    {
-      id: newId(), title: 'ישיבת הנהלה שבועית', date: today,
-      timeStart: '08:00', timeEnd: '09:30', type: 'meeting',
-      priority: 'high', status: 'upcoming', location: 'חדר מנהל',
-      attendees: 'סגן, רכז שכבה', color: '#1a3a5c',
-      agenda: '1. דוח נוכחות\n2. עדכונים פדגוגיים\n3. הכנה לסיום מחצית',
-      summary: '', isFromGantt: false, linkedPeriodId: '', linkedGanttEventId: ''
-    },
-    {
-      id: newId(), title: 'ביקור מדריכה פדגוגית', date: tmr,
-      timeStart: '10:00', timeEnd: '12:00', type: 'visit',
-      priority: 'medium', status: 'upcoming', location: 'כיתה ד׳2',
-      attendees: 'מדריכה ד"ר כהן', color: '#2563a8',
-      agenda: 'תצפית שיעור מתמטיקה', summary: '',
-      isFromGantt: true, linkedPeriodId: 'nov', linkedGanttEventId: 'gid_01'
-    },
-    {
-      id: newId(), title: 'הדרכת SEL לצוות', date: last,
-      timeStart: '14:00', timeEnd: '16:00', type: 'training',
-      priority: 'medium', status: 'done', location: 'אולם מורים',
-      attendees: 'כל הצוות', color: '#27ae60',
-      agenda: 'הטמעת שגרות SEL', summary: 'הצוות קיבל ערכת כלים מלאה.',
-      isFromGantt: false, linkedPeriodId: '', linkedGanttEventId: ''
-    },
+    { id: newId(), title: '\u05d9\u05e9\u05d9\u05d1\u05ea \u05d4\u05e0\u05d4\u05dc\u05d4 \u05e9\u05d1\u05d5\u05e2\u05d9\u05ea', date: today, timeStart: '08:00', timeEnd: '09:30', type: 'meeting', priority: 'high', status: 'upcoming', location: '\u05d7\u05d3\u05e8 \u05de\u05e0\u05d4\u05dc', attendees: '\u05e1\u05d2\u05df', color: '#1a3a5c', agenda: '', summary: '', isFromGantt: false, linkedPeriodId: '', linkedGanttEventId: '' },
+    { id: newId(), title: '\u05d1\u05d9\u05e7\u05d5\u05e8 \u05de\u05d3\u05e8\u05d9\u05db\u05d4 \u05e4\u05d3\u05d2\u05d5\u05d2\u05d9\u05ea', date: tmr, timeStart: '10:00', timeEnd: '12:00', type: 'visit', priority: 'medium', status: 'upcoming', location: '\u05db\u05d9\u05ea\u05d4', attendees: '\u05de\u05d3\u05e8\u05d9\u05db\u05d4', color: '#2563a8', agenda: '', summary: '', isFromGantt: false, linkedPeriodId: '', linkedGanttEventId: '' },
   ];
-
   renderMeetingsCalendar();
 })();
 </script>
-
-
-<!-- ══════════════════════════════════════════════════════
-     [PORTAL RELAY PATCH] — portal_v2.html message handler
-     Paste this block inside the portal's message switch/if chain:
-
-  // ── RELAY: management file requests Gantt data for meetings ──
-  if (msg.type === 'request-gantt-data-for-meetings') {
-    // Store the requesting iframe so we can reply
-    const _meetReqSource = e.source;
-
-    // Forward request to Gantt iframe
-    const ganttWin = document.getElementById('ganttFrame')?.contentWindow;
-    if (!ganttWin) {
-      _meetReqSource.postMessage({ type: 'gantt-data-for-meetings', payload: null }, '*');
-      return;
-    }
-
-    // Listen once for the Gantt's save-request response
-    const _ganttReplyHandler = function(evt2) {
-      const m2 = evt2.data;
-      if (!m2 || m2.type !== 'save-request' || m2.docType !== 'gantt') return;
-      window.removeEventListener('message', _ganttReplyHandler);
-      _meetReqSource.postMessage({
-        type:    'gantt-data-for-meetings',
-        payload: m2.payload
-      }, '*');
-    };
-    window.addEventListener('message', _ganttReplyHandler);
-
-    // Trigger save-request from Gantt
-    ganttWin.postMessage({ type: 'request-data' }, '*');
-
-    // Safety timeout: if Gantt doesn't reply within 4 s, send null
-    setTimeout(() => {
-      window.removeEventListener('message', _ganttReplyHandler);
-      try {
-        _meetReqSource.postMessage({ type: 'gantt-data-for-meetings', payload: null }, '*');
-      } catch(_) {}
-    }, 4000);
-    return;
-  }
-     ══════════════════════════════════════════════════════ -->
-
-</body>
-</html>
