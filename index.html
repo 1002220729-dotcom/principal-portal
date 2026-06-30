@@ -956,6 +956,24 @@ function persistResolvedSchoolYear(school, year) {
   } catch(_) {}
 }
 
+// תיקון קריטי: שנת הלימודים בפורטל הזה מאוחסנת כטווח חופשי כמו
+// "2026-2027" (לא מספר שנה בודד), והמשתמש/ת קובע/ת אותה ידנית
+// (למשל בעמוד "תוכנית עבודה"). לכן לעולם אסור לנחש ערך כמו
+// new Date().getFullYear() כברירת מחדל בכניסה — זה לא תואם את
+// הפורמט שבו שמורים בפועל הנתונים בשרת, וגורם לכך שלמרות שה-
+// school תקין, ה-year לא תואם לכלום ב-DB ולכן שום נתון לא נמצא.
+// אם השרת לא סיפק year ואין רמז ב-URL — שואלים את המשתמש/ת ישירות,
+// עם הצעת ברירת מחדל (אם יש כזו שמורה מהמכשיר הזה) שניתן לאשר/לשנות.
+function ensureSchoolYear(currentYear) {
+  if (currentYear) return currentYear;
+  const suggested = lsGet('portal_plan')?.year || '';
+  const val = window.prompt(
+    'לא הצלחנו לזהות אוטומטית את שנת הלימודים עבור המכשיר הזה.\nאנא הזן/י אותה באותו פורמט המוצג בפורטל (לדוגמה: 2026-2027):',
+    suggested
+  );
+  return (val || '').trim();
+}
+
 function parseJwt(token) {
   const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
   return JSON.parse(decodeURIComponent(
@@ -1045,9 +1063,15 @@ async function doPasswordLogin() {
     // מקור האמת הסופי הוא מה שהשרת מחזיר (data.school/data.year),
     // ולא הרמז המקומי. בדיקת בטיחות לפני כניסה למסך ריק בשקט.
     const resolvedSchool = data.school || hintSchool || '';
-    const resolvedYear   = data.year   || hintYear   || new Date().getFullYear().toString();
+    const resolvedYear   = ensureSchoolYear(data.year || hintYear || '');
     if (!resolvedSchool) {
       errEl.textContent = 'לא הצלחנו לזהות את בית הספר המשויך למשתמש/ת זה. פנה/י למנהל/ת המערכת.';
+      errEl.style.display = 'block';
+      if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
+      return;
+    }
+    if (!resolvedYear) {
+      errEl.textContent = 'לא ניתן להמשיך ללא הגדרת שנת לימודים.';
       errEl.style.display = 'block';
       if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
       return;
@@ -1120,9 +1144,9 @@ async function submitPasswordChange() {
     const loginData = await loginRes.json();
     if (loginData.ok) {
       const resolvedSchool = loginData.school || hintSchool || '';
-      const resolvedYear   = loginData.year   || hintYear   || new Date().getFullYear().toString();
-      if (!resolvedSchool) {
-        toast('⚠️ הסיסמא שונתה, אך לא זוהה בית ספר. פנה/י למנהל/ת המערכת.', 'warn');
+      const resolvedYear   = ensureSchoolYear(loginData.year || hintYear || '');
+      if (!resolvedSchool || !resolvedYear) {
+        toast('⚠️ הסיסמא שונתה, אך לא זוהו בית הספר/שנת הלימודים. פנה/י למנהל/ת המערכת.', 'warn');
         portalLogout();
         return;
       }
@@ -1238,12 +1262,19 @@ async function handleGoogleCredential(response) {
     // מקור האמת הסופי הוא תמיד מה שהשרת מחזיר; ה-hint מה-URL הוא רק
     // ברירת מחדל למקרה שהשרת לא סיפק ערך (למשל system_admin כללי).
     const resolvedSchool = data.school || hintSchool || '';
-    const resolvedYear   = data.year   || hintYear   || new Date().getFullYear().toString();
 
     // בדיקת בטיחות: אם לאחר הכל אין לנו בית ספר מזוהה — לא להמשיך
     // בשקט למסך ריק. עדיף להציג הודעה ברורה למשתמש/ת.
     if (!resolvedSchool && role !== 'system_admin') {
       showLoginError('לא הצלחנו לזהות את בית הספר המשויך למייל זה. פנה/י למנהל/ת המערכת כדי לוודא שהמייל משויך לבית ספר.');
+      return;
+    }
+
+    const resolvedYear = (role === 'system_admin')
+      ? (data.year || hintYear || '')
+      : ensureSchoolYear(data.year || hintYear || '');
+    if (!resolvedYear && role !== 'system_admin') {
+      showLoginError('לא ניתן להמשיך ללא הגדרת שנת לימודים.');
       return;
     }
 
