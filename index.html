@@ -648,6 +648,12 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <span class="ni-icon">🔑</span> הרשאות צוות
     </button>
 
+    <div class="nav-section-header">קישורים שונים</div>
+    <div id="customLinksList"></div>
+    <button class="nav-item" id="navAddLink" onclick="openAddLinkModal()">
+      <span class="ni-icon">➕</span> הוסף קישור
+    </button>
+
   </nav>
 
   <!-- CONTENT -->
@@ -701,6 +707,21 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <iframe id="teachersFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
         title="ניהול מורים"></iframe>
+    </div>
+
+    <div class="frame-wrapper" id="wrapCustomlink">
+      <div class="frame-bar bar-plan" style="display:flex;align-items:center;justify-content:space-between;">
+        <span><div class="fb-dot" id="fbCustomLink" style="display:inline-block"></div>
+          <span id="customLinkBarTitle">🔗 קישור</span></span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <a id="customLinkOpenNewTab" href="#" target="_blank" rel="noopener"
+            style="color:#fff;font-size:0.78rem;text-decoration:underline;cursor:pointer">פתח בלשונית חדשה ↗</a>
+          <button onclick="deleteCustomLink(window.__activeCustomLinkId)"
+            style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:6px;
+            padding:3px 10px;font-size:0.78rem;cursor:pointer;font-family:var(--font)">🗑 מחק קישור</button>
+        </div>
+      </div>
+      <iframe id="customLinkFrame" src="about:blank" title="קישור מותאם אישית"></iframe>
     </div>
 
   </div>
@@ -861,6 +882,20 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div id="adminResetPwdError" class="chpwd-err"></div>
     <button class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="document.getElementById('adminResetPwdModal').style.display='none'">ביטול</button>
+  </div>
+</div>
+
+<!-- CUSTOM LINK MODAL -->
+<div id="addLinkModal" class="chpwd-overlay" style="display:none;">
+  <div class="chpwd-card">
+    <div style="font-size:2rem;margin-bottom:10px;">🔗</div>
+    <div class="chpwd-title" id="addLinkTitle">הוספת קישור</div>
+    <div class="chpwd-sub">תן שם לקישור והדבק את הכתובת</div>
+    <input type="text" id="linkNameInput" class="chpwd-input" placeholder="שם הקישור (לדוגמה: לוח גאנט מחוזי)">
+    <input type="url" id="linkUrlInput" class="chpwd-input" placeholder="https://...">
+    <div id="linkModalError" class="chpwd-err"></div>
+    <button class="chpwd-btn" onclick="submitCustomLink()">שמור קישור</button>
+    <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="closeAddLinkModal()">ביטול</button>
   </div>
 </div>
 
@@ -1356,6 +1391,7 @@ function applyRoleUI(role, session) {
   }
 
   updateBadges(); updateStatus();
+  loadCustomLinks();
 }
 
 // Portal-level frames: gantt, mtss
@@ -1371,6 +1407,126 @@ function setNavVisible(sectionId, visible) {
   document.querySelectorAll(`#sideNav .nav-item[data-section="${sectionId}"]`).forEach(btn => {
     btn.style.display = visible ? '' : 'none';
   });
+}
+
+// ═══════════════════════════════════════════════════════
+//  CUSTOM LINKS (קישורים שונים)
+//  נשמרים בשרת (Cloudflare Worker + D1) דרך /api/data,
+//  מסונכרנים לפי בית ספר+שנה — זמינים מכל מחשב/דפדפן.
+// ═══════════════════════════════════════════════════════
+const CUSTOM_LINKS_TYPE = 'custom_links';
+window.__activeCustomLinkId = null;
+window.__customLinksCache = [];
+
+async function loadCustomLinks() {
+  try {
+    const school = PS.school || '';
+    const year   = PS.year   || '';
+    const res = await fetch(
+      `${WORKER_URL_AUTH}/api/data?type=${encodeURIComponent(CUSTOM_LINKS_TYPE)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+      { cache: 'no-store' }
+    );
+    const data = await res.json();
+    window.__customLinksCache = Array.isArray(data) ? data : (Array.isArray(data?.links) ? data.links : []);
+  } catch (e) {
+    console.error('loadCustomLinks failed', e);
+    window.__customLinksCache = [];
+  }
+  renderCustomLinks();
+}
+
+async function saveCustomLinksToServer(links) {
+  const school = PS.school || '';
+  const year   = PS.year   || '';
+  await fetch(`${WORKER_URL_AUTH}/api/data`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: CUSTOM_LINKS_TYPE, school, year, payload: links })
+  });
+}
+
+function renderCustomLinks() {
+  const host = document.getElementById('customLinksList');
+  if (!host) return;
+  const links = window.__customLinksCache || [];
+  host.innerHTML = links.map(l => `
+    <button class="nav-item" data-target="customlink" data-link-id="${esc(l.id)}" onclick="navClick(this)">
+      <span class="ni-icon">🔗</span> ${esc(l.name)}
+    </button>
+  `).join('');
+}
+
+function openAddLinkModal() {
+  document.getElementById('linkNameInput').value = '';
+  document.getElementById('linkUrlInput').value  = '';
+  const errEl = document.getElementById('linkModalError');
+  errEl.textContent = '';
+  errEl.style.display = 'none';
+  document.getElementById('addLinkModal').style.display = 'flex';
+  document.getElementById('linkNameInput').focus();
+}
+
+function closeAddLinkModal() {
+  document.getElementById('addLinkModal').style.display = 'none';
+}
+
+async function submitCustomLink() {
+  const name = document.getElementById('linkNameInput').value.trim();
+  let   url  = document.getElementById('linkUrlInput').value.trim();
+  const errEl = document.getElementById('linkModalError');
+  errEl.style.display = 'none';
+
+  if (!name) { errEl.textContent = 'יש להזין שם לקישור'; errEl.style.display='block'; return; }
+  if (!url)  { errEl.textContent = 'יש להזין כתובת קישור'; errEl.style.display='block'; return; }
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  try { new URL(url); } catch { errEl.textContent = 'כתובת לא תקינה'; errEl.style.display='block'; return; }
+
+  const links = window.__customLinksCache || [];
+  links.push({ id: 'lnk_' + Date.now() + '_' + Math.random().toString(36).slice(2,7), name, url });
+  window.__customLinksCache = links;
+  renderCustomLinks();
+  closeAddLinkModal();
+  toast('✅ הקישור נוסף', 'ok');
+
+  try {
+    await saveCustomLinksToServer(links);
+  } catch (e) {
+    console.error('saveCustomLinksToServer failed', e);
+    toast('⚠️ הקישור נוסף מקומית אך לא נשמר בשרת', 'err');
+  }
+}
+
+function openCustomLink(linkId) {
+  const link = (window.__customLinksCache || []).find(l => l.id === linkId);
+  if (!link) return;
+  window.__activeCustomLinkId = linkId;
+  document.getElementById('customLinkBarTitle').textContent = '🔗 ' + link.name;
+  document.getElementById('customLinkFrame').src = link.url;
+  document.getElementById('customLinkOpenNewTab').href = link.url;
+}
+
+async function deleteCustomLink(linkId) {
+  if (!linkId) return;
+  const link = (window.__customLinksCache || []).find(l => l.id === linkId);
+  if (!link) return;
+  if (!confirm(`למחוק את הקישור "${link.name}"?`)) return;
+
+  const updated = (window.__customLinksCache || []).filter(l => l.id !== linkId);
+  window.__customLinksCache = updated;
+  renderCustomLinks();
+  document.getElementById('customLinkFrame').src = 'about:blank';
+  window.__activeCustomLinkId = null;
+
+  const planBtn = document.querySelector('#sideNav .nav-item[data-target="plan"][data-section="s0"]');
+  if (planBtn) navClick(planBtn);
+  toast('🗑 הקישור נמחק', 'ok');
+
+  try {
+    await saveCustomLinksToServer(updated);
+  } catch (e) {
+    console.error('saveCustomLinksToServer failed', e);
+    toast('⚠️ המחיקה בוצעה מקומית אך לא נשמרה בשרת', 'err');
+  }
 }
 
 function applyStaffSectionPerms(perms) {
@@ -2227,7 +2383,7 @@ function navClick(btn) {
   document.querySelectorAll('#sideNav .nav-item').forEach(b =>
     b.classList.remove('active','active-teal','active-purple'));
 
-  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple', calendar:'active', teachers:'active active-teal' };
+  const clsMap = { plan:'active', gantt:'active active-teal', mtss:'active active-purple', calendar:'active', teachers:'active active-teal', customlink:'active' };
   (clsMap[target]||'active').split(' ').forEach(c => btn.classList.add(c));
 
   showFrame(target);
@@ -2241,11 +2397,12 @@ function navClick(btn) {
   if (target==='mtss'      && tab)     mtssWin.postMessage({ type:'switch-tab', tab }, '*');
   if (target==='mtss')                 mtssWin.postMessage({ type:'request-data' }, '*');
   if (target==='teachers')             _ensureTeachersLoaded();
+  if (target==='customlink' && btn.dataset.linkId) openCustomLink(btn.dataset.linkId);
 }
 
 function showFrame(name) {
   PS.activeFrame = name;
-  ['plan','gantt','mtss','calendar','teachers'].forEach(f => {
+  ['plan','gantt','mtss','calendar','teachers','customlink'].forEach(f => {
     const w = document.getElementById('wrap'+f.charAt(0).toUpperCase()+f.slice(1));
     if (w) w.classList.toggle('active', f===name);
   });
