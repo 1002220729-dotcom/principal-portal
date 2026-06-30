@@ -5275,12 +5275,8 @@ function exportSectionCSV() {
 
   const name = (SECTION_NAMES[id]||'נתונים').replace(/[\s"]/g,'_');
   const filename = `${name}_${school}_${year}.csv`;
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
-  showToast(`✅ ${filename} הורד בהצלחה`, 'success');
+  _downloadBlob(csv.replace(/^\uFEFF/, ''), filename, 'text/csv;charset=utf-8;');
+  if (window.self === window.top) showToast(`✅ ${filename} הורד בהצלחה`, 'success');
 }
 
 function exportInventoryCSV() {
@@ -5307,10 +5303,7 @@ function exportInventoryCSV() {
   const csv = '\uFEFF' + rows.map(r =>
     r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
   ).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `מלאי_${appData.schoolName || 'בית_ספר'}_${appData.year || ''}.csv`;
-  a.click();
+  _downloadBlob(csv.replace(/^\uFEFF/, ''), `מלאי_${appData.schoolName || 'בית_ספר'}_${appData.year || ''}.csv`, 'text/csv;charset=utf-8');
 }
 
 function printInventory() {
@@ -5972,10 +5965,7 @@ function exportBudgetCSV() {
   const csv = '\uFEFF' + rows.map(r =>
     r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
   ).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `תקציב_${appData.schoolName || 'בית_ספר'}_${appData.year || ''}.csv`;
-  a.click();
+  _downloadBlob(csv.replace(/^\uFEFF/, ''), `תקציב_${appData.schoolName || 'בית_ספר'}_${appData.year || ''}.csv`, 'text/csv;charset=utf-8');
 }
 
 function printBudget() {
@@ -6439,9 +6429,41 @@ function _buildExcelXml({ sheetName, headers, rows }) {
 function _downloadBlob(content, filename, mime) {
   const blob = new Blob(['\uFEFF' + content], { type: mime });
   const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+
+  // ניסיון הורדה רגיל
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.style.display = 'none';
+  document.body.appendChild(a);
+
+  try {
+    a.click();
+    a.remove();
+    // אם ההורדה נחסמת (למשל בתוך iframe עם sandbox ללא allow-downloads),
+    // הדפדפן לא זורק שגיאה סינכרונית — לכן פותחים גם חלון גיבוי לאחר השהיה קצרה
+    // רק אם הדף עדיין נמצא בתוך iframe (window !== window.top)
+    if (window.self !== window.top) {
+      setTimeout(() => {
+        let opened = null;
+        try { opened = window.open(url, '_blank'); } catch (e) { opened = null; }
+        if (opened) {
+          showToast(`אם הקובץ "${filename}" לא ירד אוטומטית, הוא נפתח בלשונית חדשה — אפשר לשמור משם (Ctrl+S)`, 'success');
+        } else {
+          showToast(`לא ניתן היה להוריד את "${filename}" אוטומטית. נא לאפשר חלונות קופצים (pop-ups) ולנסות שוב`, 'error');
+        }
+      }, 400);
+    } else {
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+  } catch (err) {
+    a.remove();
+    let opened = null;
+    try { opened = window.open(url, '_blank'); } catch (e) { opened = null; }
+    if (opened) {
+      showToast(`לא ניתן היה להוריד את "${filename}" ישירות — הקובץ נפתח בלשונית חדשה לשמירה ידנית`, 'error');
+    } else {
+      showToast(`לא ניתן היה להוריד או לפתוח את "${filename}". נא לאפשר חלונות קופצים (pop-ups) ולנסות שוב`, 'error');
+    }
+  }
 }
 
 // ─────────────────────────────────────────
@@ -6553,14 +6575,7 @@ function exportDefectsCSV() {
     lines.push(cols.join(','));
   });
 
-  const bom = '\uFEFF';
-  const blob = new Blob([bom + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = `ליקויים_${school}_${year}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  _downloadBlob(lines.join('\n'), `ליקויים_${school}_${year}.csv`, 'text/csv;charset=utf-8;');
 }
 
 // expose to global scope for inline handlers (required with type="module")
