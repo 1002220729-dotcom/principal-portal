@@ -611,14 +611,14 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 
     <div class="nav-section-header">מיפוי MTSS</div>
     <button class="nav-item" data-target="mtss" data-tab="learning" data-perm="mtss" onclick="navClick(this)">
-      <span class="ni-icon">📚</span> מיפוי סביבות למידה
+      <span class="ni-icon">📚</span> סביבות למידה
       <span class="ni-dot" id="ndMtss"></span>
     </button>
     <button class="nav-item" data-target="mtss" data-tab="support" data-perm="mtss" onclick="navClick(this)">
-      <span class="ni-icon">🤝</span> מיפוי רשתות תמיכה
+      <span class="ni-icon">🤝</span> מיפוי משאבים
     </button>
     <button class="nav-item" data-target="mtss" data-tab="staffSupport" data-perm="mtss" onclick="navClick(this)">
-      <span class="ni-icon">👩‍🏫</span> מיפוי רשתות תמיכה למורים
+      <span class="ni-icon">👩‍🏫</span> משאבים למורים
     </button>
 
     <div class="nav-section-header">אוכלוסיות מיוחדות</div>
@@ -2197,6 +2197,8 @@ function triggerSave() {
   document.getElementById('planFrame')?.contentWindow.postMessage({ type:'trigger-save' }, '*');
   document.getElementById('ganttFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
   document.getElementById('mtssFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
+  document.getElementById('calendarFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
+  document.getElementById('teachersFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
   toast('💾 שולח בקשות שמירה...', '', 1500);
 }
 
@@ -2416,6 +2418,7 @@ window.addEventListener('message', async (e) => {
           '| arena rows:', _dbgArenas,
           '| quarters:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0),
           '| ss fields with data:', _dbgSsKeys,
+          '| defects:', (e.data.payload?.defects||[]).length,
           '| staff:', (e.data.payload?.staffRows||[]).length);
         await dbSave('plan', e.data.payload);
         planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');

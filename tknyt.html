@@ -227,6 +227,18 @@
     #budgetChartsRow { display: none !important; }
     #sbudget .arena-panel { display: block !important; }
   }
+  @media print {
+    #sdefects .btn, #sdefects .add-row-btn,
+    #sdefects .btn-icon, #defectsToolbar { display: none !important; }
+  }
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.4); }
+    50%       { box-shadow: 0 0 0 8px rgba(192,57,43,0); }
+  }
+  .dash-card.critical-active {
+    animation: pulse-red 2s ease-in-out infinite;
+    border-inline-start-color: var(--accent) !important;
+  }
 
   /* ===== DASHBOARD ===== */
   .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
@@ -646,6 +658,12 @@
     </button>
     <button class="nav-item" data-section="sbudget" onclick="switchSection('sbudget', this)">
       <span class="icon">💰</span> תקציב
+    </button>
+    <button class="nav-item" data-section="sdefects" onclick="switchSection('sdefects', this)" style="position:relative">
+      <span class="icon">🔧</span> ליקויים שוטפים
+      <span id="defectCriticalBadge" style="display:none;position:absolute;left:8px;top:50%;transform:translateY(-50%);
+        background:var(--accent);color:#fff;font-size:0.6rem;font-weight:700;
+        border-radius:10px;padding:1px 6px;min-width:16px;text-align:center;line-height:1.6">0</span>
     </button>
   </nav>
 
@@ -1524,6 +1542,96 @@
     </div>
   </div>
 
+  <!-- ========== SECTION: ליקויים שוטפים ========== -->
+  <div id="sdefects" class="section">
+    <div class="section-title"><span class="icon">🔧</span> ליקויים שוטפים</div>
+
+    <!-- Summary cards -->
+    <div class="dashboard-grid">
+      <div class="dash-card" style="border-inline-start:4px solid var(--info)">
+        <div class="dash-label">ליקויים פתוחים</div>
+        <div class="dash-value" id="defSumOpen" style="color:var(--info)">0</div>
+      </div>
+      <div class="dash-card" id="defSumCriticalCard" style="border-inline-start:4px solid var(--accent)">
+        <div class="dash-label">קריטי / דחוף ביותר</div>
+        <div class="dash-value" id="defSumCritical" style="color:var(--accent)">0</div>
+      </div>
+      <div class="dash-card" style="border-inline-start:4px solid var(--warning)">
+        <div class="dash-label">בטיפול</div>
+        <div class="dash-value" id="defSumInProgress" style="color:var(--warning)">0</div>
+      </div>
+      <div class="dash-card" style="border-inline-start:4px solid var(--success)">
+        <div class="dash-label">טופלו השנה</div>
+        <div class="dash-value" id="defSumDone" style="color:var(--success)">0</div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="card" id="defectsToolbar" style="padding:12px 20px;margin-bottom:12px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input id="defSearch" type="text" placeholder="🔍 חיפוש חופשי..."
+          style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem"
+          oninput="filterDefects()">
+        <select id="defFilterStatus" onchange="filterDefects()"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+          <option value="">כל הסטטוסים</option>
+          <option value="ממתין">ממתין</option>
+          <option value="בטיפול">בטיפול</option>
+          <option value="הושלם">הושלם</option>
+          <option value="נדחה">נדחה</option>
+        </select>
+        <select id="defFilterUrgency" onchange="filterDefects()"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+          <option value="">כל הדחיפויות</option>
+          <option value="קריטי">🔴 קריטי</option>
+          <option value="גבוהה">🟠 גבוהה</option>
+          <option value="רגילה">🟡 רגילה</option>
+          <option value="נמוכה">🟢 נמוכה</option>
+        </select>
+        <select id="defFilterType" onchange="filterDefects()"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+          <option value="">כל הסוגים</option>
+          <option value="חשמל">חשמל</option>
+          <option value="אינסטלציה">אינסטלציה</option>
+          <option value="ריהוט">ריהוט</option>
+          <option value="מבנה / קיר / תקרה">מבנה / קיר / תקרה</option>
+          <option value="בטיחות">בטיחות</option>
+          <option value="ניקיון">ניקיון</option>
+          <option value="ציוד דיגיטלי">ציוד דיגיטלי</option>
+          <option value="אחר">אחר</option>
+        </select>
+        <button class="btn btn-save" style="background:var(--primary);color:#fff" onclick="addDefectRow()">➕ הוסף ליקוי</button>
+        <button class="btn btn-outline" style="background:var(--primary);color:#fff" onclick="exportDefectsCSV()">📥 ייצוא CSV</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="card">
+      <div class="table-wrap">
+        <table class="data-table" id="defectsTable">
+          <thead>
+            <tr>
+              <th style="width:42px">#</th>
+              <th style="width:105px">תאריך דיווח</th>
+              <th style="min-width:110px">מיקום</th>
+              <th style="min-width:130px">סוג ליקוי</th>
+              <th style="min-width:150px">תיאור הליקוי</th>
+              <th style="min-width:110px">דחיפות</th>
+              <th style="min-width:120px">גורם מטפל</th>
+              <th style="min-width:100px">סטטוס</th>
+              <th style="width:105px">תאריך יעד</th>
+              <th style="width:90px">עלות (₪)</th>
+              <th style="min-width:140px">הערות טיפול</th>
+              <th style="width:44px"></th>
+            </tr>
+          </thead>
+          <tbody id="defectsBody"></tbody>
+        </table>
+      </div>
+      <button class="add-row-btn" onclick="addDefectRow()">➕ הוסף ליקוי</button>
+    </div>
+  </div>
+
   </main>
 </div>
 
@@ -1724,7 +1832,8 @@ function buildDefaultAppData() {
     budget: {
       allocations: [],
       transactions: []
-    }
+    },
+    defects: []
   };
 }
 
@@ -1843,6 +1952,8 @@ function migrateContentIfNeeded(payload) {
   if (!Array.isArray(payload.budget.allocations))  payload.budget.allocations  = [];
   if (!Array.isArray(payload.budget.transactions)) payload.budget.transactions = [];
 
+  if (!Array.isArray(payload.defects)) payload.defects = [];
+
   const defaultSS = { strengths:'', challenges:'', opportunities:'', attendance:'', exams:'', matric:'', parentSat:'', notes:'' };
   if (!payload.statusSnapshot || typeof payload.statusSnapshot !== 'object') {
     payload.statusSnapshot = { ...defaultSS };
@@ -1941,6 +2052,11 @@ function migrateContentIfNeeded(payload) {
 function switchSection(id, el) {
   if (_domReady) {
     collectFormDataNoMeta();
+    // שמירה מיידית במעבר לשונית — מבטלת המתנה ל-debounce
+    if (isDirty) {
+      clearTimeout(_autoSaveTimer);
+      saveToSystem();
+    }
   }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('#sideNav .nav-item').forEach(n => n.classList.remove('active'));
@@ -1969,11 +2085,24 @@ function switchQuarter(qId, el) {
 }
 
 // =============================================================
-//  DIRTY STATE
+//  DIRTY STATE + AUTOSAVE
 // =============================================================
+let _autoSaveTimer = null;
+const AUTOSAVE_DELAY_MS = 2500; // זמן המתנה אחרי הקלדה אחרונה לפני שמירה אוטומטית
+
 function markDirty() {
   isDirty = true;
   document.getElementById('saveStatus').textContent = '● שינויים לא שמורים';
+  scheduleAutoSave();
+}
+
+function scheduleAutoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(() => {
+    if (isDirty && isDOMSafeToCollect()) {
+      saveToSystem();
+    }
+  }, AUTOSAVE_DELAY_MS);
 }
 
 function toggleHanamSection() {
@@ -2054,6 +2183,7 @@ function collectFormDataBase() {
   collectScheduleFromDOM();
   collectInventoryFromDOM();
   collectBudgetFromDOM();
+  collectDefectsFromDOM();
 
   if (!appData.year)       appData.year       = window.__portalYear   || '';
   if (!appData.schoolName) appData.schoolName = window.__portalSchool || '';
@@ -2232,6 +2362,7 @@ function saveRaw() {
 }
 
 function saveToSystem() {
+  clearTimeout(_autoSaveTimer); // שמירה ידנית מבטלת טיימר אוטומטי ממתין
   if (!isDOMSafeToCollect()) {
     showToast('⚠️ לא ניתן לשמור – הממשק לא נטען במלואו', 'error');
     return;
@@ -2325,7 +2456,8 @@ function _applyLoadedData(payload) {
     (payload.hoursRows         || []).length > 0 ||
     (payload.staffRows         || []).length > 0 ||
     (payload.managementRoutines|| []).length > 0 ||
-    (payload.inventory         || []).length > 0
+    (payload.inventory         || []).length > 0 ||
+    (payload.defects           || []).length > 0
   );
   if (_loadAppliedOnce && !incomingHasData) {
     console.warn('[tknyt] _applyLoadedData: blocked empty payload (data already loaded)');
@@ -2423,6 +2555,7 @@ function _applyLoadedData(payload) {
   updateHoursSummary();
   renderInventory();
   renderBudget();
+  renderDefects();
 
   const displaySchool = appData.schoolName || window.__portalSchool || '';
   const displayYear   = appData.year       || window.__portalYear   || '';
@@ -2564,6 +2697,7 @@ window.addEventListener('message', (e) => {
       '| arenas:', Object.values(_p.arenas||{}).reduce((s,a)=>s+(a.rows||[]).length,0),
       '| quarters:', Object.values(_p.quarters||{}).reduce((s,q)=>s+(q.rows||[]).length,0),
       '| hours:', (_p.hoursRows||[]).length, '| staff:', (_p.staffRows||[]).length,
+      '| defects:', (_p.defects||[]).length,
       '| ss fields with data:', _ssKeys,
       '| _loadAppliedOnce:', _loadAppliedOnce, '| isDirty:', isDirty);
     if (_domReady) {
@@ -2646,6 +2780,7 @@ function buildStaticUI() {
   renderHanamTherapyTable();
   renderInventory();
   renderBudget();
+  renderDefects();
 }
 
 // =============================================================
@@ -5500,6 +5635,14 @@ document.addEventListener('DOMContentLoaded', () => {
   buildStaticUI();
   _domReady = true;
 
+  // שמירה אוטומטית לפני סגירה/רענון של הדף — מבטיחה שלא יאבדו שינויים אחרונים
+  window.addEventListener('beforeunload', () => {
+    if (isDirty && isDOMSafeToCollect()) {
+      collectFormDataNoMeta();
+      saveToSystem();
+    }
+  });
+
   // v35: wire up level change listener + initial render of background fields
   const levelEl = document.getElementById('gi_level');
   if (levelEl) levelEl.addEventListener('change', updateBackgroundDataFields);
@@ -5517,6 +5660,234 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('schoolLabel').textContent = 'מצב פיתוח';
   }
 });
+
+// =============================================================
+//  DEFECTS (ליקויים שוטפים)
+// =============================================================
+const DEFECT_TYPES    = ['חשמל','אינסטלציה','ריהוט','מבנה / קיר / תקרה','בטיחות','ניקיון','ציוד דיגיטלי','אחר'];
+const DEFECT_URGENCY  = ['קריטי','גבוהה','רגילה','נמוכה'];
+const DEFECT_HANDLER  = ['אב הבית','קבלן חיצוני','רשות מקומית','מנהל','אחר'];
+const DEFECT_STATUS   = ['ממתין','בטיפול','הושלם','נדחה'];
+const URGENCY_ICONS   = { 'קריטי':'🔴','גבוהה':'🟠','רגילה':'🟡','נמוכה':'🟢' };
+
+function _todayISO() {
+  return new Date().toISOString().slice(0,10);
+}
+
+function renderDefects() {
+  const tbody = document.getElementById('defectsBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (appData.defects || []).forEach((r, idx) => _appendDefectRow(r, idx + 1));
+  updateDefectsSummary();
+}
+
+function _appendDefectRow(r, rowNum) {
+  r.id = r.id || newId();
+  const tbody = document.getElementById('defectsBody');
+  if (!tbody) return;
+
+  const isCriticalOpen = r.urgency === 'קריטי' && r.status !== 'הושלם';
+  const tr = document.createElement('tr');
+  tr.dataset.rid = r.id;
+  if (isCriticalOpen) {
+    tr.style.background = '#fdf2f2';
+    tr.style.borderRight = '4px solid var(--accent)';
+  }
+
+  const typeOpts    = DEFECT_TYPES.map(s   => `<option${r.type    === s ? ' selected':''} value="${esc(s)}">${s}</option>`).join('');
+  const urgencyOpts = DEFECT_URGENCY.map(s => `<option${r.urgency === s ? ' selected':''} value="${esc(s)}">${URGENCY_ICONS[s]||''} ${s}</option>`).join('');
+  const handlerOpts = DEFECT_HANDLER.map(s => `<option${r.handler === s ? ' selected':''} value="${esc(s)}">${s}</option>`).join('');
+  const statusOpts  = DEFECT_STATUS.map(s  => `<option${r.status  === s ? ' selected':''} value="${esc(s)}">${s}</option>`).join('');
+
+  const urgencyCell = isCriticalOpen
+    ? `<select class="df_urgency" onchange="markDirty();_onDefectUrgencyChange(this)" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem">
+        <option value="">בחר</option>${urgencyOpts}</select>
+       <span class="status-badge" style="background:#fee2e2;color:#991b1b;font-size:0.7rem;margin-right:4px">🚨 קריטי</span>`
+    : `<select class="df_urgency" onchange="markDirty();_onDefectUrgencyChange(this)" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem">
+        <option value="">בחר</option>${urgencyOpts}</select>`;
+
+  tr.innerHTML = `
+    <td style="text-align:center;color:var(--text-muted);font-size:0.8rem">${rowNum}</td>
+    <td><input class="df_date" type="date" value="${esc(r.date||'')}" oninput="markDirty()" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%"></td>
+    <td><input class="df_location" value="${esc(r.location||'')}" placeholder="חדר / חלל / מתקן" oninput="markDirty()" style="width:100%;border:none;background:transparent;font-family:var(--font);font-size:0.8rem"></td>
+    <td><select class="df_type" onchange="markDirty()" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%">
+      <option value="">בחר סוג</option>${typeOpts}</select></td>
+    <td><textarea class="df_desc" rows="1" placeholder="תיאור קצר..." oninput="markDirty()" style="width:100%;border:none;background:transparent;font-family:var(--font);font-size:0.8rem;resize:vertical">${esc(r.desc||'')}</textarea></td>
+    <td>${urgencyCell}</td>
+    <td><select class="df_handler" onchange="markDirty()" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%">
+      <option value="">בחר</option>${handlerOpts}</select></td>
+    <td><select class="df_status" onchange="markDirty();_onDefectStatusChange(this)" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%">
+      <option value="">בחר</option>${statusOpts}</select></td>
+    <td><input class="df_due" type="date" value="${esc(r.due||'')}" oninput="markDirty()" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%"></td>
+    <td><input class="df_cost" type="number" min="0" value="${esc(r.cost||'')}" placeholder="0" oninput="markDirty()" style="width:70px;border:none;background:transparent;font-family:var(--font);font-size:0.8rem"></td>
+    <td><textarea class="df_notes" rows="1" placeholder="הערות טיפול..." oninput="markDirty()" style="width:100%;border:none;background:transparent;font-family:var(--font);font-size:0.8rem;resize:vertical">${esc(r.notes||'')}</textarea></td>
+    <td><button class="btn-icon" onclick="deleteDefectRow('${r.id}')">🗑</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function _onDefectUrgencyChange(sel) {
+  const tr = sel.closest('tr');
+  if (!tr) return;
+  const isCrit = sel.value === 'קריטי';
+  const statusSel = tr.querySelector('.df_status');
+  const isDone = statusSel && statusSel.value === 'הושלם';
+  if (isCrit && !isDone) {
+    tr.style.background = '#fdf2f2';
+    tr.style.borderRight = '4px solid var(--accent)';
+    let badge = tr.querySelector('.df-crit-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'status-badge df-crit-badge';
+      badge.style.cssText = 'background:#fee2e2;color:#991b1b;font-size:0.7rem;margin-right:4px';
+      badge.textContent = '🚨 קריטי';
+      sel.parentNode.appendChild(badge);
+    }
+  } else {
+    tr.style.background = '';
+    tr.style.borderRight = '';
+    const badge = tr.querySelector('.df-crit-badge');
+    if (badge) badge.remove();
+  }
+  updateDefectsSummary();
+}
+
+function _onDefectStatusChange(sel) {
+  const tr = sel.closest('tr');
+  if (!tr) return;
+  const urgSel = tr.querySelector('.df_urgency');
+  const isCrit = urgSel && urgSel.value === 'קריטי';
+  const isDone = sel.value === 'הושלם';
+  if (isCrit && !isDone) {
+    tr.style.background = '#fdf2f2';
+    tr.style.borderRight = '4px solid var(--accent)';
+  } else {
+    tr.style.background = '';
+    tr.style.borderRight = '';
+    const badge = tr.querySelector('.df-crit-badge');
+    if (badge) badge.remove();
+  }
+  updateDefectsSummary();
+}
+
+function addDefectRow() {
+  if (!appData.defects) appData.defects = [];
+  const r = { id: newId(), date: _todayISO(), location:'', type:'', desc:'', urgency:'', handler:'', status:'ממתין', due:'', cost:'', notes:'' };
+  appData.defects.push(r);
+  _appendDefectRow(r, appData.defects.length);
+  updateDefectsSummary();
+  markDirty();
+}
+
+function deleteDefectRow(rid) {
+  if (!confirm('למחוק את הליקוי?')) return;
+  appData.defects = (appData.defects || []).filter(r => r.id !== rid);
+  const tr = document.querySelector(`#defectsBody tr[data-rid="${rid}"]`);
+  if (tr) tr.remove();
+  // Renumber
+  document.querySelectorAll('#defectsBody tr').forEach((row, i) => {
+    const firstTd = row.querySelector('td');
+    if (firstTd) firstTd.textContent = i + 1;
+  });
+  updateDefectsSummary();
+  markDirty();
+}
+
+function collectDefectsFromDOM() {
+  const rows = document.querySelectorAll('#defectsBody tr[data-rid]');
+  appData.defects = Array.from(rows).map(tr => ({
+    id:       tr.dataset.rid,
+    date:     tr.querySelector('.df_date')?.value     || '',
+    location: tr.querySelector('.df_location')?.value || '',
+    type:     tr.querySelector('.df_type')?.value     || '',
+    desc:     tr.querySelector('.df_desc')?.value     || '',
+    urgency:  tr.querySelector('.df_urgency')?.value  || '',
+    handler:  tr.querySelector('.df_handler')?.value  || '',
+    status:   tr.querySelector('.df_status')?.value   || '',
+    due:      tr.querySelector('.df_due')?.value      || '',
+    cost:     tr.querySelector('.df_cost')?.value     || '',
+    notes:    tr.querySelector('.df_notes')?.value    || '',
+  }));
+}
+
+function updateDefectsSummary() {
+  collectDefectsFromDOM();
+  const rows = appData.defects || [];
+  const open       = rows.filter(r => r.status !== 'הושלם' && r.status !== 'נדחה').length;
+  const critical   = rows.filter(r => r.urgency === 'קריטי' && r.status !== 'הושלם').length;
+  const inProgress = rows.filter(r => r.status === 'בטיפול').length;
+  const done       = rows.filter(r => r.status === 'הושלם').length;
+
+  const elOpen = document.getElementById('defSumOpen');
+  const elCrit = document.getElementById('defSumCritical');
+  const elProg = document.getElementById('defSumInProgress');
+  const elDone = document.getElementById('defSumDone');
+  if (elOpen) elOpen.textContent = open;
+  if (elCrit) elCrit.textContent = critical;
+  if (elProg) elProg.textContent = inProgress;
+  if (elDone) elDone.textContent = done;
+
+  const critCard = document.getElementById('defSumCriticalCard');
+  if (critCard) {
+    if (critical > 0) critCard.classList.add('critical-active');
+    else              critCard.classList.remove('critical-active');
+  }
+
+  const badge = document.getElementById('defectCriticalBadge');
+  if (badge) {
+    badge.textContent = critical;
+    badge.style.display = critical > 0 ? '' : 'none';
+  }
+}
+
+function filterDefects() {
+  const search  = (document.getElementById('defSearch')?.value  || '').trim().toLowerCase();
+  const status  = (document.getElementById('defFilterStatus')?.value  || '');
+  const urgency = (document.getElementById('defFilterUrgency')?.value || '');
+  const type    = (document.getElementById('defFilterType')?.value    || '');
+
+  document.querySelectorAll('#defectsBody tr[data-rid]').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    const rowStatus  = tr.querySelector('.df_status')?.value  || '';
+    const rowUrgency = tr.querySelector('.df_urgency')?.value || '';
+    const rowType    = tr.querySelector('.df_type')?.value    || '';
+
+    const match =
+      (!search  || text.includes(search)) &&
+      (!status  || rowStatus  === status)  &&
+      (!urgency || rowUrgency === urgency) &&
+      (!type    || rowType    === type);
+
+    tr.style.display = match ? '' : 'none';
+  });
+}
+
+function exportDefectsCSV() {
+  collectDefectsFromDOM();
+  const school = appData.schoolName || window.__portalSchool || 'בית_ספר';
+  const year   = appData.year       || window.__portalYear   || '';
+  const rows   = appData.defects || [];
+
+  const headers = ['#','תאריך דיווח','מיקום','סוג ליקוי','תיאור','דחיפות','גורם מטפל','סטטוס','תאריך יעד','עלות (₪)','הערות'];
+  const lines = [headers.join(',')];
+  rows.forEach((r, i) => {
+    const cols = [
+      i+1, r.date, r.location, r.type, r.desc,
+      r.urgency, r.handler, r.status, r.due, r.cost, r.notes
+    ].map(v => `"${String(v||'').replace(/"/g,'""')}"`);
+    lines.push(cols.join(','));
+  });
+
+  const bom = '\uFEFF';
+  const blob = new Blob([bom + lines.join('\n')], { type:'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `ליקויים_${school}_${year}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // expose to global scope for inline handlers (required with type="module")
 Object.assign(window, {
@@ -5553,6 +5924,10 @@ Object.assign(window, {
   filterBudgetTx, exportBudgetCSV, printBudget,
   refreshBudgetTotals, refreshAllocActuals,
   updateBudgetAllocDropdown, refreshBudgetComputedViews,
+  // Defects module
+  addDefectRow, deleteDefectRow, renderDefects,
+  collectDefectsFromDOM, updateDefectsSummary,
+  filterDefects, exportDefectsCSV,
 });
 </script>
 </body>
