@@ -926,6 +926,36 @@ const lsSet = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catc
   // lsMerge: עדכון חלקי ל-localStorage בלי לדרוס שדות אחרים
   const lsMerge = (k, partial) => { try { const cur = lsGet(k) || {}; lsSet(k, {...cur, ...partial}); } catch{} };
 
+// ═══════════════════════════════════════════════════════
+//  SCHOOL/YEAR RESOLUTION (cross-device safe)
+//  בעיה שתוקנה: בעבר חלק מהקריאות לכניסה השתמשו ב-localStorage
+//  כ-fallback לזיהוי בית הספר/שנה. localStorage הוא פר-מכשיר/דפדפן,
+//  ולכן מכשיר חדש (כגון טלפון) שמעולם לא ביקר באתר מקבל ערך ריק —
+//  מה שגרם לנתונים (תוכנית/MTSS/יומן/מורים) לא להיטען שם, גם אחרי
+//  כניסה מוצלחת. הפתרון: ה-school/year היחידים שנשלחים בבקשת
+//  ההתחברות הם אלו שמגיעים מפרמטרי ה-URL (אם קיימים) — לא מ-
+//  localStorage. אחרי שהשרת מחזיר תשובה, הוא (data.school/data.year)
+//  הוא תמיד מקור האמת הסופי, ולא הניחוש המקומי.
+function getUrlSchoolYearHint() {
+  const usp = new URLSearchParams(location.search);
+  return { school: usp.get('school') || '', year: usp.get('year') || '' };
+}
+
+// אחרי שמתקבל session תקין (מכל נתיב כניסה): שומר את ה-school/year
+// הסופיים שהשרת קבע גם ב-localStorage (לנוחות חזרה למכשיר הזה) וגם
+// בכתובת ה-URL עצמה (כדי שניתן יהיה לסמן/לשתף קישור תקין שכבר
+// "יודע" את בית הספר, ולא להישען שוב על localStorage בעתיד).
+function persistResolvedSchoolYear(school, year) {
+  if (!school && !year) return;
+  lsMerge('portal_plan', { schoolName: school || undefined, year: year || undefined });
+  try {
+    const url = new URL(location.href);
+    if (school) url.searchParams.set('school', school);
+    if (year)   url.searchParams.set('year', year);
+    history.replaceState(null, '', url.toString());
+  } catch(_) {}
+}
+
 function parseJwt(token) {
   const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
   return JSON.parse(decodeURIComponent(
@@ -984,15 +1014,15 @@ async function doPasswordLogin() {
   const btn = document.querySelector('.login-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'מתחבר...'; }
 
-  const usp    = new URLSearchParams(location.search);
-  const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
-  const year   = usp.get('year')   || lsGet('portal_plan')?.year || new Date().getFullYear().toString();
+  // רק רמז מה-URL (אם קיים) — לא מ-localStorage, ראו הסבר ב-
+  // getUrlSchoolYearHint/persistResolvedSchoolYear למעלה.
+  const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
 
   try {
     const res  = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, school, year }),
+      body: JSON.stringify({ username, password, school: hintSchool, year: hintYear }),
     });
     const data = await res.json();
 
@@ -1012,12 +1042,26 @@ async function doPasswordLogin() {
       return;
     }
 
+    // מקור האמת הסופי הוא מה שהשרת מחזיר (data.school/data.year),
+    // ולא הרמז המקומי. בדיקת בטיחות לפני כניסה למסך ריק בשקט.
+    const resolvedSchool = data.school || hintSchool || '';
+    const resolvedYear   = data.year   || hintYear   || new Date().getFullYear().toString();
+    if (!resolvedSchool) {
+      errEl.textContent = 'לא הצלחנו לזהות את בית הספר המשויך למשתמש/ת זה. פנה/י למנהל/ת המערכת.';
+      errEl.style.display = 'block';
+      if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
+      return;
+    }
+
     const sessionData = {
       ...data,
       portalRole: 'staff_member',
       loginMethod: 'password',
+      school: resolvedSchool,
+      year:   resolvedYear,
     };
     setPortalSession(sessionData);
+    persistResolvedSchoolYear(resolvedSchool, resolvedYear);
     applyRoleUI('staff_member', sessionData);
 
   } catch(e) {
@@ -1067,18 +1111,24 @@ async function submitPasswordChange() {
     }
     document.getElementById('changePasswordModal').style.display = 'none';
     // Now complete login — re-fetch role with new session
-    const usp    = new URLSearchParams(location.search);
-    const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
-    const year   = usp.get('year')   || lsGet('portal_plan')?.year || new Date().getFullYear().toString();
+    const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
     const loginRes = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: _staffLoginUsername, password: new1, school, year }),
+      body: JSON.stringify({ username: _staffLoginUsername, password: new1, school: hintSchool, year: hintYear }),
     });
     const loginData = await loginRes.json();
     if (loginData.ok) {
-      const sessionData = { ...loginData, portalRole:'staff_member', loginMethod:'password' };
+      const resolvedSchool = loginData.school || hintSchool || '';
+      const resolvedYear   = loginData.year   || hintYear   || new Date().getFullYear().toString();
+      if (!resolvedSchool) {
+        toast('⚠️ הסיסמא שונתה, אך לא זוהה בית ספר. פנה/י למנהל/ת המערכת.', 'warn');
+        portalLogout();
+        return;
+      }
+      const sessionData = { ...loginData, portalRole:'staff_member', loginMethod:'password', school: resolvedSchool, year: resolvedYear };
       setPortalSession(sessionData);
+      persistResolvedSchoolYear(resolvedSchool, resolvedYear);
       applyRoleUI('staff_member', sessionData);
     } else {
       toast('✅ הסיסמא שונתה. יש להתחבר מחדש.', 'ok');
@@ -1159,14 +1209,13 @@ async function handleGoogleCredential(response) {
   const errEl   = document.getElementById('loginError');
   errEl.style.display = 'none';
 
-  // Get school+year from URL params or localStorage
-  const usp    = new URLSearchParams(location.search);
-  const school = usp.get('school') || lsGet('portal_plan')?.schoolName || '';
-  const year   = usp.get('year')   || lsGet('portal_plan')?.year       || new Date().getFullYear().toString();
+  // school/year הם רק "רמז" מה-URL (אם קיים) — לעולם לא מ-localStorage,
+  // כי localStorage הוא פר-מכשיר ולא קיים במכשיר חדש (ראו הסבר למעלה).
+  const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
 
   try {
     const res  = await fetch(
-      `${WORKER_URL_AUTH}/api/auth/role?email=${encodeURIComponent(email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+      `${WORKER_URL_AUTH}/api/auth/role?email=${encodeURIComponent(email)}&school=${encodeURIComponent(hintSchool)}&year=${encodeURIComponent(hintYear)}`,
       { cache: 'no-store' }
     );
     const data = await res.json();
@@ -1186,16 +1235,29 @@ async function handleGoogleCredential(response) {
       return;
     }
 
+    // מקור האמת הסופי הוא תמיד מה שהשרת מחזיר; ה-hint מה-URL הוא רק
+    // ברירת מחדל למקרה שהשרת לא סיפק ערך (למשל system_admin כללי).
+    const resolvedSchool = data.school || hintSchool || '';
+    const resolvedYear   = data.year   || hintYear   || new Date().getFullYear().toString();
+
+    // בדיקת בטיחות: אם לאחר הכל אין לנו בית ספר מזוהה — לא להמשיך
+    // בשקט למסך ריק. עדיף להציג הודעה ברורה למשתמש/ת.
+    if (!resolvedSchool && role !== 'system_admin') {
+      showLoginError('לא הצלחנו לזהות את בית הספר המשויך למייל זה. פנה/י למנהל/ת המערכת כדי לוודא שהמייל משויך לבית ספר.');
+      return;
+    }
+
     const sessionData = {
       ...data,
       portalRole: data.role,
       email,
       name:    payload.name  || '',
       picture: payload.picture || '',
-      school:  data.school   || school,
-      year:    data.year     || year,
+      school:  resolvedSchool,
+      year:    resolvedYear,
     };
     setPortalSession(sessionData);
+    persistResolvedSchoolYear(resolvedSchool, resolvedYear);
     applyRoleUI(data.role, sessionData);
 
   } catch(e) {
