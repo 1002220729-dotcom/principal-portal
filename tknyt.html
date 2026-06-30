@@ -592,6 +592,71 @@
     border: 1px solid rgba(255,255,255,0.3);
   }
   body.readonly-mode .add-row-btn { display: none !important; }
+
+@media print {
+  #saveBar, #sideNav, .add-row-btn, .btn-icon, .btn,
+  .print-toolbar, .arena-tabs, .quarter-tabs,
+  #devTools, #toast { display: none !important; }
+
+  .section { display: none !important; }
+  .section.active { display: block !important; }
+
+  body { background: #fff !important; font-size: 11pt; color: #000 !important; }
+  #appShell { display: block !important; padding: 0 !important; }
+  #mainContent { padding: 0 !important; }
+
+  input, select, textarea {
+    border: none !important; background: transparent !important;
+    box-shadow: none !important; padding: 2px 0 !important;
+    -webkit-appearance: none !important; appearance: none !important;
+    color: #000 !important;
+  }
+  textarea { resize: none !important; overflow: hidden !important; }
+
+  .print-header {
+    display: flex !important;
+    justify-content: space-between; align-items: flex-start;
+    border-bottom: 2.5px solid #1a3a5c;
+    padding-bottom: 8pt; margin-bottom: 16pt;
+  }
+  .print-header .print-title { font-size: 17pt; font-weight: 700; color: #1a3a5c; }
+  .print-header .print-meta  { font-size: 9pt; color: #555; text-align: left; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 12pt; }
+  thead { display: table-header-group !important; }
+  tr    { page-break-inside: avoid !important; }
+  th {
+    background: #1a3a5c !important; color: #fff !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    padding: 6pt 8pt; border: 1px solid #1a3a5c !important;
+  }
+  td { padding: 5pt 8pt; border: 1px solid #ddd !important; color: #000 !important; }
+  tr:nth-child(even) td {
+    background: #f4f6f9 !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .card, .dash-card {
+    box-shadow: none !important; border: 1px solid #ccc !important;
+    margin-bottom: 12pt !important; page-break-inside: avoid !important;
+  }
+  tr.defect-critical td {
+    background: #fdf2f2 !important;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+}
+
+.print-header { display: none; }
+.print-toolbar {
+  display: flex; gap: 8px; margin-bottom: 16px; justify-content: flex-end;
+}
+.btn-outline-print {
+  padding: 6px 14px; border: 1.5px solid var(--primary-light);
+  border-radius: var(--radius); background: var(--primary-soft);
+  color: var(--primary); font-family: var(--font);
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.btn-outline-print:hover { background: var(--primary-light); color: #fff; }
+@media print { .print-toolbar { display: none !important; } }
 </style>
 </head>
 <body>
@@ -673,6 +738,18 @@
     <!-- ========== SECTION 0: פרטי מסגרת ========== -->
     <div id="s0" class="section active">
       <div class="section-title"><span class="icon">🏫</span> פרטי מסגרת</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+      </div>
+      <div class="print-header" id="header-s0">
+        <div>
+          <div class="print-title" id="printTitle-s0"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s0"></div>
+        </div>
+        <div class="print-meta" id="printDate-s0"></div>
+      </div>
       <div class="card">
         <div class="card-title"><span class="icon">📌</span> מידע כללי</div>
         <div class="form-grid">
@@ -866,6 +943,21 @@
     <!-- ========== SECTION 1: תמונת מצב ========== -->
     <div id="s1" class="section">
       <div class="section-title"><span class="icon">📊</span> תמונת מצב ואתגרי ליבה</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s1">
+        <div>
+          <div class="print-title" id="printTitle-s1"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s1"></div>
+        </div>
+        <div class="print-meta" id="printDate-s1"></div>
+      </div>
 
       <!-- 1. נתוני רקע -->
       <div class="card">
@@ -963,6 +1055,21 @@
     <!-- ========== SECTION 2: יעדי על ========== -->
     <div id="s2" class="section">
       <div class="section-title"><span class="icon">🎯</span> יעדי על אסטרטגיים</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s2">
+        <div>
+          <div class="print-title" id="printTitle-s2"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s2"></div>
+        </div>
+        <div class="print-meta" id="printDate-s2"></div>
+      </div>
       <div class="card">
         <p class="text-muted" style="margin-bottom:12px;">הגדר עד 12 יעדי על לשנה. יעדים אלו ישמשו כעמוד השדרה של כל הזירות והתכנון הרבעוני.</p>
         <div class="table-wrap">
@@ -989,6 +1096,21 @@
     <!-- ========== SECTION 3: זירות ניהול ========== -->
     <div id="s3" class="section">
       <div class="section-title"><span class="icon">🗂️</span> זירות ניהול ופעולה</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s3">
+        <div>
+          <div class="print-title" id="printTitle-s3"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s3"></div>
+        </div>
+        <div class="print-meta" id="printDate-s3"></div>
+      </div>
       <div class="arena-tabs" id="arenaTabs"></div>
       <div id="arenaPanels"></div>
     </div>
@@ -996,6 +1118,21 @@
     <!-- ========== SECTION 4: תכנון רבעוני ========== -->
     <div id="s4" class="section">
       <div class="section-title"><span class="icon">📅</span> תכנון רבעוני</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s4">
+        <div>
+          <div class="print-title" id="printTitle-s4"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s4"></div>
+        </div>
+        <div class="print-meta" id="printDate-s4"></div>
+      </div>
       <div class="quarter-tabs">
         <button class="quarter-tab active" onclick="switchQuarter('q1', this)">רבעון א׳</button>
         <button class="quarter-tab" onclick="switchQuarter('q2', this)">רבעון ב׳</button>
@@ -1011,6 +1148,21 @@
     <!-- ========== SECTION 5: שגרות הנהלה ========== -->
     <div id="s5" class="section">
       <div class="section-title"><span class="icon">🔁</span> שגרות הנהלה</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s5">
+        <div>
+          <div class="print-title" id="printTitle-s5"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s5"></div>
+        </div>
+        <div class="print-meta" id="printDate-s5"></div>
+      </div>
       <div class="card">
         <div class="card-title"><span class="icon">📆</span> מפגשים ושגרות קבועות</div>
         <div class="table-wrap">
@@ -1037,6 +1189,18 @@
     <!-- ========== SECTION 6: סיכומי מעקב ========== -->
     <div id="s6" class="section">
       <div class="section-title"><span class="icon">📝</span> סיכומי מעקב ובקרה</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+      </div>
+      <div class="print-header" id="header-s6">
+        <div>
+          <div class="print-title" id="printTitle-s6"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s6"></div>
+        </div>
+        <div class="print-meta" id="printDate-s6"></div>
+      </div>
       <div class="card">
         <div class="card-title"><span class="icon">➕</span> הוסף סיכום מעקב</div>
         <div class="form-grid">
@@ -1080,6 +1244,18 @@
     <!-- ========== PATHWAY VIEW: מתווה עבודה ========== -->
     <div id="splan" class="section">
       <div class="section-title"><span class="icon">🗺️</span> מתווה עבודה</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+      </div>
+      <div class="print-header" id="header-splan">
+        <div>
+          <div class="print-title" id="printTitle-splan"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-splan"></div>
+        </div>
+        <div class="print-meta" id="printDate-splan"></div>
+      </div>
       <div id="pathwayViewContainer">
         <div style="color:var(--text-muted);text-align:center;padding:32px">טוען מתווה...</div>
       </div>
@@ -1088,6 +1264,18 @@
     <!-- ========== DASHBOARD ========== -->
     <div id="s_dash" class="section">
       <div class="section-title"><span class="icon">📈</span> דשבורד מצב</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+      </div>
+      <div class="print-header" id="header-s_dash">
+        <div>
+          <div class="print-title" id="printTitle-s_dash"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s_dash"></div>
+        </div>
+        <div class="print-meta" id="printDate-s_dash"></div>
+      </div>
       <div class="dashboard-grid">
         <div class="dash-card">
           <h3>התקדמות אסטרטגית</h3>
@@ -1146,6 +1334,21 @@
     <!-- ========== SECTION: סדין שעות ========== -->
     <div id="s_hours" class="section">
       <div class="section-title"><span class="icon">🕐</span> סדין שעות</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s_hours">
+        <div>
+          <div class="print-title" id="printTitle-s_hours"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s_hours"></div>
+        </div>
+        <div class="print-meta" id="printDate-s_hours"></div>
+      </div>
 
       <!-- סיכום סל שעות -->
       <div class="card">
@@ -1204,6 +1407,21 @@
     <!-- ========== SECTION: שיבוץ מקצועות ========== -->
     <div id="s_schedule" class="section">
       <div class="section-title"><span class="icon">📚</span> שיבוץ מקצועות לכיתות</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s_schedule">
+        <div>
+          <div class="print-title" id="printTitle-s_schedule"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s_schedule"></div>
+        </div>
+        <div class="print-meta" id="printDate-s_schedule"></div>
+      </div>
 
       <div class="card">
         <div class="card-title"><span class="icon">⚙️</span> הגדרות</div>
@@ -1234,6 +1452,21 @@
     <!-- ========== SECTION: משאבי חנ"מ ========== -->
     <div id="s_hanam_hrs" class="section">
       <div class="section-title"><span class="icon">♿</span> משאבי חנ"מ – שעות סל ושילוב</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s_hanam_hrs">
+        <div>
+          <div class="print-title" id="printTitle-s_hanam_hrs"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s_hanam_hrs"></div>
+        </div>
+        <div class="print-meta" id="printDate-s_hanam_hrs"></div>
+      </div>
 
       <!-- סיכום סל שעות חנ"מ -->
       <div class="card">
@@ -1363,6 +1596,13 @@
   <!-- ========== SECTION: מלאי ציוד ========== -->
   <div id="sinventory" class="section">
     <div class="section-title"><span class="icon">📦</span> מלאי ציוד</div>
+    <div class="print-header" id="header-sinventory">
+      <div>
+        <div class="print-title" id="printTitle-sinventory"></div>
+        <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-sinventory"></div>
+      </div>
+      <div class="print-meta" id="printDate-sinventory"></div>
+    </div>
 
     <!-- Summary bar -->
     <div class="dashboard-grid" id="invSummaryGrid"></div>
@@ -1415,6 +1655,13 @@
   <!-- ========== SECTION: תקציב ========== -->
   <div id="sbudget" class="section">
     <div class="section-title"><span class="icon">💰</span> תקציב</div>
+    <div class="print-header" id="header-sbudget">
+      <div>
+        <div class="print-title" id="printTitle-sbudget"></div>
+        <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-sbudget"></div>
+      </div>
+      <div class="print-meta" id="printDate-sbudget"></div>
+    </div>
 
     <!-- KPI cards -->
     <div class="dashboard-grid" id="budgetKpiGrid"></div>
@@ -1545,6 +1792,21 @@
   <!-- ========== SECTION: ליקויים שוטפים ========== -->
   <div id="sdefects" class="section">
     <div class="section-title"><span class="icon">🔧</span> ליקויים שוטפים</div>
+    <div class="print-toolbar">
+      <button class="btn btn-outline-print" onclick="printSection()">
+        🖨️ הדפסה / שמירה כ-PDF
+      </button>
+      <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+        📊 ייצוא לאקסל (CSV)
+      </button>
+    </div>
+    <div class="print-header" id="header-sdefects">
+      <div>
+        <div class="print-title" id="printTitle-sdefects"></div>
+        <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-sdefects"></div>
+      </div>
+      <div class="print-meta" id="printDate-sdefects"></div>
+    </div>
 
     <!-- Summary cards -->
     <div class="dashboard-grid">
@@ -4825,6 +5087,166 @@ function filterInventory() {
   });
 }
 
+// =============================================================
+//  PRINT & CSV EXPORT — UNIFIED SYSTEM
+// =============================================================
+
+// ─────────────────────────────────────────
+// מילון שמות לשוניות
+// ─────────────────────────────────────────
+const SECTION_NAMES = {
+  s0: 'פרטי בית ספר',           s1: 'נתוני רקע',
+  s2: 'יעדים אסטרטגיים',        s3: 'זירות עבודה',
+  s4: 'תוכנית רבעונית',         s5: 'שגרות ניהוליות',
+  s6: 'סיכומי ביניים',          s_dash: 'דשבורד מנהל',
+  splan: 'מפת דרכים',           s_hours: 'סדין שעות סגל',
+  s_schedule: 'מערכת שעות',     s_hanam_hrs: 'שעות חינוך מיוחד',
+  sinventory: 'מלאי וציוד',     sbudget: 'ניהול תקציב',
+  sdefects: 'דו"ח ליקויים'
+};
+
+// ─────────────────────────────────────────
+// כותרת הדפסה אחידה — ציבורית לכולם
+// ─────────────────────────────────────────
+function preparePrintHeader(sectionId) {
+  const school = document.getElementById('schoolName')?.value
+                 || appData?.schoolName || '';
+  const year   = document.getElementById('gi_year')?.value
+                 || appData?.year || '';
+  const date   = new Date().toLocaleDateString('he-IL');
+  const t = document.getElementById(`printTitle-${sectionId}`);
+  const s = document.getElementById(`printSchool-${sectionId}`);
+  const d = document.getElementById(`printDate-${sectionId}`);
+  if (t) t.textContent = SECTION_NAMES[sectionId] || '';
+  if (s) s.textContent = `${school}${year ? ' | שנה"ל ' + year : ''}`;
+  if (d) d.textContent = `תאריך הפקה: ${date}`;
+}
+
+// ─────────────────────────────────────────
+// printSection — מנגנון הדפסה מרכזי
+// ─────────────────────────────────────────
+function printSection() {
+  const activeSection = document.querySelector('.section.active');
+  if (!activeSection) {
+    showToast('לא נמצאה לשונית פעילה להדפסה', 'error');
+    return;
+  }
+  const id = activeSection.id;
+
+  // ניתוב ל-handlers הייעודיים (שכבר קוראים ל-preparePrintHeader)
+  if (id === 'sinventory') { printInventory(); return; }
+  if (id === 'sbudget')    { printBudget();    return; }
+
+  preparePrintHeader(id);
+
+  // Landscape לרוחב ללשוניות טבלאיות רחבות
+  let landscapeStyle = null;
+  if (['s_hours', 's_schedule', 's_hanam_hrs'].includes(id)) {
+    landscapeStyle = document.createElement('style');
+    landscapeStyle.id = 'print-landscape';
+    landscapeStyle.textContent = '@page { size: landscape; margin: 10mm; }';
+    document.head.appendChild(landscapeStyle);
+  }
+
+  // פתיחה זמנית של אקורדיונים ופאנלים
+  const accordions = activeSection.querySelectorAll(
+    '.accordion-body, .inv-cat-content'
+  );
+  accordions.forEach(b => {
+    b.dataset.wasOpen = (b.style.display === 'block'
+                         || b.classList.contains('open')) ? 'true' : 'false';
+    b.style.display = 'block'; b.classList.add('open');
+  });
+  const panels = activeSection.querySelectorAll('.arena-panel, .quarter-panel');
+  panels.forEach(p => {
+    p.dataset.wasActive = p.classList.contains('active') ? 'true' : 'false';
+    p.classList.add('active'); p.style.display = 'block';
+  });
+
+  // שחזור מצב דרך afterprint (אמין יותר מרצף סינכרוני)
+  const restore = () => {
+    landscapeStyle?.remove();
+    accordions.forEach(b => {
+      if (b.dataset.wasOpen !== 'true') {
+        b.style.display = ''; b.classList.remove('open');
+      }
+    });
+    panels.forEach(p => {
+      if (p.dataset.wasActive !== 'true') {
+        p.style.display = ''; p.classList.remove('active');
+      }
+    });
+    window.removeEventListener('afterprint', restore);
+  };
+  window.addEventListener('afterprint', restore);
+
+  window.print();
+}
+
+// ─────────────────────────────────────────
+// exportSectionCSV — ייצוא CSV מרכזי
+// ─────────────────────────────────────────
+function exportSectionCSV() {
+  const activeSection = document.querySelector('.section.active');
+  if (!activeSection) {
+    showToast('לא נמצאה לשונית פעילה לייצוא', 'error');
+    return;
+  }
+  const id = activeSection.id;
+
+  if (id === 'sinventory') { exportInventoryCSV(); return; }
+  if (id === 'sbudget')    { exportBudgetCSV();    return; }
+  if (id === 'sdefects')   { exportDefectsCSV();   return; }
+
+  const school = (document.getElementById('schoolName')?.value
+                  || appData?.schoolName || 'ביהס').replace(/\s+/g, '_');
+  const year   = document.getElementById('gi_year')?.value
+                 || appData?.year || '';
+
+  const tables = activeSection.querySelectorAll('table');
+  if (!tables.length) {
+    showToast('לשונית זו אינה מכילה נתונים טבלאיים לייצוא', 'error');
+    return;
+  }
+
+  const SKIP = ['', 'פעולות', 'מחק', 'X', '🗑', 'delete'];
+  let csv = '\uFEFF';
+
+  tables.forEach((table, idx) => {
+    if (idx > 0) csv += '\n\n';
+    const headers = Array.from(table.querySelectorAll('thead th'))
+      .map(th => th.textContent.trim())
+      .filter(h => !SKIP.includes(h));
+    if (headers.length)
+      csv += headers.map(h => `"${h.replace(/"/g,'""')}"`).join(',') + '\n';
+
+    table.querySelectorAll('tbody tr').forEach(tr => {
+      if (tr.style.display === 'none') return;
+      const cells = Array.from(tr.querySelectorAll('td'))
+        .slice(0, headers.length)
+        .map(td => {
+          const inp = td.querySelector('input,select,textarea');
+          let val = '';
+          if (inp) val = inp.tagName === 'SELECT'
+            ? (inp.options[inp.selectedIndex]?.text || '') : inp.value;
+          else val = td.textContent;
+          return `"${(val||'').replace(/"/g,'""').trim()}"`;
+        });
+      if (cells.some(c => c !== '""'))
+        csv += cells.join(',') + '\n';
+    });
+  });
+
+  const name = (SECTION_NAMES[id]||'נתונים').replace(/[\s"]/g,'_');
+  const filename = `${name}_${school}_${year}.csv`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  showToast(`✅ ${filename} הורד בהצלחה`, 'success');
+}
+
 function exportInventoryCSV() {
   collectInventoryFromDOM();
   const condMap     = { good: 'תקין', repair: 'לתיקון', discard: 'למחיקה' };
@@ -4856,6 +5278,7 @@ function exportInventoryCSV() {
 }
 
 function printInventory() {
+  preparePrintHeader('sinventory');
   collectInventoryFromDOM();
   const condMap     = { good: 'תקין', repair: 'לתיקון', discard: 'למחיקה' };
   const priorityMap = { low: 'נמוכה', medium: 'בינונית', critical: 'קריטית' };
@@ -5520,6 +5943,7 @@ function exportBudgetCSV() {
 }
 
 function printBudget() {
+  preparePrintHeader('sbudget');
   collectBudgetFromDOM();
   const srcMap   = { parents: 'תשלומי הורים', gapan: 'גפ"ן', authority: 'רשות מקומית' };
   const allocMap = Object.fromEntries((appData.budget?.allocations || []).map(a => [a.id, a.name]));
