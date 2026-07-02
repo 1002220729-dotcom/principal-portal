@@ -2696,6 +2696,21 @@ window.addEventListener('message', async (e) => {
         updateStatus(); setStatus('MTSS נשמר'); toast('💾 MTSS נשמר','mtss');
       }
       if (e.data.docType==='calendar'||fromCalendar) {
+        const incomingEvents = e.data.payload?.meetings?.events || [];
+        const existingEvents = PS.calendarData?.meetings?.events || [];
+
+        // ─── הגנה מפני מחיקת נתונים ───────────────────────────────
+        // אם ה-iframe שולח 0 פגישות אבל בשרת יש פגישות קיימות —
+        // זה כמעט בוודאות אומר שהנתונים לא הגיעו ל-iframe לפני
+        // שנשאלת לשמור (למשל: מכשיר חדש, טעינה חלקית, רשת איטית).
+        // במצב זה: לא שומרים, ושולחים load-data מחדש ל-iframe כדי
+        // לתקן את מצבו.
+        if (incomingEvents.length === 0 && existingEvents.length > 0) {
+          console.warn('[portal] calendar save-request BLOCKED — incoming 0 events but server has', existingEvents.length, '. Re-sending load-data to calendar.');
+          if (calendarWin) calendarWin.postMessage({type:'load-data', payload: PS.calendarData}, '*');
+          break;
+        }
+
         PS.calendarData=e.data.payload;
         // ודא שה-school/year מוגדרים ב-payload (לוח_שנה שולח אותם, אבל כ-fallback נוסיף מ-PS)
         if (!PS.calendarData.school && PS.school) PS.calendarData.school = PS.school;

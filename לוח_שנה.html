@@ -1203,8 +1203,23 @@ const _inPortal     = window.parent !== window;
 let _portalSchool = '';
 let _portalYear   = '';
 
+// ─── הגנה קריטית מפני מחיקת נתונים ──────────────────────────
+// דגל זה נשאר false עד שהפורטל ישלח load-data עם נתונים אמיתיים
+// מהשרת. כל עוד הוא false — saveToPortal() מסרב לשמור, כי
+// המשמעות היא שהנתונים עדיין לא הגיעו (למשל: הפלאפון פתח את
+// הדף, הפורטל עוד לא סיים לטעון מהשרת), ושמירה כעת תמחק את
+// הנתונים הקיימים בשרת ותכתוב רשימת פגישות ריקה במקומם.
+let _dataLoadedFromServer = false;
+
 function saveToPortal() {
   if (!_inPortal) return;
+
+  // ← ההגנה המרכזית: לא שומרים לפני שנתונים הגיעו מהשרת
+  if (!_dataLoadedFromServer) {
+    console.warn('[calendar] saveToPortal BLOCKED — data not yet loaded from server. Skipping to prevent data loss.');
+    return;
+  }
+
   const _evCount = (appData.meetings?.events||[]).length;
   console.log('[calendar] saveToPortal | school:', _portalSchool, '| year:', _portalYear, '| events:', _evCount);
   window.parent.postMessage({
@@ -1228,6 +1243,8 @@ function _applyPortalData(payload) {
   }
   if (payload.school) _portalSchool = payload.school;
   if (payload.year)   _portalYear   = payload.year;
+  // ← מסמן שנתונים הגיעו מהשרת — עכשיו בטוח לשמור
+  _dataLoadedFromServer = true;
   console.log('[calendar] _applyPortalData | school:', _portalSchool, '| year:', _portalYear, '| events:', (appData.meetings?.events||[]).length);
   renderMeetingsCalendar();
   showToast('\u2705 \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d9\u05d5\u05de\u05df \u05e0\u05d8\u05e2\u05e0\u05d5');
