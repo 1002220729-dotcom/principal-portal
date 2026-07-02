@@ -608,6 +608,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <button class="nav-item" data-target="plan" data-section="s_hanam_hrs" data-perm="plan" onclick="navClick(this)">
       <span class="ni-icon">♿</span> משאבי חנ"מ
     </button>
+    <button class="nav-item" data-target="plan" data-section="s_absences" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">📋</span> חיסורים ומילויי מקום
+    </button>
 
     <div class="nav-section-header">מיפוי MTSS</div>
     <button class="nav-item" data-target="mtss" data-tab="learning" data-perm="mtss" onclick="navClick(this)">
@@ -936,6 +939,7 @@ const SECTION_GROUPS = [
     { id:'s_hours',     label:'🕐 סדין שעות' },
     { id:'s_schedule',  label:'📚 שיבוץ מקצועות' },
     { id:'s_hanam_hrs', label:'♿ משאבי חנ"מ' },
+    { id:'s_absences',  label:'📋 חיסורים ומילויי מקום' },
   ]},
   { group: 'משאבים', sections: [
     { id:'sinventory', label:'📦 מלאי ציוד' },

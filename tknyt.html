@@ -741,6 +741,9 @@
     <button class="nav-item" data-section="s_hanam_hrs" onclick="switchSection('s_hanam_hrs', this)">
       <span class="icon">♿</span> משאבי חנ"מ
     </button>
+    <button class="nav-item" data-section="s_absences" onclick="switchSection('s_absences', this)">
+      <span class="icon">📋</span> חיסורים ומילויי מקום
+    </button>
     <div class="nav-section">משאבים</div>
     <button class="nav-item" data-section="sinventory" onclick="switchSection('sinventory', this)">
       <span class="icon">📦</span> מלאי ציוד
@@ -1617,9 +1620,62 @@
       </div>
     </div>
 
+    <!-- ========== SECTION: חיסורים ומילויי מקום ========== -->
+    <div id="s_absences" class="section">
+      <div class="section-title"><span class="icon">📋</span> חיסורים ומילויי מקום</div>
+      <div class="print-toolbar">
+        <button class="btn btn-outline-print" onclick="printSection()">
+          🖨️ הדפסה / שמירה כ-PDF
+        </button>
+        <button class="btn btn-outline-print" onclick="exportSectionCSV()">
+          📊 ייצוא לאקסל (CSV)
+        </button>
+      </div>
+      <div class="print-header" id="header-s_absences">
+        <div>
+          <div class="print-title" id="printTitle-s_absences"></div>
+          <div style="font-size:11pt;color:#1a3a5c;font-weight:600;margin-top:4px" id="printSchool-s_absences"></div>
+        </div>
+        <div class="print-meta" id="printDate-s_absences"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">📋</span> יומן חיסורים ומילויי מקום</div>
+        <p class="text-muted" style="margin-bottom:12px;">תיעוד היעדרויות סגל, מילויי מקום, סיבת ההיעדרות, אישורים נדרשים ודיווח באופקית</p>
+        <div class="table-wrap">
+          <table class="data-table" id="absencesTable">
+            <thead>
+              <tr>
+                <th style="min-width:110px">תאריך היעדרות</th>
+                <th style="min-width:130px">שם העובד הנעדר</th>
+                <th style="min-width:90px">שעה בפועל</th>
+                <th style="min-width:100px">מס' שעות מערכת</th>
+                <th style="min-width:130px">סיבת ההיעדרות</th>
+                <th style="min-width:110px">אישור מחלה הוגש</th>
+                <th style="min-width:110px">אישור מנהל</th>
+                <th style="min-width:110px">התקיים מילוי מקום</th>
+                <th style="min-width:130px">מי מילא מקום</th>
+                <th style="min-width:100px">דווח באופקית</th>
+                <th>הערות</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="absencesBody"></tbody>
+          </table>
+        </div>
+        <datalist id="absenceStaffNamesList"></datalist>
+        <button class="add-row-btn" onclick="addAbsenceRow()">+ הוסף רישום היעדרות</button>
+      </div>
+    </div>
+
   <!-- ========== SECTION: מלאי ציוד ========== -->
   <div id="sinventory" class="section">
     <div class="section-title"><span class="icon">📦</span> מלאי ציוד</div>
+    <div class="print-toolbar">
+      <button class="btn btn-outline-print" onclick="printSection()">🖨️ הדפסה / שמירה כ-PDF</button>
+      <button class="btn btn-outline-print" onclick="exportInventoryExcel()">📊 ייצוא ל-Excel</button>
+      <button class="btn btn-outline-print" onclick="exportInventoryWord()">📄 ייצוא ל-Word</button>
+    </div>
     <div class="print-header" id="header-sinventory">
       <div>
         <div class="print-title" id="printTitle-sinventory"></div>
@@ -1689,6 +1745,10 @@
   <!-- ========== SECTION: תקציב ========== -->
   <div id="sbudget" class="section">
     <div class="section-title"><span class="icon">💰</span> תקציב</div>
+    <div class="print-toolbar">
+      <button class="btn btn-outline-print" onclick="printSection()">🖨️ הדפסה / שמירה כ-PDF</button>
+      <button class="btn btn-outline-print" onclick="exportSectionCSV()">📊 ייצוא CSV</button>
+    </div>
     <div class="print-header" id="header-sbudget">
       <div>
         <div class="print-title" id="printTitle-sbudget"></div>
@@ -2124,6 +2184,7 @@ function buildDefaultAppData() {
     hanamParaRows: [],
     hanamParaConfig: { totalCount: '', notes: '' },
     hanamTherapyRows: [],
+    absenceRows: [],
     scheduleConfig: { classes: [], subjects: [] },
     scheduleCells: {},
     inventory: [],
@@ -2224,6 +2285,7 @@ function migrateContentIfNeeded(payload) {
   if (!Array.isArray(payload.hanamHoursRows))  payload.hanamHoursRows = [];
   if (!Array.isArray(payload.hanamParaRows))    payload.hanamParaRows = [];
   if (!Array.isArray(payload.hanamTherapyRows)) payload.hanamTherapyRows = [];
+  if (!Array.isArray(payload.absenceRows)) payload.absenceRows = [];
   if (!payload.hoursConfig || typeof payload.hoursConfig !== 'object')
     payload.hoursConfig = { ministry: '', external: '' };
   if (!payload.hanamHoursConfig || typeof payload.hanamHoursConfig !== 'object')
@@ -2479,6 +2541,7 @@ function collectFormDataBase() {
   collectHanamParaFromDOM();
   collectHanamTherapyFromDOM();
   collectScheduleFromDOM();
+  collectAbsencesFromDOM();
   collectInventoryFromDOM();
   collectBudgetFromDOM();
   collectDefectsFromDOM();
@@ -2752,6 +2815,7 @@ function _applyLoadedData(payload) {
     Object.values(payload.arenas  || {}).some(a => (a.rows || []).length > 0) ||
     Object.values(payload.quarters|| {}).some(q => (q.rows || []).length > 0) ||
     (payload.hoursRows         || []).length > 0 ||
+    (payload.absenceRows       || []).length > 0 ||
     (payload.staffRows         || []).length > 0 ||
     (payload.managementRoutines|| []).length > 0 ||
     (payload.inventory         || []).length > 0 ||
@@ -2847,6 +2911,7 @@ function _applyLoadedData(payload) {
   setVal('hanam_para_notes',       appData.hanamParaConfig?.notes      || '');
 
   renderHanamTherapyTable();
+  renderAbsencesTable();
   setVal('sched_classes',  (appData.scheduleConfig?.classes  || []).join(', '));
   setVal('sched_subjects', (appData.scheduleConfig?.subjects || []).join(', '));
   if ((appData.scheduleConfig?.classes || []).length > 0) renderScheduleGrid();
@@ -4266,6 +4331,143 @@ function collectHoursFromDOM() {
   };
 }
 
+// =============================================================
+//  ABSENCES / SUBSTITUTIONS — חיסורים ומילויי מקום
+// =============================================================
+const ABSENCE_REASONS = ['מחלה', 'יום הצהרה', 'יום בחירה', 'השתלמות', 'במסגרת תפקיד'];
+
+function renderAbsencesTable() {
+  const tbody = document.getElementById('absencesBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  (appData.absenceRows || []).forEach(r => appendAbsenceRow(r));
+  refreshAbsenceStaffNamesList();
+}
+
+function refreshAbsenceStaffNamesList() {
+  const dl = document.getElementById('absenceStaffNamesList');
+  if (!dl) return;
+  const names = new Set();
+  (appData.hoursRows || []).forEach(r => { if (r.name) names.add(r.name); });
+  (appData.hanamHoursRows || []).forEach(r => { if (r.name) names.add(r.name); });
+  dl.innerHTML = Array.from(names).map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+
+function appendAbsenceRow(r) {
+  r.id = r.id || newId();
+  const tbody = document.getElementById('absencesBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  tr.dataset.rid = r.id;
+  const reasonOpts = ABSENCE_REASONS.map(x =>
+    `<option value="${x}" ${r.reason === x ? 'selected' : ''}>${x}</option>`
+  ).join('');
+  const yesNo = (cls, value, changeExtra = '') => `
+    <select class="${cls}" onchange="markDirty();${changeExtra}">
+      <option value="">בחר</option>
+      <option value="כן" ${value === 'כן' ? 'selected' : ''}>כן</option>
+      <option value="לא" ${value === 'לא' ? 'selected' : ''}>לא</option>
+    </select>`;
+  tr.innerHTML = `
+    <td><input class="ab_date"      type="date" value="${esc(r.date || '')}" oninput="markDirty()"></td>
+    <td><input class="ab_staffName" list="absenceStaffNamesList" value="${esc(r.staffName || '')}" placeholder="שם העובד" oninput="markDirty()"></td>
+    <td><input class="ab_actualHour" value="${esc(r.actualHour || '')}" placeholder="לדוגמה: שעה 3" oninput="markDirty()"></td>
+    <td><input class="ab_systemHours" type="number" min="0" value="${esc(r.systemHours || '')}" placeholder="0" style="min-width:70px" oninput="markDirty()"></td>
+    <td>
+      <select class="ab_reason" onchange="markDirty(); onAbsenceReasonChange(this)">
+        <option value="">בחר סיבה</option>${reasonOpts}
+      </select>
+    </td>
+    <td>${yesNo('ab_sickCert', r.sickCert)}</td>
+    <td>${yesNo('ab_managerApproval', r.managerApproval)}</td>
+    <td>${yesNo('ab_substituteOccurred', r.substituteOccurred, ' onAbsenceSubChange(this)')}</td>
+    <td><input class="ab_substituteName" list="absenceStaffNamesList" value="${esc(r.substituteName || '')}" placeholder="שם ממלא המקום" oninput="markDirty()"></td>
+    <td>${yesNo('ab_reportedOfakit', r.reportedOfakit)}</td>
+    <td><input class="ab_notes" value="${esc(r.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
+    <td><button class="btn-icon" onclick="removeAbsenceRow('${r.id}')">🗑</button></td>
+  `;
+  tbody.appendChild(tr);
+
+  // set correct enabled/disabled state for dependent fields on initial render
+  const reasonSel = tr.querySelector('.ab_reason');
+  applyAbsenceReasonState(tr, reasonSel.value);
+  const subSel = tr.querySelector('.ab_substituteOccurred');
+  applyAbsenceSubState(tr, subSel.value);
+}
+
+function applyAbsenceReasonState(tr, reason) {
+  const sickCertEl = tr.querySelector('.ab_sickCert');
+  const managerEl  = tr.querySelector('.ab_managerApproval');
+  const sickRelevant     = reason === 'מחלה';
+  const managerRelevant  = reason === 'השתלמות' || reason === 'במסגרת תפקיד';
+  if (sickCertEl) {
+    sickCertEl.disabled = !sickRelevant;
+    if (!sickRelevant) sickCertEl.value = '';
+  }
+  if (managerEl) {
+    managerEl.disabled = !managerRelevant;
+    if (!managerRelevant) managerEl.value = '';
+  }
+}
+
+function applyAbsenceSubState(tr, subOccurred) {
+  const nameEl = tr.querySelector('.ab_substituteName');
+  if (!nameEl) return;
+  const relevant = subOccurred === 'כן';
+  nameEl.disabled = !relevant;
+  if (!relevant) nameEl.value = '';
+}
+
+function onAbsenceReasonChange(sel) {
+  const tr = sel.closest('tr');
+  if (!tr) return;
+  applyAbsenceReasonState(tr, sel.value);
+}
+
+function onAbsenceSubChange(sel) {
+  const tr = sel.closest('tr');
+  if (!tr) return;
+  applyAbsenceSubState(tr, sel.value);
+}
+
+function addAbsenceRow() {
+  if (!appData.absenceRows) appData.absenceRows = [];
+  const r = {
+    id: newId(), date: '', staffName: '', actualHour: '', systemHours: '',
+    reason: '', sickCert: '', managerApproval: '',
+    substituteOccurred: '', substituteName: '', reportedOfakit: '', notes: ''
+  };
+  appData.absenceRows.push(r);
+  refreshAbsenceStaffNamesList();
+  appendAbsenceRow(r);
+  markDirty();
+}
+
+function removeAbsenceRow(rid) {
+  appData.absenceRows = (appData.absenceRows || []).filter(r => r.id !== rid);
+  const tr = document.querySelector(`#absencesBody tr[data-rid="${rid}"]`);
+  if (tr) tr.remove();
+  markDirty();
+}
+
+function collectAbsencesFromDOM() {
+  const rows = document.querySelectorAll('#absencesBody tr[data-rid]');
+  appData.absenceRows = Array.from(rows).map(tr => ({
+    id:                  tr.dataset.rid,
+    date:                tr.querySelector('.ab_date')?.value                || '',
+    staffName:           tr.querySelector('.ab_staffName')?.value           || '',
+    actualHour:          tr.querySelector('.ab_actualHour')?.value          || '',
+    systemHours:         tr.querySelector('.ab_systemHours')?.value         || '',
+    reason:              tr.querySelector('.ab_reason')?.value              || '',
+    sickCert:            tr.querySelector('.ab_sickCert')?.value            || '',
+    managerApproval:     tr.querySelector('.ab_managerApproval')?.value     || '',
+    substituteOccurred:  tr.querySelector('.ab_substituteOccurred')?.value  || '',
+    substituteName:      tr.querySelector('.ab_substituteName')?.value      || '',
+    reportedOfakit:      tr.querySelector('.ab_reportedOfakit')?.value      || '',
+    notes:               tr.querySelector('.ab_notes')?.value               || '',
+  }));
+}
+
 function updateHoursSummary() {
   const ministry = parseFloat(val('hrs_ministry')) || 0;
   const external = parseFloat(val('hrs_external')) || 0;
@@ -5137,6 +5339,7 @@ const SECTION_NAMES = {
   s6: 'סיכומי ביניים',          s_dash: 'דשבורד מנהל',
   splan: 'מפת דרכים',           s_hours: 'סדין שעות סגל',
   s_schedule: 'מערכת שעות',     s_hanam_hrs: 'שעות חינוך מיוחד',
+  s_absences: 'חיסורים ומילויי מקום',
   sinventory: 'מלאי וציוד',     sbudget: 'ניהול תקציב',
   sdefects: 'דו"ח ליקויים'
 };
@@ -5177,7 +5380,7 @@ function printSection() {
 
   // Landscape לרוחב ללשוניות טבלאיות רחבות
   let landscapeStyle = null;
-  if (['s_hours', 's_schedule', 's_hanam_hrs'].includes(id)) {
+  if (['s_hours', 's_schedule', 's_hanam_hrs', 's_absences'].includes(id)) {
     landscapeStyle = document.createElement('style');
     landscapeStyle.id = 'print-landscape';
     landscapeStyle.textContent = '@page { size: landscape; margin: 10mm; }';
@@ -6600,6 +6803,8 @@ Object.assign(window, {
   calcHanamRowTotal, updateHanamSummary,
   addHanamParaRow, removeHanamParaRow,
   addHanamTherapyRow, removeHanamTherapyRow,
+  addAbsenceRow, removeAbsenceRow,
+  onAbsenceReasonChange, onAbsenceSubChange,
   buildScheduleGrid, onScheduleCellChange,
   addInventoryCategory, addInventoryRow,
   removeInventoryCategory, removeInventoryRow,
