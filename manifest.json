@@ -1,6 +1,8 @@
 {
+  "id": "/index.html",
   "name": "ניהול בית ספר נעם רז",
   "short_name": "נעם רז",
+  "description": "מערכת ניהול פנימית לבית הספר — תכנית עבודה, יומן, תקציב, מלאי וליקויים, במקום אחד.",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",

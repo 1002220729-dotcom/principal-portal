@@ -235,6 +235,20 @@ body{
 }
 .btn-logout:hover{background:rgba(255,255,255,0.15);color:#fff;}
 
+/* PWA install button */
+#pwaInstallBtn{
+  display:none;align-items:center;gap:6px;
+  background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.28);
+  color:#fff;font-family:var(--font);font-size:0.72rem;font-weight:700;
+  padding:4px 12px;border-radius:6px;cursor:pointer;transition:all .15s;
+}
+#pwaInstallBtn.show{display:flex;}
+#pwaInstallBtn:hover{background:rgba(255,255,255,0.24);}
+#pwaInstallBtn .pi-icon{font-size:0.85rem;}
+@media (max-width:640px){
+  #pwaInstallBtn{font-size:0.65rem;padding:3px 8px;}
+}
+
 /* ═══════════════════════════════════════════════════
    BODY AREA
 ═══════════════════════════════════════════════════ */
@@ -552,6 +566,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <span id="userName"></span>
   </div>
   <button class="btn-logout" onclick="portalLogout()">יציאה</button>
+  <button id="pwaInstallBtn" onclick="handlePwaInstallClick()"><span class="pi-icon">⬇️</span> התקן אפליקציה</button>
   <button id="headerSaveBtn" onclick="triggerSave()">💾 שמור הכל</button>
 </header>
 
@@ -3060,6 +3075,39 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// ─── PWA: כפתור התקנה יזום (beforeinstallprompt) ───
+let deferredInstallPrompt = null;
+
+function isRunningStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true; // iOS Safari
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (!isRunningStandalone()) {
+    const btn = document.getElementById('pwaInstallBtn');
+    if (btn) btn.classList.add('show');
+  }
+});
+
+function handlePwaInstallClick() {
+  const btn = document.getElementById('pwaInstallBtn');
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.finally(() => {
+    deferredInstallPrompt = null;
+    if (btn) btn.classList.remove('show');
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.classList.remove('show');
+});
 </script>
 </body>
 </html>
