@@ -1,0 +1,12 @@
+# Cloudflare Pages — _redirects
+# מטרה: לוודא שקבצים סטטיים (אייקונים, manifest, service worker)
+# מוגשים כפי שהם, ולא נבלעים לתוך fallback ל-index.html.
+#
+# חשוב: אין כאן שום שורת "/* /index.html 200" — המערכת הזו אינה SPA
+# עם ראוטים וירטואליים, אלא אוסף של קבצי HTML אמיתיים (index.html,
+# tknyt.html) שכל אחד מהם כבר קיים בנתיב האמיתי שלו. לכן לא צריך
+# ולא רצוי fallback גורף בכלל — הוא זה שגרם לבעיה.
+
+/icons/*         /icons/:splat   200
+/manifest.json   /manifest.json  200
+/sw.js           /sw.js          200
