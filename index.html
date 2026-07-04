@@ -715,7 +715,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbCalendar"></div>
         🗓️ יומן מנהל
       </div>
-      <iframe id="calendarFrame" src="לוח_שנה.html"
+      <iframe id="calendarFrame" src="calendar.html"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="יומן מנהל"></iframe>
     </div>
@@ -1575,7 +1575,7 @@ function loadAllIframes(perms) {
     plan:     'tknyt.html',
     gantt:    'gantt.html',
     mtss:     'mtss.html',
-    calendar: 'לוח_שנה.html',
+    calendar: 'calendar.html',
   };
   Object.entries(frames).forEach(([name, src]) => {
     const frameEl = document.getElementById(name + 'Frame');

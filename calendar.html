@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<!--
+  ╔══════════════════════════════════════════════════════════════════╗
+  ║  tknyt_-bvdh_mnhl_v36_calendar.html                            ║
+  ║  MEETINGS CALENDAR MODULE — יומן פגישות                        ║
+  ║                                                                  ║
+  ║  HOW TO INTEGRATE INTO tknyt_-bvdh_mnhl_v33.html (or later):   ║
+  ║                                                                  ║
+  ║  STEP 1 – CSS: Copy the <style> block marked [MEETINGS CSS]     ║
+  ║            and paste inside the existing <style> tag.            ║
+  ║                                                                  ║
+  ║  STEP 2 – NAV: Add the nav-item button (see [NAV ITEM])         ║
+  ║            under the "משאבים" section in sideNav.               ║
+  ║                                                                  ║
+  ║  STEP 3 – HTML: Paste the full <div id="scalendar"> block       ║
+  ║            (see [SECTION HTML]) and the meetingModal div         ║
+  ║            at the end of the sections container.                 ║
+  ║                                                                  ║
+  ║  STEP 4 – JS: Paste the entire [MEETINGS JS] block into the     ║
+  ║            <script> tag of the management file.                  ║
+  ║                                                                  ║
+  ║  STEP 5 – DATA: In buildDefaultAppData(), add meetings: {...}   ║
+  ║            In migrateContentIfNeeded(), add the migration block. ║
+  ║            In switchSection(), add the scalendar case.           ║
+  ║            In populateUIFromData(), add renderMeetingsCalendar() ║
+  ║                                                                  ║
+  ║  STEP 6 – PORTAL RELAY: Paste [PORTAL RELAY PATCH] into         ║
+  ║            portal_v2.html's message handler.                     ║
+  ║                                                                  ║
+  ║  This file is also a WORKING STANDALONE DEMO for visual QA.     ║
+  ╚══════════════════════════════════════════════════════════════════╝
+-->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>יומן פגישות — בדיקה עצמאית</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════
+   EXISTING VARIABLES (stub for standalone demo)
+   In the real file these come from the management file's
+   own :root block — do NOT copy these into the real file.
+   ══════════════════════════════════════════════════════ */
+:root {
+  --primary:       #1a3a5c;
+  --primary-light: #2563a8;
+  --primary-soft:  #e8f0fb;
+  --accent:        #c0392b;
+  --success:       #27ae60;
+  --warning:       #f39c12;
+  --border:        #d0d7e3;
+  --card:          #ffffff;
+  --radius:        8px;
+  --font:          'Heebo', 'Segoe UI', 'Arial Hebrew', Arial, sans-serif;
+  --text:          #1e293b;
+  --text-muted:    #64748b;
+  --bg:            #f0f2f5;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.875rem;
+  direction: rtl;
+  padding: 0;
+}
+
+/* ── Stub classes that exist in the real management file ── */
+.section  { padding: 18px; }
+.card     { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,0.07); border: 1px solid var(--border); }
+.section-title { display:flex; align-items:center; gap:8px; font-size:1.05rem; font-weight:800; color:var(--primary); margin-bottom:16px; flex-wrap:wrap; }
+.section-title .icon { font-size:1.1rem; }
+.dashboard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:16px; }
+.dash-card { background:var(--card); border-radius:var(--radius); border:1px solid var(--border); padding:14px 16px; text-align:center; }
+.dash-card .dash-num { font-size:1.6rem; font-weight:800; line-height:1.1; }
+.dash-card .dash-label { font-size:0.72rem; color:var(--text-muted); margin-top:3px; font-weight:600; }
+.dash-card.info    .dash-num { color:var(--primary-light); }
+.dash-card.success .dash-num { color:var(--success); }
+.dash-card.warning .dash-num { color:var(--warning); }
+.arena-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:0; }
+.arena-tab { padding:9px 20px; font-family:var(--font); font-size:0.84rem; font-weight:700; color:var(--text-muted); border:none; background:none; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; transition:all .17s; }
+.arena-tab:hover { color:var(--primary); }
+.arena-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+.arena-panel { display:none; padding-top:16px; }
+.arena-panel.active { display:block; }
+.accordion { border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.accordion-header { display:flex; align-items:center; gap:8px; padding:12px 16px; cursor:pointer; background:var(--card); font-weight:700; color:var(--primary); user-select:none; }
+.accordion-header:hover { background:var(--primary-soft); }
+.accordion.open .accordion-header { border-bottom:1px solid var(--border); }
+.accordion-body { display:none; }
+.accordion.open .accordion-body { display:block; }
+.arrow { margin-right:auto; color:var(--text-muted); transition:transform .2s; font-size:0.75rem; }
+.accordion.open .arrow { transform:rotate(180deg); }
+.data-table { width:100%; border-collapse:collapse; font-size:0.84rem; }
+.data-table th { background:var(--primary-soft); color:var(--primary); font-weight:700; font-size:0.72rem; text-transform:uppercase; padding:8px 12px; text-align:right; border-bottom:1px solid var(--border); }
+.data-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.data-table tr:last-child td { border-bottom:none; }
+.table-wrap { overflow-x:auto; border-radius:var(--radius); border:1px solid var(--border); }
+.status-badge { display:inline-block; padding:2px 9px; border-radius:20px; font-size:0.72rem; font-weight:700; }
+.status-todo      { background:#dbeafe; color:#1e40af; }
+.status-inprogress{ background:#dbeafe; color:#1e40af; }
+.status-done      { background:#dcfce7; color:#166534; }
+.status-blocked   { background:#fee2e2; color:#991b1b; }
+.form-group { display:flex; flex-direction:column; gap:5px; }
+.form-group label { font-size:0.75rem; font-weight:700; color:var(--text-muted); }
+.form-group input, .form-group select, .form-group textarea {
+  padding:8px 12px; border:1.5px solid var(--border); border-radius:var(--radius);
+  font-family:var(--font); font-size:0.84rem; color:var(--text);
+  background:var(--card); transition:border-color .15s;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus
+  { outline:none; border-color:var(--primary); }
+.form-group textarea { resize:vertical; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
+.form-full { grid-column:1/-1; }
+.btn { padding:7px 16px; border-radius:var(--radius); font-family:var(--font); font-size:0.82rem; font-weight:700; cursor:pointer; border:none; transition:all .15s; }
+.btn:hover { opacity:.88; }
+.btn-save    { background:var(--primary); color:#fff; }
+.btn-outline { background:transparent; border:1.5px solid var(--border); color:var(--text-muted); }
+.btn-outline:hover { border-color:var(--primary); color:var(--primary); }
+.btn-icon { background:transparent; border:none; cursor:pointer; font-size:1rem; padding:4px 7px; border-radius:5px; transition:background .12s; }
+.btn-icon:hover { background:var(--primary-soft); }
+.add-row-btn { display:flex; align-items:center; gap:6px; padding:7px 14px; border:1.5px dashed var(--border); border-radius:var(--radius); background:transparent; cursor:pointer; font-family:var(--font); font-size:0.8rem; color:var(--text-muted); transition:all .15s; }
+.add-row-btn:hover { border-color:var(--primary); color:var(--primary); }
+
+/* ══════════════════════════════════════════════════════
+   [MEETINGS CSS] — PASTE THIS BLOCK INTO THE REAL FILE
+   ══════════════════════════════════════════════════════ */
+
+/* Month grid day hover */
+#meetingCalGrid [onclick]:hover {
+  background: var(--primary-soft) !important;
+}
+
+/* Weekend columns */
+.meeting-cal-day-shab {
+  background: rgba(0,0,0,0.018) !important;
+}
+
+/* Today highlight */
+.meeting-cal-day-today {
+  background: var(--primary-soft) !important;
+  border-color: var(--primary) !important;
+}
+
+/* Meeting card hover */
+#meetingListContainer .card {
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+#meetingListContainer .card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  transform: translateY(-1px);
+}
+
+/* Modal backdrop blur */
+#meetingModal { backdrop-filter: blur(2px); }
+
+/* By-period accordion */
+#meetingByPeriodContainer .accordion { margin-bottom: 10px; }
+
+/* KPI grid */
+#meetingKpiGrid {
+  margin-bottom: 14px;
+}
+
+/* Calendar grid wrapper */
+#meetingCalGrid {
+  direction: rtl;
+}
+
+/* Period compact table */
+.meeting-period-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.meeting-period-table th { background:var(--primary-soft); color:var(--primary); font-weight:700; font-size:0.7rem; text-transform:uppercase; padding:6px 10px; text-align:right; border-bottom:1px solid var(--border); }
+.meeting-period-table td { padding:7px 10px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.meeting-period-table tr:last-child td { border-bottom:none; }
+.meeting-period-table tr:hover td { background:#fafbfc; }
+
+/* Toast (stub for standalone) */
+#_meetingsToast {
+  position:fixed; bottom:24px; left:50%;
+  transform:translateX(-50%) translateY(6px);
+  background:var(--primary); color:#fff;
+  font-size:0.8rem; font-weight:700;
+  padding:9px 18px; border-radius:8px;
+  opacity:0; pointer-events:none;
+  transition:all .22s; z-index:9999; white-space:nowrap;
+  box-shadow:0 4px 16px rgba(0,0,0,0.18);
+}
+#_meetingsToast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+#_meetingsToast.success { background:var(--success); }
+#_meetingsToast.error   { background:var(--accent); }
+
+@media print {
+  #scalendar .btn, #scalendar .btn-icon,
+  #scalendar .add-row-btn, #meetingTabs,
+  #ganttSyncBtn { display: none !important; }
+  #scalendar .arena-panel { display: block !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     [NAV ITEM] — PASTE INSIDE sideNav "משאבים" section:
+
+  <button class="nav-item" data-section="scalendar"
+          onclick="switchSection('scalendar', this)">
+    <span class="icon">📅</span> יומן פגישות
+  </button>
+     ══════════════════════════════════════════════════════ -->
+
+
+<!-- ══════════════════════════════════════════════════════
+     [SECTION HTML] — begin <div id="scalendar">
+     ══════════════════════════════════════════════════════ -->
+
+<div id="scalendar" class="section">
+
+  <!-- Header -->
+  <div class="section-title">
+    <span class="icon">📅</span> יומן פגישות
+    <button class="btn btn-outline"
+      style="background:var(--primary);color:#fff;font-size:0.75rem;padding:5px 14px;margin-right:auto"
+      onclick="syncFromGantt()" id="ganttSyncBtn">
+      🔄 סנכרן מגאנט
+    </button>
+    <span id="lastSyncLabel" style="font-size:0.7rem;color:var(--text-muted)"></span>
+  </div>
+
+  <!-- KPI bar -->
+  <div class="dashboard-grid" id="meetingKpiGrid"></div>
+
+  <!-- TAB BAR -->
+  <div class="arena-tabs" id="meetingTabs" style="margin-bottom:16px">
+    <button class="arena-tab active" data-tab="month"
+            onclick="switchMeetingTab('month',this)">
+      🗓️ תצוגת חודש
+    </button>
+    <button class="arena-tab" data-tab="list"
+            onclick="switchMeetingTab('list',this)">
+      📋 רשימה
+    </button>
+    <button class="arena-tab" data-tab="period"
+            onclick="switchMeetingTab('period',this)">
+      📌 לפי תקופה
+    </button>
+  </div>
+
+  <!-- PANEL: MONTH VIEW -->
+  <div id="meetingPanel_month" class="arena-panel active">
+    <div class="card" style="padding:10px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-outline"
+          style="background:var(--primary);color:#fff;padding:5px 12px"
+          onclick="navigateMeetingMonth(-1)">‹ חודש קודם</button>
+        <span id="meetingMonthTitle"
+          style="font-size:1rem;font-weight:700;color:var(--primary);flex:1;text-align:center"></span>
+        <button class="btn btn-outline"
+          style="background:var(--primary);color:#fff;padding:5px 12px"
+          onclick="navigateMeetingMonth(1)">חודש הבא ›</button>
+        <button class="btn btn-save"
+          style="background:var(--primary);color:#fff"
+          onclick="openMeetingModal(null, null)">
+          ➕ פגישה חדשה
+        </button>
+      </div>
+    </div>
+    <div class="card" style="padding:16px">
+      <div id="meetingCalGrid"></div>
+    </div>
+  </div>
+
+  <!-- PANEL: LIST VIEW -->
+  <div id="meetingPanel_list" class="arena-panel">
+    <div class="card" style="padding:12px 20px;margin-bottom:12px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select id="meetFilterType" onchange="filterMeetingList()"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+          <option value="">כל הסוגים</option>
+          <option value="meeting">פגישה</option>
+          <option value="visit">סיור / ביקור</option>
+          <option value="training">הדרכה</option>
+          <option value="event">אירוע בית-ספרי</option>
+          <option value="other">אחר</option>
+        </select>
+        <select id="meetFilterStatus" onchange="filterMeetingList()"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+          <option value="">כל הסטטוסים</option>
+          <option value="upcoming">קרוב</option>
+          <option value="done">הושלם</option>
+          <option value="cancelled">בוטל</option>
+        </select>
+        <select id="meetFilterPriority" onchange="filterMeetingList()"
+          style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+          <option value="">כל העדיפויות</option>
+          <option value="high">דחוף</option>
+          <option value="medium">בינוני</option>
+          <option value="low">נמוך</option>
+        </select>
+        <input id="meetSearch" type="text" placeholder="🔍 חיפוש..."
+          style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem"
+          oninput="filterMeetingList()">
+        <button class="btn btn-save"
+          style="background:var(--primary);color:#fff"
+          onclick="openMeetingModal(null, null)">
+          ➕ פגישה חדשה
+        </button>
+        <button class="btn btn-outline"
+          style="background:var(--primary);color:#fff"
+          onclick="exportMeetingsCSV()">
+          📥 CSV
+        </button>
+        <button class="btn btn-outline"
+          style="background:var(--primary);color:#fff"
+          onclick="printMeetings()">
+          🖨️ הדפסה
+        </button>
+      </div>
+    </div>
+    <div id="meetingListContainer"></div>
+  </div>
+
+  <!-- PANEL: BY PERIOD -->
+  <div id="meetingPanel_period" class="arena-panel">
+    <div id="meetingByPeriodContainer"></div>
+  </div>
+
+</div><!-- /scalendar -->
+
+
+<!-- ══ MEETING MODAL ══ -->
+<div id="meetingModal"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);
+         z-index:600;align-items:center;justify-content:center;padding:16px" role="dialog">
+  <div style="background:var(--card);border-radius:var(--radius);max-width:620px;width:100%;
+              max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.18);direction:rtl">
+    <!-- Modal header -->
+    <div style="padding:16px 20px 12px;border-bottom:1.5px solid var(--border);position:sticky;
+                top:0;background:var(--card);z-index:10;
+                display:flex;align-items:center;justify-content:space-between">
+      <h3 id="meetModalTitle"
+        style="font-size:1rem;font-weight:700;color:var(--primary);margin:0"></h3>
+      <button class="btn-icon" onclick="closeMeetingModal()" style="font-size:1.1rem">✕</button>
+    </div>
+    <!-- Modal body -->
+    <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+      <input type="hidden" id="meetModalId">
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label>כותרת הפגישה *</label>
+          <input type="text" id="meetModalTitleInput" placeholder="ישיבת צוות / סיור הנהלה...">
+        </div>
+        <div class="form-group">
+          <label>תאריך *</label>
+          <input type="date" id="meetModalDate">
+        </div>
+        <div class="form-group">
+          <label>סוג</label>
+          <select id="meetModalType">
+            <option value="meeting">פגישה</option>
+            <option value="visit">סיור / ביקור</option>
+            <option value="training">הדרכה</option>
+            <option value="event">אירוע בית-ספרי</option>
+            <option value="other">אחר</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>שעת התחלה</label>
+          <input type="time" id="meetModalTimeStart">
+        </div>
+        <div class="form-group">
+          <label>שעת סיום</label>
+          <input type="time" id="meetModalTimeEnd">
+        </div>
+        <div class="form-group">
+          <label>עדיפות</label>
+          <select id="meetModalPriority">
+            <option value="medium">בינוני</option>
+            <option value="high">דחוף</option>
+            <option value="low">נמוך</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>סטטוס</label>
+          <select id="meetModalStatus">
+            <option value="upcoming">קרוב</option>
+            <option value="done">הושלם</option>
+            <option value="cancelled">בוטל</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>מיקום</label>
+          <input type="text" id="meetModalLocation" placeholder="חדר מנהל / זום...">
+        </div>
+        <div class="form-group">
+          <label>משתתפים</label>
+          <input type="text" id="meetModalAttendees" placeholder="שמות / תפקידים...">
+        </div>
+        <div class="form-group">
+          <label>צבע</label>
+          <input type="color" id="meetModalColor" value="#1a3a5c"
+            style="height:36px;width:60px;padding:2px 4px;border:1.5px solid var(--border);
+                   border-radius:6px;cursor:pointer">
+        </div>
+        <div class="form-group form-full">
+          <label>נושאי סדר יום</label>
+          <textarea id="meetModalAgenda" rows="3" placeholder="1. &#10;2. &#10;3. ..."></textarea>
+        </div>
+        <div class="form-group form-full">
+          <label>סיכום פגישה</label>
+          <textarea id="meetModalSummary" rows="3" placeholder="מה הוחלט? מה הוסכם?..."></textarea>
+        </div>
+      </div>
+    </div>
+    <!-- Modal footer -->
+    <div style="padding:12px 20px;border-top:1.5px solid var(--border);
+                display:flex;justify-content:flex-end;gap:10px;
+                position:sticky;bottom:0;background:var(--card)">
+      <button id="meetModalDeleteBtn"
+        style="margin-left:auto;background:transparent;border:1.5px solid var(--accent);
+               color:var(--accent);padding:7px 16px;border-radius:var(--radius);
+               cursor:pointer;font-family:var(--font);font-size:0.8125rem;font-weight:600;display:none"
+        onclick="deleteMeeting(document.getElementById('meetModalId').value)">
+        🗑️ מחק
+      </button>
+      <button class="btn btn-outline" onclick="closeMeetingModal()"
+        style="border-color:var(--border);color:var(--text-muted)">
+        ביטול
+      </button>
+      <button class="btn btn-save"
+        style="background:var(--primary);color:#fff"
+        onclick="saveMeetingModal()">
+        💾 שמור
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast for standalone demo -->
+<div id="_meetingsToast"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     [MEETINGS JS] — PASTE INTO MANAGEMENT FILE'S <script>
+     ══════════════════════════════════════════════════════ -->
+<script>
+// ════════════════════════════════════════════════════════════
+// STANDALONE DEMO STUBS
+// In the real management file, remove everything in this block.
+// The real file already provides: esc(), newId(), markDirty(),
+// showToast(), formatDate(), appData, DOMPurify
+// ════════════════════════════════════════════════════════════
+const ISDEV = false;
+
+// Stub: DOMPurify — in real file, the CDN loads it
+const DOMPurify = { sanitize: (s) => String(s ?? '').replace(/</g,'&lt;').replace(/>/g,'&gt;') };
+
+// Stub: appData  — in real file this is the global app state object
+const appData = {
+  meetings: {
+    events: [],
+    settings: { syncedFromGantt: false, lastSyncAt: '' }
+  }
+};
+
+// Stub: showToast
+function showToast(msg, type = 'success') {
+  const el = document.getElementById('_meetingsToast');
+  if (!el) return;
+  el.textContent = msg;
+  el.className = 'show ' + (type || '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// Stub: markDirty
+function markDirty() { /* in real file: triggers dirty indicator */ }
+
+// Stub: newId
+function newId() {
+  return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+// Stub: esc (in real file uses DOMPurify or manual escaping)
+function esc(s) {
+  return DOMPurify.sanitize(String(s ?? ''));
+}
+
+// Stub: formatDate — in real file formatDate accepts a Date or ISO string
+function formatDate(d) {
+  if (!d) return '';
+  const dt = typeof d === 'string' ? new Date(d + 'T12:00:00') : d;
+  return dt.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit' });
+}
+
+// Stub: switchSection — in real file this handles the nav. We only stub for demo.
+function switchSection(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+  const el = document.getElementById(id);
+  if (el) el.style.display = '';
+  if (id === 'scalendar') renderMeetingsCalendar();
+}
+// END STUBS ══════════════════════════════════════════════════
+
+
+
+// ════════════════════════════════════════════════════════════
+// ── MEETINGS MODULE STATE ──
+// ════════════════════════════════════════════════════════════
+let _meetingViewYear    = new Date().getFullYear();
+let _meetingViewMonth   = new Date().getMonth(); // 0-based
+let _meetingCurrentTab  = 'month';
+let _waitingForGanttSync = false;
+
+// ════════════════════════════════════════════════════════════
+// ── HELPER LABEL FUNCTIONS ──
+// ════════════════════════════════════════════════════════════
+function _meetTypeIcon(type) {
+  return { meeting:'🤝', visit:'🏫', training:'📚', event:'🎉', other:'📌' }[type] || '📌';
+}
+function _meetTypeLabel(type) {
+  return { meeting:'פגישה', visit:'סיור / ביקור', training:'הדרכה', event:'אירוע בית-ספרי', other:'אחר' }[type] || type;
+}
+function _statusClass(s) {
+  return { upcoming:'inprogress', done:'done', cancelled:'blocked' }[s] || 'todo';
+}
+function _statusLabel(s) {
+  return { upcoming:'קרוב', done:'הושלם', cancelled:'בוטל' }[s] || s;
+}
+function _priorityBg(p)    { return { high:'#fde8e8', medium:'#fff3cd', low:'#d4edda' }[p] || '#f8fafc'; }
+function _priorityColor(p) { return { high:'#721c24', medium:'#856404', low:'#155724' }[p] || '#64748b'; }
+function _priorityLabel(p) { return { high:'דחוף', medium:'בינוני', low:'נמוך' }[p] || p; }
+
+function _fmtDateShort(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${parseInt(d)}/${parseInt(m)}/${String(y).slice(2)}`;
+}
+
+// ════════════════════════════════════════════════════════════
+// ── DATA SCHEMA DEFAULTS (for buildDefaultAppData) ──
+// In the real file ADD this to buildDefaultAppData()'s return:
+//   meetings: {
+//     events: [],
+//     settings: { syncedFromGantt: false, lastSyncAt: '' }
+//   }
+// ════════════════════════════════════════════════════════════
+
+// ── MIGRATION (for migrateContentIfNeeded) ──
+// In the real file ADD inside migrateContentIfNeeded():
+//   if (!payload.meetings || typeof payload.meetings !== 'object')
+//     payload.meetings = { events: [], settings: { syncedFromGantt:false, lastSyncAt:'' } };
+//   if (!Array.isArray(payload.meetings.events)) payload.meetings.events = [];
+//   if (!payload.meetings.settings)
+//     payload.meetings.settings = { syncedFromGantt:false, lastSyncAt:'' };
+
+
+// ════════════════════════════════════════════════════════════
+// ── ENTRY POINT ──
+// ════════════════════════════════════════════════════════════
+function renderMeetingsCalendar() {
+  updateMeetingKpi();
+  if (_meetingCurrentTab === 'month')       renderMeetingMonthView();
+  else if (_meetingCurrentTab === 'list')   renderMeetingList(appData.meetings.events);
+  else if (_meetingCurrentTab === 'period') renderMeetingByPeriod();
+  updateLastSyncLabel();
+}
+
+// ── TAB SWITCHING ──
+function switchMeetingTab(tab, el) {
+  _meetingCurrentTab = tab;
+  document.querySelectorAll('#meetingTabs .arena-tab').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  ['month', 'list', 'period'].forEach(t => {
+    const p = document.getElementById('meetingPanel_' + t);
+    if (p) p.classList.toggle('active', t === tab);
+  });
+  renderMeetingsCalendar();
+}
+
+// ════════════════════════════════════════════════════════════
+// ── KPI BAR ──
+// ════════════════════════════════════════════════════════════
+function updateMeetingKpi() {
+  const grid = document.getElementById('meetingKpiGrid');
+  if (!grid) return;
+  const events   = appData.meetings.events || [];
+  const now      = new Date();
+  const thisYear = now.getFullYear();
+  const thisMon  = now.getMonth();
+  const total    = events.length;
+  const upcoming = events.filter(e => e.status === 'upcoming').length;
+  const done     = events.filter(e => e.status === 'done').length;
+  const thisMonth = events.filter(e => {
+    if (!e.date) return false;
+    const d = new Date(e.date + 'T12:00:00');
+    return d.getFullYear() === thisYear && d.getMonth() === thisMon;
+  }).length;
+
+  grid.innerHTML = `
+    <div class="dash-card">
+      <div class="dash-num" style="color:var(--primary)">${total}</div>
+      <div class="dash-label">סך פגישות</div>
+    </div>
+    <div class="dash-card info">
+      <div class="dash-num">${upcoming}</div>
+      <div class="dash-label">קרובות</div>
+    </div>
+    <div class="dash-card success">
+      <div class="dash-num">${done}</div>
+      <div class="dash-label">הושלמו</div>
+    </div>
+    <div class="dash-card warning">
+      <div class="dash-num">${thisMonth}</div>
+      <div class="dash-label">החודש</div>
+    </div>`;
+}
+
+// ── LAST SYNC LABEL ──
+function updateLastSyncLabel() {
+  const lbl = document.getElementById('lastSyncLabel');
+  if (!lbl) return;
+  const t = appData.meetings.settings?.lastSyncAt;
+  lbl.textContent = t
+    ? 'סונכרן לאחרונה: ' + new Date(t).toLocaleDateString('he-IL')
+    : 'טרם סונכרן';
+}
+
+// ════════════════════════════════════════════════════════════
+// ── HEBREW DATE HELPERS ──
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Converts a Hebrew day-of-month number (1–30) to Hebrew letter notation.
+ * e.g. 1→א׳  2→ב׳  10→י׳  15→ט״ו  29→כ״ט
+ */
+function hebrewDayLetters(n) {
+  const ones = ['','א','ב','ג','ד','ה','ו','ז','ח','ט'];
+  const tens = ['','י','כ'];
+  if (n === 15) return 'ט״ו';
+  if (n === 16) return 'ט״ז';
+  const t = Math.floor(n / 10);
+  const o = n % 10;
+  if (t === 0) return ones[o] + '׳';
+  if (o === 0) return tens[t] + '׳';
+  return tens[t] + '״' + ones[o];
+}
+
+/**
+ * Returns the Hebrew day as letter notation for a given Gregorian date.
+ */
+function gregDayToHebrewLetters(year, month, day) {
+  try {
+    const numFmt = new Intl.DateTimeFormat('en-u-ca-hebrew', { day: 'numeric' });
+    const num = parseInt(numFmt.format(new Date(year, month, day)), 10);
+    return hebrewDayLetters(num);
+  } catch (_) { return ''; }
+}
+
+/**
+ * Returns the Hebrew month name(s) that appear in a given Gregorian month.
+ * A Gregorian month can span 1–2 Hebrew months, e.g. "תשרי – חשוון".
+ */
+function getHebrewMonthLabel(gregYear, gregMonth /* 0-based */) {
+  const daysInMonth = new Date(gregYear, gregMonth + 1, 0).getDate();
+  const firstDate = new Date(gregYear, gregMonth, 1);
+  const lastDate  = new Date(gregYear, gregMonth, daysInMonth);
+  const fmt = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { month: 'long' });
+  const firstHeb = fmt.format(firstDate);
+  const lastHeb  = fmt.format(lastDate);
+  return firstHeb === lastHeb ? firstHeb : `${firstHeb} – ${lastHeb}`;
+}
+
+// ════════════════════════════════════════════════════════════
+// ── MONTH VIEW ──
+// ════════════════════════════════════════════════════════════
+function renderMeetingMonthView() {
+  const titleEl = document.getElementById('meetingMonthTitle');
+  if (titleEl) {
+    const gregLabel = new Date(_meetingViewYear, _meetingViewMonth, 1)
+      .toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+    const hebLabel  = getHebrewMonthLabel(_meetingViewYear, _meetingViewMonth);
+
+    titleEl.innerHTML =
+      `<span style="color:var(--primary)">${gregLabel}</span>` +
+      `<span style="color:var(--text-muted);font-size:0.85em;font-weight:500;margin-right:14px">` +
+      `${hebLabel}</span>`;
+  }
+
+  const grid = document.getElementById('meetingCalGrid');
+  if (!grid) return;
+
+  const DAY_NAMES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+  const now        = new Date();
+  const firstDay   = new Date(_meetingViewYear, _meetingViewMonth, 1);
+  const daysInMon  = new Date(_meetingViewYear, _meetingViewMonth + 1, 0).getDate();
+  const firstDow   = firstDay.getDay(); // 0=Sun
+  const todayStr   = now.toISOString().slice(0, 10);
+
+  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;user-select:none">`;
+
+  // Day headers
+  DAY_NAMES.forEach((n, i) => {
+    const isWeekend = i === 5 || i === 6;
+    html += `<div style="text-align:center;font-size:0.7rem;font-weight:700;
+      color:${isWeekend ? 'var(--primary)' : 'var(--text-muted)'};
+      padding:5px 0;border-bottom:1.5px solid var(--border);
+      margin-bottom:2px">${n}</div>`;
+  });
+
+  // Empty cells before month start
+  for (let i = 0; i < firstDow; i++) {
+    html += `<div style="min-height:80px"></div>`;
+  }
+
+  // Day cells
+  for (let d = 1; d <= daysInMon; d++) {
+    const dow      = new Date(_meetingViewYear, _meetingViewMonth, d).getDay();
+    const dateStr  = `${_meetingViewYear}-${String(_meetingViewMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday  = dateStr === todayStr;
+    const isWeekend= dow === 5 || dow === 6;
+    const dayEvts  = (appData.meetings.events || []).filter(e => e.date === dateStr);
+
+    const bgColor  = isToday   ? 'var(--primary-soft)'
+                   : isWeekend ? 'rgba(0,0,0,0.018)'
+                   : 'var(--card)';
+    const numColor = isToday ? 'var(--primary)' : 'var(--text-muted)';
+    const border   = isToday ? '1.5px solid var(--primary)' : '1px solid var(--border)';
+
+    let evtsHtml = '';
+    const MAX_SHOW = 3;
+    dayEvts.slice(0, MAX_SHOW).forEach(evt => {
+      const opacity = evt.status === 'cancelled' ? '0.45' : '1';
+      evtsHtml += `<div
+        style="background:${evt.color || 'var(--primary)'};color:#fff;border-radius:4px;
+               padding:2px 5px;font-size:10px;font-weight:600;margin-bottom:2px;
+               cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+               opacity:${opacity}"
+        title="${esc(evt.title)} ${evt.timeStart || ''}"
+        onclick="event.stopPropagation();openMeetingModal('${evt.id}',null)">
+        ${evt.timeStart ? evt.timeStart + ' ' : ''}${esc(evt.title)}
+      </div>`;
+    });
+    if (dayEvts.length > MAX_SHOW) {
+      const remaining = dayEvts.length - MAX_SHOW;
+      evtsHtml += `<div
+        style="font-size:9px;color:var(--primary);cursor:pointer;font-weight:600"
+        onclick="event.stopPropagation();switchMeetingTab('list',document.querySelector('.arena-tab[data-tab=list]'))">
+        +${remaining} נוספות
+      </div>`;
+    }
+
+    const hebDay = gregDayToHebrewLetters(_meetingViewYear, _meetingViewMonth, d);
+
+    html += `<div
+      style="min-height:80px;border:${border};border-radius:6px;padding:4px;
+             background:${bgColor};cursor:pointer"
+      onclick="openMeetingModal(null,'${dateStr}')">
+      <div style="display:flex;align-items:baseline;justify-content:center;gap:5px;margin-bottom:4px">
+        <span style="font-size:0.75rem;font-weight:700;color:${numColor}">${d}</span>
+        <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);opacity:0.75">${hebDay}</span>
+      </div>
+      ${evtsHtml}
+    </div>`;
+  }
+
+  html += `</div>`;
+  grid.innerHTML = html;
+}
+
+function navigateMeetingMonth(delta) {
+  _meetingViewMonth += delta;
+  if (_meetingViewMonth > 11) { _meetingViewMonth = 0;  _meetingViewYear++; }
+  if (_meetingViewMonth < 0)  { _meetingViewMonth = 11; _meetingViewYear--; }
+  renderMeetingMonthView();
+}
+
+// ════════════════════════════════════════════════════════════
+// ── LIST VIEW ──
+// ════════════════════════════════════════════════════════════
+function renderMeetingList(events) {
+  const container = document.getElementById('meetingListContainer');
+  if (!container) return;
+
+  const sorted = [...(events || appData.meetings.events || [])]
+    .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+  if (!sorted.length) {
+    container.innerHTML = `<div class="card" style="padding:32px;text-align:center;color:var(--text-muted)">
+      <div style="font-size:2rem;margin-bottom:10px">📅</div>
+      <div style="font-weight:700;">אין פגישות</div>
+      <div style="font-size:0.8rem;margin-top:4px">לחץ "➕ פגישה חדשה" להוספה</div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = sorted.map(evt => {
+    const timeBlock = evt.timeStart
+      ? `<div style="font-size:0.7rem;color:var(--primary);font-weight:600">
+           ${esc(evt.timeStart)}–${esc(evt.timeEnd || '')}
+         </div>` : '';
+    const locationLine = evt.location
+      ? `<div style="font-size:0.75rem;color:var(--text-muted)">📍 ${esc(evt.location)}</div>` : '';
+    const attendeesLine = evt.attendees
+      ? `<div style="font-size:0.75rem;color:var(--text-muted)">👥 ${esc(evt.attendees)}</div>` : '';
+    const agendaLine = evt.agenda
+      ? `<div style="font-size:0.8rem;color:var(--text);margin-top:6px;white-space:pre-line;
+                     border-top:1px solid var(--border);padding-top:6px">
+           ${esc(evt.agenda)}
+         </div>` : '';
+    const summaryLine = evt.summary
+      ? `<div style="font-size:0.8rem;color:var(--success);font-weight:600;margin-top:4px">
+           📝 ${esc(evt.summary)}
+         </div>` : '';
+    const ganttBadge = evt.isFromGantt
+      ? `<span style="font-size:0.7rem;background:#e8f0fb;color:var(--primary-light);
+                      padding:2px 6px;border-radius:10px;font-weight:600">🔄 גאנט</span>` : '';
+
+    return `<div class="card"
+      style="padding:16px 20px;margin-bottom:10px;
+             border-inline-start:4px solid ${evt.color || 'var(--primary)'}">
+      <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <!-- Left: type + date -->
+        <div style="text-align:center;min-width:48px">
+          <div style="font-size:1.4rem">${_meetTypeIcon(evt.type)}</div>
+          <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted)">
+            ${_fmtDateShort(evt.date)}
+          </div>
+          ${timeBlock}
+        </div>
+        <!-- Right: content -->
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-size:0.9375rem;font-weight:700;color:var(--text)">${esc(evt.title)}</span>
+            <span class="status-badge status-${_statusClass(evt.status)}">${_statusLabel(evt.status)}</span>
+            <span style="font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:12px;
+                         background:${_priorityBg(evt.priority)};color:${_priorityColor(evt.priority)}">
+              ${_priorityLabel(evt.priority)}
+            </span>
+            ${ganttBadge}
+          </div>
+          ${locationLine}${attendeesLine}${agendaLine}${summaryLine}
+        </div>
+        <!-- Actions -->
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <button class="btn-icon" title="ערוך" onclick="openMeetingModal('${evt.id}',null)">✏️</button>
+          <button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${evt.id}')">📋</button>
+          <button class="btn-icon" title="מחק"  onclick="deleteMeeting('${evt.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterMeetingList() {
+  const type   = document.getElementById('meetFilterType')?.value     || '';
+  const status = document.getElementById('meetFilterStatus')?.value   || '';
+  const prio   = document.getElementById('meetFilterPriority')?.value || '';
+  const srch   = (document.getElementById('meetSearch')?.value || '').toLowerCase();
+
+  const filtered = (appData.meetings.events || []).filter(e =>
+    (!type   || e.type     === type)   &&
+    (!status || e.status   === status) &&
+    (!prio   || e.priority === prio)   &&
+    (!srch   || (e.title     || '').toLowerCase().includes(srch) ||
+                (e.attendees || '').toLowerCase().includes(srch))
+  );
+  renderMeetingList(filtered);
+}
+
+// ════════════════════════════════════════════════════════════
+// ── BY PERIOD VIEW ──
+// ════════════════════════════════════════════════════════════
+function renderMeetingByPeriod() {
+  const container = document.getElementById('meetingByPeriodContainer');
+  if (!container) return;
+
+  const events = [...(appData.meetings.events || [])]
+    .filter(e => e.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  if (!events.length) {
+    container.innerHTML = `<div class="card" style="padding:28px;text-align:center;color:var(--text-muted)">
+      אין פגישות להצגה
+    </div>`;
+    return;
+  }
+
+  // Group by year-month (school year order: Sep-Aug)
+  const MONTHS_HE = {
+    0:'ינואר', 1:'פברואר', 2:'מרץ', 3:'אפריל', 4:'מאי', 5:'יוני',
+    6:'יולי', 7:'אוגוסט', 8:'ספטמבר', 9:'אוקטובר', 10:'נובמבר', 11:'דצמבר'
+  };
+  const SCHOOL_MONTH_ORDER = [8,9,10,11,0,1,2,3,4,5,6,7];
+
+  const groups = {};
+  events.forEach(e => {
+    const d = new Date(e.date + 'T12:00:00');
+    const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}`;
+    if (!groups[key]) groups[key] = { year: d.getFullYear(), month: d.getMonth(), events: [] };
+    groups[key].events.push(e);
+  });
+
+  // Sort keys by school year order
+  const sortedKeys = Object.keys(groups).sort((a, b) => {
+    const ga = groups[a], gb = groups[b];
+    if (ga.year !== gb.year) return ga.year - gb.year;
+    return SCHOOL_MONTH_ORDER.indexOf(ga.month) - SCHOOL_MONTH_ORDER.indexOf(gb.month);
+  });
+
+  container.innerHTML = sortedKeys.map((key, ki) => {
+    const g = groups[key];
+    const monthLabel = `${MONTHS_HE[g.month]} ${g.year}`;
+    const rows = g.events.map(evt => `
+      <tr>
+        <td>${_fmtDateShort(evt.date)}</td>
+        <td>${esc(evt.timeStart || '—')}</td>
+        <td><strong>${esc(evt.title)}</strong></td>
+        <td><span style="font-size:0.72rem">${_meetTypeIcon(evt.type)} ${_meetTypeLabel(evt.type)}</span></td>
+        <td><span class="status-badge status-${_statusClass(evt.status)}">${_statusLabel(evt.status)}</span></td>
+        <td>
+          <button class="btn-icon" onclick="openMeetingModal('${evt.id}',null)" title="ערוך">✏️</button>
+          <button class="btn-icon" onclick="deleteMeeting('${evt.id}')" title="מחק">🗑️</button>
+        </td>
+      </tr>`).join('');
+
+    return `
+    <div class="accordion${ki === 0 ? ' open' : ''}" id="macc_${key}">
+      <div class="accordion-header"
+           onclick="this.closest('.accordion').classList.toggle('open')">
+        <span>📅</span>
+        <span>${monthLabel}</span>
+        <span style="background:var(--primary-soft);color:var(--primary);
+                     font-size:0.72rem;padding:1px 8px;border-radius:20px;font-weight:700">
+          ${g.events.length} פגישות
+        </span>
+        <span class="arrow">▾</span>
+      </div>
+      <div class="accordion-body">
+        <div class="table-wrap">
+          <table class="meeting-period-table">
+            <thead><tr>
+              <th>תאריך</th><th>שעה</th><th>כותרת</th><th>סוג</th><th>סטטוס</th><th></th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+// ── MODAL ──
+// ════════════════════════════════════════════════════════════
+function openMeetingModal(id, dateStr) {
+  const evt = id ? (appData.meetings.events || []).find(e => e.id === id) : null;
+
+  document.getElementById('meetModalId').value           = id || '';
+  document.getElementById('meetModalTitleInput').value   = evt?.title      || '';
+  document.getElementById('meetModalDate').value         = dateStr || evt?.date || new Date().toISOString().slice(0,10);
+  document.getElementById('meetModalTimeStart').value    = evt?.timeStart  || '';
+  document.getElementById('meetModalTimeEnd').value      = evt?.timeEnd    || '';
+  document.getElementById('meetModalType').value         = evt?.type       || 'meeting';
+  document.getElementById('meetModalPriority').value     = evt?.priority   || 'medium';
+  document.getElementById('meetModalStatus').value       = evt?.status     || 'upcoming';
+  document.getElementById('meetModalLocation').value     = evt?.location   || '';
+  document.getElementById('meetModalAttendees').value    = evt?.attendees  || '';
+  document.getElementById('meetModalColor').value        = evt?.color      || '#1a3a5c';
+  document.getElementById('meetModalAgenda').value       = evt?.agenda     || '';
+  document.getElementById('meetModalSummary').value      = evt?.summary    || '';
+  document.getElementById('meetModalTitle').textContent  = id ? 'עריכת פגישה' : 'פגישה חדשה';
+  document.getElementById('meetModalDeleteBtn').style.display = id ? 'block' : 'none';
+
+  const modal = document.getElementById('meetingModal');
+  modal.style.display = 'flex';
+  // Trap focus
+  setTimeout(() => document.getElementById('meetModalTitleInput').focus(), 80);
+}
+
+function closeMeetingModal() {
+  document.getElementById('meetingModal').style.display = 'none';
+}
+
+function saveMeetingModal() {
+  const id    = document.getElementById('meetModalId').value;
+  const title = document.getElementById('meetModalTitleInput').value.trim();
+  const date  = document.getElementById('meetModalDate').value;
+
+  if (!title) { showToast('נא להזין כותרת', 'error'); return; }
+  if (!date)  { showToast('נא לבחור תאריך', 'error'); return; }
+
+  const evt = {
+    id:        id || newId(),
+    title,
+    date,
+    timeStart:  document.getElementById('meetModalTimeStart').value,
+    timeEnd:    document.getElementById('meetModalTimeEnd').value,
+    type:       document.getElementById('meetModalType').value,
+    priority:   document.getElementById('meetModalPriority').value,
+    status:     document.getElementById('meetModalStatus').value,
+    location:   document.getElementById('meetModalLocation').value.trim(),
+    attendees:  document.getElementById('meetModalAttendees').value.trim(),
+    color:      document.getElementById('meetModalColor').value,
+    agenda:     document.getElementById('meetModalAgenda').value.trim(),
+    summary:    document.getElementById('meetModalSummary').value.trim(),
+    isFromGantt:      false,
+    linkedPeriodId:   '',
+    linkedGanttEventId: ''
+  };
+
+  if (!appData.meetings) appData.meetings = { events: [], settings: { syncedFromGantt: false, lastSyncAt: '' } };
+  if (!Array.isArray(appData.meetings.events)) appData.meetings.events = [];
+
+  if (id) {
+    const idx = appData.meetings.events.findIndex(e => e.id === id);
+    if (idx > -1) {
+      evt.isFromGantt         = appData.meetings.events[idx].isFromGantt;
+      evt.linkedPeriodId      = appData.meetings.events[idx].linkedPeriodId;
+      evt.linkedGanttEventId  = appData.meetings.events[idx].linkedGanttEventId;
+      appData.meetings.events[idx] = evt;
+    }
+  } else {
+    appData.meetings.events.push(evt);
+  }
+
+  markDirty();
+  closeMeetingModal();
+  renderMeetingsCalendar();
+  saveToPortal();
+  showToast(id ? 'הפגישה עודכנה ✓' : 'הפגישה נוספה ✓', 'success');
+}
+
+function deleteMeeting(id) {
+  if (!id) return;
+  if (!confirm('למחוק פגישה זו?')) return;
+  appData.meetings.events = (appData.meetings.events || []).filter(e => e.id !== id);
+  markDirty();
+  closeMeetingModal();
+  renderMeetingsCalendar();
+  saveToPortal();
+  showToast('הפגישה נמחקה', 'success');
+}
+
+function duplicateMeeting(id) {
+  const src = (appData.meetings.events || []).find(e => e.id === id);
+  if (!src) return;
+  const dup = { ...src, id: newId(), isFromGantt: false, title: 'עותק — ' + src.title };
+  appData.meetings.events.push(dup);
+  markDirty();
+  renderMeetingsCalendar();
+  saveToPortal();
+  showToast('הפגישה שוכפלה', 'success');
+}
+
+// ════════════════════════════════════════════════════════════
+// ── GANTT SYNC ──
+// ════════════════════════════════════════════════════════════
+function syncFromGantt() {
+  const btn = document.getElementById('ganttSyncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ מסנכרן...'; }
+  _waitingForGanttSync = true;
+
+  try {
+    window.parent.postMessage({ type: 'request-gantt-data-for-meetings' }, '*');
+  } catch(e) {
+    _waitingForGanttSync = false;
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 סנכרן מגאנט'; }
+    showToast('לא ניתן לסנכרן — הגאנט אינו פתוח', 'error');
+    return;
+  }
+
+  // Timeout fallback
+  setTimeout(() => {
+    if (_waitingForGanttSync) {
+      _waitingForGanttSync = false;
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 סנכרן מגאנט'; }
+      showToast('לא התקבלה תגובה מהגאנט', 'error');
+    }
+  }, 5000);
+}
+
+function processSyncFromGantt(ganttPayload) {
+  if (!ganttPayload) return;
+  if (!appData.meetings) appData.meetings = { events: [], settings: { syncedFromGantt:false, lastSyncAt:'' } };
+  if (!Array.isArray(appData.meetings.events)) appData.meetings.events = [];
+
+  let imported = 0;
+
+  // Collect all events from globalPlans + schoolPlans + schoolBlueprint
+  const allGanttEvts = [
+    ...(ganttPayload.data?.globalPlans     || []),
+    ...(ganttPayload.data?.schoolPlans     || []),
+    ...(ganttPayload.data?.schoolBlueprint || []),
+  ];
+
+  allGanttEvts.forEach(evt => {
+    if (!evt.start) return;
+    if (evt.status === 'cancelled') return;
+
+    const existing = appData.meetings.events.find(e => e.linkedGanttEventId === evt.id);
+    if (existing) {
+      // Update title/date only if changed, preserve user edits
+      if (existing.title !== evt.title) existing.title = evt.title;
+      if (existing.date  !== evt.start) existing.date  = evt.start;
+    } else {
+      appData.meetings.events.push({
+        id:                 newId(),
+        title:              evt.title || 'ללא כותרת',
+        date:               evt.start,
+        timeStart:          '',
+        timeEnd:            evt.end || '',
+        type:               evt.type === 'blueprint' ? 'event'
+                          : evt.type === 'school'    ? 'event' : 'meeting',
+        priority:           'medium',
+        status:             'upcoming',
+        location:           '',
+        attendees:          '',
+        color:              '#2563a8',
+        agenda:             evt.desc || '',
+        summary:            '',
+        isFromGantt:        true,
+        linkedPeriodId:     evt.periodId || '',
+        linkedGanttEventId: evt.id
+      });
+      imported++;
+    }
+  });
+
+  // Import PERIOD milestones if provided
+  const periods = ganttPayload.periods || [];
+  periods.forEach(period => {
+    if (!period.start) return;
+    const periodStartStr = period.start instanceof Date
+      ? period.start.toISOString().slice(0, 10)
+      : String(period.start).slice(0, 10);
+    if (!periodStartStr) return;
+
+    // Check if already imported as milestone
+    const milestoneTitle = '📌 ' + (period.name || '');
+    const alreadyIn = appData.meetings.events.find(e =>
+      e.isFromGantt && e.title === milestoneTitle && e.date === periodStartStr
+    );
+    if (!alreadyIn) {
+      appData.meetings.events.push({
+        id:                 newId(),
+        title:              milestoneTitle,
+        date:               periodStartStr,
+        timeStart:          '',
+        timeEnd:            period.end instanceof Date
+                            ? period.end.toISOString().slice(0, 10) : '',
+        type:               'event',
+        priority:           'low',
+        status:             'upcoming',
+        location:           '',
+        attendees:          '',
+        color:              period.color || '#2563a8',
+        agenda:             '',
+        summary:            '',
+        isFromGantt:        true,
+        linkedPeriodId:     period.id || '',
+        linkedGanttEventId: ''
+      });
+      imported++;
+    }
+  });
+
+  appData.meetings.settings = {
+    syncedFromGantt: true,
+    lastSyncAt:      new Date().toISOString()
+  };
+  markDirty();
+  renderMeetingsCalendar();
+  saveToPortal();
+  showToast(`סונכרנו ${imported} פגישות מהגאנט`, 'success');
+}
+
+// ════════════════════════════════════════════════════════════
+// ── POSTMESSAGE HANDLER INTEGRATION ──
+//
+// In the MANAGEMENT FILE, find the existing window.addEventListener('message'...)
+// and ADD this block INSIDE it, after the existing checks:
+//
+//   if (msg.type === 'gantt-data-for-meetings' && _waitingForGanttSync) {
+//     _waitingForGanttSync = false;
+//     processSyncFromGantt(msg.payload);
+//     const btn = document.getElementById('ganttSyncBtn');
+//     if (btn) { btn.disabled = false; btn.textContent = '🔄 סנכרן מגאנט'; }
+//     return;
+//   }
+// ════════════════════════════════════════════════════════════
+
+// ================================================================
+// PORTAL COMMUNICATION
+// ================================================================
+const DOC_TYPE      = 'calendar';
+const PORTAL_ORIGIN = '*';
+const _inPortal     = window.parent !== window;
+
+let _portalSchool = '';
+let _portalYear   = '';
+
+// ─── הגנה קריטית מפני מחיקת נתונים ──────────────────────────
+// דגל זה נשאר false עד שהפורטל ישלח load-data עם נתונים אמיתיים
+// מהשרת. כל עוד הוא false — saveToPortal() מסרב לשמור, כי
+// המשמעות היא שהנתונים עדיין לא הגיעו (למשל: הפלאפון פתח את
+// הדף, הפורטל עוד לא סיים לטעון מהשרת), ושמירה כעת תמחק את
+// הנתונים הקיימים בשרת ותכתוב רשימת פגישות ריקה במקומם.
+let _dataLoadedFromServer = false;
+
+function saveToPortal() {
+  if (!_inPortal) return;
+
+  // ← ההגנה המרכזית: לא שומרים לפני שנתונים הגיעו מהשרת
+  if (!_dataLoadedFromServer) {
+    console.warn('[calendar] saveToPortal BLOCKED — data not yet loaded from server. Skipping to prevent data loss.');
+    return;
+  }
+
+  const _evCount = (appData.meetings?.events||[]).length;
+  console.log('[calendar] saveToPortal | school:', _portalSchool, '| year:', _portalYear, '| events:', _evCount);
+  window.parent.postMessage({
+    type: 'save-request',
+    docType: DOC_TYPE,
+    payload: {
+      docType:  DOC_TYPE,
+      school:   _portalSchool,
+      year:     _portalYear,
+      meetings: appData.meetings
+    }
+  }, PORTAL_ORIGIN);
+}
+
+function _applyPortalData(payload) {
+  if (!payload) return;
+  if (payload.meetings && typeof payload.meetings === 'object') {
+    appData.meetings = payload.meetings;
+    if (!Array.isArray(appData.meetings.events)) appData.meetings.events = [];
+    if (!appData.meetings.settings) appData.meetings.settings = { syncedFromGantt: false, lastSyncAt: '' };
+  }
+  if (payload.school) _portalSchool = payload.school;
+  if (payload.year)   _portalYear   = payload.year;
+  // ← מסמן שנתונים הגיעו מהשרת — עכשיו בטוח לשמור
+  _dataLoadedFromServer = true;
+  console.log('[calendar] _applyPortalData | school:', _portalSchool, '| year:', _portalYear, '| events:', (appData.meetings?.events||[]).length);
+  renderMeetingsCalendar();
+  showToast('\u2705 \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d9\u05d5\u05de\u05df \u05e0\u05d8\u05e2\u05e0\u05d5');
+}
+
+// Unified message listener: portal + gantt sync
+window.addEventListener('message', e => {
+  const msg = e.data;
+  if (!msg || typeof msg !== 'object') return;
+
+  if (msg.type === 'gantt-data-for-meetings' && _waitingForGanttSync) {
+    _waitingForGanttSync = false;
+    processSyncFromGantt(msg.payload);
+    const btn = document.getElementById('ganttSyncBtn');
+    if (btn) { btn.disabled = false; btn.textContent = '\ud83d\udd04 \u05e1\u05e0\u05db\u05e8\u05df \u05de\u05d2\u05d0\u05e0\u05d8'; }
+    return;
+  }
+  if (msg.type === 'load-data')                             { _applyPortalData(msg.payload); return; }
+  if (msg.type === 'trigger-save' || msg.type === 'request-data') { saveToPortal(); return; }
+  if (msg.type === 'save-confirm')                          { showToast(msg.message || '\u2705 \u05e0\u05e9\u05de\u05e8'); return; }
+  if (msg.type === 'school-data-update') {
+    if (msg.schoolName) _portalSchool = msg.schoolName;
+    if (msg.year)       _portalYear   = msg.year;
+    return;
+  }
+});
+
+(function demoInit() {
+  if (_inPortal) {
+    window.parent.postMessage({ type: 'iframe-ready', docType: DOC_TYPE }, PORTAL_ORIGIN);
+    renderMeetingsCalendar();
+    return;
+  }
+  // standalone demo
+  const today = new Date().toISOString().slice(0, 10);
+  const tmr   = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+  const last  = new Date(Date.now() - 3*86400000).toISOString().slice(0,10);
+  appData.meetings.events = [
+    { id: newId(), title: '\u05d9\u05e9\u05d9\u05d1\u05ea \u05d4\u05e0\u05d4\u05dc\u05d4 \u05e9\u05d1\u05d5\u05e2\u05d9\u05ea', date: today, timeStart: '08:00', timeEnd: '09:30', type: 'meeting', priority: 'high', status: 'upcoming', location: '\u05d7\u05d3\u05e8 \u05de\u05e0\u05d4\u05dc', attendees: '\u05e1\u05d2\u05df', color: '#1a3a5c', agenda: '', summary: '', isFromGantt: false, linkedPeriodId: '', linkedGanttEventId: '' },
+    { id: newId(), title: '\u05d1\u05d9\u05e7\u05d5\u05e8 \u05de\u05d3\u05e8\u05d9\u05db\u05d4 \u05e4\u05d3\u05d2\u05d5\u05d2\u05d9\u05ea', date: tmr, timeStart: '10:00', timeEnd: '12:00', type: 'visit', priority: 'medium', status: 'upcoming', location: '\u05db\u05d9\u05ea\u05d4', attendees: '\u05de\u05d3\u05e8\u05d9\u05db\u05d4', color: '#2563a8', agenda: '', summary: '', isFromGantt: false, linkedPeriodId: '', linkedGanttEventId: '' },
+  ];
+  renderMeetingsCalendar();
+})();
+</script>
