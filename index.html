@@ -1557,11 +1557,21 @@ function applyStaffSectionPerms(perms) {
     const p = perms[f] || 'none';
     setNavVisible(f, p !== 'none');
   });
-  // Send per-section permissions into plan iframe
-  const planWin = document.getElementById('planFrame')?.contentWindow;
-  if (planWin) {
-    planWin.postMessage({ type:'set-section-permissions', permissions: perms }, '*');
-  }
+  // Send per-section permissions into plan iframe.
+  // תיקון: postMessage בודד ומיידי יכול "להיאבד" אם ה-iframe (tknyt.html)
+  // עדיין לא סיפק לרשום את מאזין ה-message הפנימי שלו (למשל בכניסה
+  // ראשונה/מהירה) — postMessage לא מתעדכן בהמשך, וההרשאות פשוט לא
+  // נכנסות לתוקף, כאילו לא הוגבל כלום. כדי להבטיח מסירה, שולחים גם
+  // באופן מיידי (המקרה הרגיל שבו ה-iframe כבר טעון) וגם ברגע אירוע
+  // ה-load של ה-iframe עצמו (שמבטיח שהסקריפט הפנימי כבר רץ ונרשם) —
+  // בדיוק כמו התבנית הקיימת שמשמשת עבור set-readonly ב-loadAllIframes.
+  const planFrameEl = document.getElementById('planFrame');
+  const sendPerms = () => {
+    const w = planFrameEl?.contentWindow;
+    if (w) w.postMessage({ type:'set-section-permissions', permissions: perms }, '*');
+  };
+  sendPerms();
+  if (planFrameEl) planFrameEl.addEventListener('load', sendPerms, { once: true });
 }
 
 function showAdminNav(show) {
@@ -2210,7 +2220,9 @@ async function addStaffAuth() {
 
     // 2. Save permissions to staffPermissions using username as the email key
     //    (so the permission system works uniformly for both login types)
-    const permEmail = email || username; // prefer real email; fall back to username
+    // תיקון: חייב להיות תואם בדיוק לברירת המחדל בשרת (email || `${username}@local`),
+    // אחרת חיפוש ההרשאות בכניסה לא ימצא את השורה הזו לעולם.
+    const permEmail = email || `${username}@local`; // prefer real email; fall back to server's default
     const permRes = await fetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
