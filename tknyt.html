@@ -1951,10 +1951,16 @@
       <div class="card" style="padding:12px 20px;margin-bottom:12px">
         <span style="font-size:0.8125rem;color:var(--text-muted)">
           הגדר לכל מקור תקציבי כמה הוקצה למוסד בסך הכל — בחלוקה לתקציב <b>קבוע</b> (מחייב, על פי רוב מוגדר מראש על ידי הגורם המתקצב)
-          ותקציב <b>גמיש</b> (הבית הספר בוחר כיצד להשתמש בו). הסכומים כאן הם "התקרה" שמולה נמדדים הייעודים והביצוע בפועל.
+          ותקציב <b>גמיש</b> (הבית הספר בוחר כיצד להשתמש בו). הסכומים כאן הם "התקרה" שמולה נמדדים הייעודים והביצוע בפועל.<br>
+          <b>שים לב:</b> ברגע שמוזן סכום כאן עבור מקור מסוים, הוא הופך אוטומטית למקור הנתונים של כרטיסי ה-KPI
+          ("סך הכנסות", "יתרה") ושל הגרף "לפי מקור תקציבי" עבור אותו מקור — אין צורך גם לרשום אותו כתנועת הכנסה נפרדת.
+          אם השדות עבור מקור מסוים נשארים 0, המערכת ממשיכה להתבסס על תנועות ההכנסה שנרשמו בפועל עבורו.
         </span>
       </div>
       <div class="card">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+          <button class="btn" onclick="clearBudgetStructure()">🧹 אפס טבלה</button>
+        </div>
         <div class="table-wrap">
           <table class="data-table" id="budgetStructureTable">
             <thead>
@@ -6045,6 +6051,22 @@ function updateBudgetStructureTotals() {
   if (gT) gT.textContent = _fmtILS(grandFixed + grandFlex);
 }
 
+// מאפס את טבלת "מבנה תקציב מקורות" בלחיצה אחת (חוזר להתבסס על תנועות הכנסה בפועל)
+function clearBudgetStructure() {
+  if (!confirm('לאפס את כל הסכומים בטבלת "מבנה תקציב מקורות"? הפעולה תחזיר את כל השדות ל-0.')) return;
+  document.querySelectorAll('#budgetStructureBody tr[data-src]').forEach(tr => {
+    const fixedEl = tr.querySelector('.bstruct-fixed');
+    const flexEl  = tr.querySelector('.bstruct-flex');
+    const noteEl  = tr.querySelector('.bstruct-notes');
+    if (fixedEl) fixedEl.value = 0;
+    if (flexEl)  flexEl.value  = 0;
+    if (noteEl)  noteEl.value  = '';
+  });
+  refreshBudgetComputedViews();
+  markDirty();
+  showToast('טבלת מבנה התקציב אופסה', 'success');
+}
+
 function appendBudgetAllocRow(alloc) {
   const tbody = document.getElementById('budgetAllocBody');
   if (!tbody) return;
@@ -6343,7 +6365,19 @@ function updateBudgetDashboard() {
     if (t.type === 'income')  income  += amt;
     if (t.type === 'expense') expense += amt;
   });
-  const balance      = income - expense;
+
+  // ── סנכרון עם "מבנה תקציב מקורות" ──
+  // אם הוגדרה תקרה (מוקצה) במבנה התקציב — היא הופכת למקור האמת ל"סך הכנסות"/"יתרה",
+  // כדי שהזנה בטאב "מבנה תקציב מקורות" תבוא לידי ביטוי מיידי כאן ובגרפים.
+  // אם לא הוגדרה תקרה בכלל (כל השדות 0) — ממשיכים להתבסס על תנועות הכנסה שנרשמו בפועל
+  // (תאימות לאחור לבתי ספר שעדיין רושמים "קיבלנו X" כתנועת הכנסה רגילה).
+  const { sourceConfig } = _getLiveBudgetData();
+  const ceilingTotal = _BUDGET_SOURCES.reduce((s, src) =>
+    s + (Number(sourceConfig[src]?.fixed) || 0) + (Number(sourceConfig[src]?.flexible) || 0), 0);
+  const usingCeiling  = ceilingTotal > 0;
+  const effectiveIncome = usingCeiling ? ceilingTotal : income;
+
+  const balance      = effectiveIncome - expense;
   const totalPlanned = liveAllocs.reduce((s, a) => s + (Number(a.planned) || 0), 0);
   const allocExpMap  = {};
   liveTxs.forEach(t => {
@@ -6356,9 +6390,11 @@ function updateBudgetDashboard() {
 
   grid.innerHTML = `
     <div class="dash-card success">
-      <h3>סך הכנסות</h3>
-      <div class="value" style="font-size:1.3rem">${_fmtILS(income)}</div>
-      <div class="sub">כלל מקורות</div>
+      <h3>${usingCeiling ? 'סך הכנסות (מוקצה)' : 'סך הכנסות'}</h3>
+      <div class="value" style="font-size:1.3rem">${_fmtILS(effectiveIncome)}</div>
+      <div class="sub">${usingCeiling
+        ? 'לפי "מבנה תקציב מקורות"'
+        : 'לפי תנועות הכנסה שנרשמו'}</div>
     </div>
     <div class="dash-card warning">
       <h3>סך הוצאות</h3>
@@ -6523,9 +6559,16 @@ function updateBudgetCharts() {
   const sources   = ['parents', 'gapan', 'authority'];
   const srcLabels = sources.map(s => _BUDGET_SRC_LABELS[s]);
 
-  const incomeBySource  = sources.map(s =>
+  const { sourceConfig } = _getLiveBudgetData();
+  const ceilingBySource = sources.map(s =>
+    (Number(sourceConfig[s]?.fixed) || 0) + (Number(sourceConfig[s]?.flexible) || 0));
+  const recordedIncomeBySource = sources.map(s =>
     liveTxs.filter(t => t.source === s && t.type === 'income')
        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0));
+  // סנכרון עם "מבנה תקציב מקורות": אם הוגדרה תקרה למקור מסוים — היא מוצגת;
+  // אחרת (0) נופלים חזרה לתנועות ההכנסה שנרשמו בפועל עבור אותו מקור
+  const incomeBySource = sources.map((s, i) =>
+    ceilingBySource[i] > 0 ? ceilingBySource[i] : recordedIncomeBySource[i]);
   const expenseBySource = sources.map(s =>
     liveTxs.filter(t => t.source === s && t.type === 'expense')
        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0));
@@ -6540,7 +6583,7 @@ function updateBudgetCharts() {
       data: {
         labels: srcLabels,
         datasets: [
-          { label: 'הכנסות', data: incomeBySource,  backgroundColor: 'rgba(39,174,96,0.7)',  borderRadius: 4 },
+          { label: 'הכנסות / מוקצה', data: incomeBySource,  backgroundColor: 'rgba(39,174,96,0.7)',  borderRadius: 4 },
           { label: 'הוצאות', data: expenseBySource, backgroundColor: 'rgba(192,57,43,0.7)', borderRadius: 4 }
         ]
       },
@@ -7375,6 +7418,7 @@ Object.assign(window, {
   filterBudgetTx, exportBudgetCSV, printBudget,
   refreshBudgetTotals, refreshAllocActuals,
   updateBudgetAllocDropdown, refreshBudgetComputedViews,
+  clearBudgetStructure,
   // Defects module
   addDefectRow, deleteDefectRow, renderDefects,
   collectDefectsFromDOM, updateDefectsSummary,
