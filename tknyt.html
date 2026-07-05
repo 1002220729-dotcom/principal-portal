@@ -5685,29 +5685,50 @@ function refreshBudgetTotals() {
   const totalsEl = document.getElementById('budgetTxTotals');
   if (!totalsEl) return;
 
+  // תיקון: אין להסתמך על tr.style.display (יכול להישאר "תקוע" מסינון קודם
+  // אם ה-DOM לא עודכן מסיבה כלשהי) — במקום זאת בודקים בכל פעם מול הערכים
+  // *הנוכחיים* של בקרות הסינון, בדיוק כמו filterBudgetTx(). כך הסכומים
+  // תמיד עקביים עם מה שבאמת מוגדר בסינון כרגע, ולא עם מצב תצוגה ישן.
+  const fSrc  = document.getElementById('budgFilterSource')?.value || '';
+  const fType = document.getElementById('budgFilterType')?.value   || '';
+  const fAloc = document.getElementById('budgFilterAlloc')?.value  || '';
+  const fSrch = (document.getElementById('budgSearch')?.value      || '').toLowerCase();
+  const isFilterActive = !!(fSrc || fType || fAloc || fSrch);
+
   // סכום כלל הנתונים (לא מסוננים) — לשימוש KPI + dashboard
   let totalIncome = 0, totalExpense = 0;
-  // סכום הנתונים הגלויים בלבד — לתצוגת הסינון
+  // סכום הנתונים המתאימים לסינון הנוכחי בלבד — לתצוגת הסינון
   let visIncome = 0, visExpense = 0;
-  let hasFilter = false;
 
   document.querySelectorAll('#budgetTxBody tr[data-rid]').forEach(tr => {
-    const amt  = parseFloat(tr.querySelector('.btx-amount')?.value) || 0;
-    const type = tr.querySelector('.btx-type')?.value;
+    const amt     = parseFloat(tr.querySelector('.btx-amount')?.value) || 0;
+    const type    = tr.querySelector('.btx-type')?.value;
+    const rowSrc  = tr.querySelector('.btx-source')?.value || '';
+    const rowAloc = tr.querySelector('.btx-alloc')?.value  || '';
+    const rowDesc = (tr.querySelector('.btx-desc')?.value  || '').toLowerCase();
+
     if (type === 'income')  totalIncome  += amt;
     if (type === 'expense') totalExpense += amt;
-    if (tr.style.display !== 'none') {
+
+    const matchesFilter = (!fSrc  || rowSrc  === fSrc)
+                        && (!fType || type    === fType)
+                        && (!fAloc || rowAloc === fAloc)
+                        && (!fSrch || rowDesc.includes(fSrch));
+
+    // מסנכרן את התצוגה בפועל של השורה עם קריטריון הסינון הנוכחי —
+    // כך שורה לא יכולה להישאר "תקועה" מוסתרת/גלויה ממצב סינון קודם.
+    tr.style.display = matchesFilter ? '' : 'none';
+
+    if (matchesFilter) {
       if (type === 'income')  visIncome  += amt;
       if (type === 'expense') visExpense += amt;
-    } else {
-      hasFilter = true;
     }
   });
 
   const balance  = totalIncome - totalExpense;
   const balColor = balance >= 0 ? 'var(--success)' : 'var(--accent)';
 
-  if (hasFilter) {
+  if (isFilterActive) {
     const visBalance  = visIncome - visExpense;
     const visBalColor = visBalance >= 0 ? 'var(--success)' : 'var(--accent)';
     totalsEl.innerHTML = `
@@ -5726,6 +5747,7 @@ function refreshBudgetTotals() {
       <span>יתרה: <b style="color:${balColor}">${_fmtILS(balance)}</b></span>`;
   }
 }
+
 
 // ── Allocations ───────────────────────────────────────────────
 function renderBudgetAllocations() {
