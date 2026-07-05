@@ -221,6 +221,44 @@
   .dash-card.negative .value {
     color: var(--accent);
   }
+  /* ── סוג תקציב: קבוע / גמיש ── */
+  .btype-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 18px;
+    border-inline-start: 4px solid var(--primary-light);
+  }
+  .btype-card.flexible { border-inline-start-color: var(--info); }
+  .btype-card h3 {
+    font-size: 0.8125rem; font-weight: 700; color: var(--primary);
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .btype-card .btype-pct { font-size: 1.5rem; font-weight: 700; margin: 2px 0 8px; }
+  .btype-card .btype-row {
+    display: flex; justify-content: space-between; font-size: 0.75rem;
+    color: var(--text-muted); margin-bottom: 3px;
+  }
+  .btype-card .btype-row b { color: var(--text); font-weight: 700; }
+  .btype-badge {
+    font-size: 0.6875rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+    display: inline-block;
+  }
+  .btype-badge.fixed     { background: rgba(37,99,168,0.12); color: var(--primary-light); }
+  .btype-badge.flexible  { background: rgba(41,128,185,0.14); color: var(--info); }
+  .btype-badge.general   { background: rgba(107,122,141,0.14); color: var(--text-muted); }
+  /* ── טבלת מבנה תקציב (מקורות) ── */
+  #budgetStructureTable input { width: 130px; }
+  #budgetStructureTable tr.struct-total td { background: var(--primary-soft); font-weight: 700; }
+  /* ── טבלת סקירה מצטברת ── */
+  #budgetOverviewTable tr.ov-total td { background: var(--primary-soft); font-weight: 700; }
+  #budgetOverviewTable tr.ov-type td  { background: #eef2f8; font-weight: 700; }
+  #budgetOverviewTable tr.ov-source td { font-weight: 700; }
+  #budgetOverviewTable td.ov-indent { padding-inline-start: 26px; color: var(--text-muted); font-weight: 400; }
+  #budgetOverviewTable .ov-bar-wrap { display: flex; align-items: center; gap: 6px; min-width: 110px; }
+  #budgetOverviewTable .ov-bar-track { flex: 1; height: 6px; background: #e5e9f0; border-radius: 3px; overflow: hidden; }
+  #budgetOverviewTable .ov-bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  #budgetOverviewTable .ov-over { color: var(--accent); font-weight: 700; }
   @media print {
     #sbudget .btn, #sbudget .add-row-btn,
     #sbudget .btn-icon, #budgetTabs,
@@ -1760,6 +1798,9 @@
     <!-- KPI cards -->
     <div class="dashboard-grid" id="budgetKpiGrid"></div>
 
+    <!-- Fixed vs Flexible breakdown cards -->
+    <div class="dashboard-grid" id="budgetTypeGrid" style="grid-template-columns:1fr 1fr"></div>
+
     <!-- Charts row -->
     <div class="dashboard-charts-grid" id="budgetChartsRow" style="margin-bottom:20px">
       <div class="card">
@@ -1775,6 +1816,12 @@
         </div>
       </div>
     </div>
+    <div class="card" id="budgetTypeChartCard" style="margin-bottom:20px">
+      <div class="card-title"><span class="icon">⚖️</span> קבוע מול גמיש — מוקצה / מתוכנן / בפועל</div>
+      <div class="chart-card-inner" style="height:240px">
+        <canvas id="chartBudgetType"></canvas>
+      </div>
+    </div>
 
     <!-- Tab bar -->
     <div class="arena-tabs" id="budgetTabs">
@@ -1785,6 +1832,14 @@
       <button class="arena-tab" data-tab="allocations"
               onclick="switchBudgetTab('allocations',this)">
         🎯 ייעודי תקציב
+      </button>
+      <button class="arena-tab" data-tab="structure"
+              onclick="switchBudgetTab('structure',this)">
+        🏗️ מבנה תקציב מקורות
+      </button>
+      <button class="arena-tab" data-tab="overview"
+              onclick="switchBudgetTab('overview',this)">
+        📈 סקירה מצטברת
       </button>
     </div>
 
@@ -1809,6 +1864,13 @@
             style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
             <option value="">כל הייעודים</option>
           </select>
+          <select id="budgFilterBType" onchange="filterBudgetTx()"
+            style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
+            <option value="">כל סוגי התקציב</option>
+            <option value="fixed">קבוע בלבד</option>
+            <option value="flexible">גמיש בלבד</option>
+            <option value="general">כללי / לא מוגדר</option>
+          </select>
           <input id="budgSearch" type="text" placeholder="🔍 חיפוש תיאור..."
             style="flex:1;min-width:140px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem"
             oninput="filterBudgetTx()">
@@ -1829,6 +1891,7 @@
                 <th>תיאור</th>
                 <th style="width:120px">סוג</th>
                 <th style="width:130px">מקור תקציבי</th>
+                <th style="width:110px">סוג תקציב</th>
                 <th style="width:130px">ייעוד</th>
                 <th style="width:110px">סכום (₪)</th>
                 <th>הערות</th>
@@ -1868,6 +1931,7 @@
               <tr>
                 <th>שם ייעוד</th>
                 <th style="width:130px">מקור תקציבי</th>
+                <th style="width:110px">סוג תקציב</th>
                 <th style="width:110px">סכום מתוכנן (₪)</th>
                 <th style="width:110px">ביצוע בפועל (₪)</th>
                 <th style="width:80px">ניצול %</th>
@@ -1879,6 +1943,59 @@
           </table>
         </div>
         <button class="add-row-btn" onclick="addBudgetAllocation()">➕ ייעוד חדש</button>
+      </div>
+    </div>
+
+    <!-- Panel: Source structure (קבוע / גמיש per source) -->
+    <div id="budgetPanel_structure" class="arena-panel">
+      <div class="card" style="padding:12px 20px;margin-bottom:12px">
+        <span style="font-size:0.8125rem;color:var(--text-muted)">
+          הגדר לכל מקור תקציבי כמה הוקצה למוסד בסך הכל — בחלוקה לתקציב <b>קבוע</b> (מחייב, על פי רוב מוגדר מראש על ידי הגורם המתקצב)
+          ותקציב <b>גמיש</b> (הבית הספר בוחר כיצד להשתמש בו). הסכומים כאן הם "התקרה" שמולה נמדדים הייעודים והביצוע בפועל.
+        </span>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table" id="budgetStructureTable">
+            <thead>
+              <tr>
+                <th>מקור תקציבי</th>
+                <th style="width:150px">תקציב קבוע מוקצה (₪)</th>
+                <th style="width:150px">תקציב גמיש מוקצה (₪)</th>
+                <th style="width:150px">סה״כ מוקצה למקור (₪)</th>
+                <th>הערות</th>
+              </tr>
+            </thead>
+            <tbody id="budgetStructureBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel: Cumulative overview (מצטבר ביחס לכלל התקציב ולסוגי התקציב) -->
+    <div id="budgetPanel_overview" class="arena-panel">
+      <div class="card" style="padding:12px 20px;margin-bottom:12px">
+        <span style="font-size:0.8125rem;color:var(--text-muted)">
+          תצוגה מצטברת: מוקצה (מ"מבנה תקציב מקורות") מול מתוכנן (סכום הייעודים) מול בפועל (הוצאות שבוצעו) —
+          הן ברמת כלל התקציב, הן לפי סוג תקציב (קבוע/גמיש), והן לפי כל מקור בנפרד.
+        </span>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="data-table" id="budgetOverviewTable">
+            <thead>
+              <tr>
+                <th>מקור / סוג תקציב</th>
+                <th style="width:120px">מוקצה (₪)</th>
+                <th style="width:120px">מתוכנן (₪)</th>
+                <th style="width:120px">בפועל (₪)</th>
+                <th style="width:120px">יתרה (₪)</th>
+                <th style="width:150px">ניצול מול מוקצה</th>
+              </tr>
+            </thead>
+            <tbody id="budgetOverviewBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -2189,6 +2306,11 @@ function buildDefaultAppData() {
     scheduleCells: {},
     inventory: [],
     budget: {
+      sourceConfig: {
+        parents:   { fixed: 0, flexible: 0, notes: '' },
+        gapan:     { fixed: 0, flexible: 0, notes: '' },
+        authority: { fixed: 0, flexible: 0, notes: '' }
+      },
       allocations: [],
       transactions: []
     },
@@ -2311,6 +2433,24 @@ function migrateContentIfNeeded(payload) {
     payload.budget = { allocations: [], transactions: [] };
   if (!Array.isArray(payload.budget.allocations))  payload.budget.allocations  = [];
   if (!Array.isArray(payload.budget.transactions)) payload.budget.transactions = [];
+  if (!payload.budget.sourceConfig || typeof payload.budget.sourceConfig !== 'object')
+    payload.budget.sourceConfig = {};
+  ['parents','gapan','authority'].forEach(s => {
+    if (!payload.budget.sourceConfig[s] || typeof payload.budget.sourceConfig[s] !== 'object') {
+      payload.budget.sourceConfig[s] = { fixed: 0, flexible: 0, notes: '' };
+    } else {
+      const sc = payload.budget.sourceConfig[s];
+      if (sc.fixed === undefined || sc.fixed === null)       sc.fixed = 0;
+      if (sc.flexible === undefined || sc.flexible === null) sc.flexible = 0;
+      if (sc.notes === undefined || sc.notes === null)       sc.notes = '';
+    }
+  });
+  payload.budget.allocations.forEach(a => {
+    if (a.budgetType === undefined || a.budgetType === null) a.budgetType = '';
+  });
+  payload.budget.transactions.forEach(t => {
+    if (t.budgetType === undefined || t.budgetType === null) t.budgetType = '';
+  });
 
   if (!Array.isArray(payload.defects)) payload.defects = [];
 
@@ -5572,6 +5712,7 @@ function printInventory() {
 
 let _chartBudgetSource = null;
 let _chartBudgetAlloc  = null;
+let _chartBudgetType   = null;
 
 const _BUDGET_SRC_LABELS = {
   parents:   'תשלומי הורים',
@@ -5579,22 +5720,88 @@ const _BUDGET_SRC_LABELS = {
   authority: 'רשות מקומית'
 };
 
+const _BUDGET_SOURCES = ['parents', 'gapan', 'authority'];
+
+const _BUDGET_TYPE_LABELS = {
+  '':        'כללי / לא מוגדר',
+  fixed:     'קבוע',
+  flexible:  'גמיש'
+};
+
 function _fmtILS(n) {
   return '₪' + (n || 0).toLocaleString('he-IL', { minimumFractionDigits: 2 });
 }
 
+function _buildBudgetTypeOptions(selected) {
+  return Object.entries(_BUDGET_TYPE_LABELS)
+    .map(([v, l]) => `<option value="${v}"${(selected||'') === v ? ' selected' : ''}>${l}</option>`)
+    .join('');
+}
+
+function _budgetTypeBadge(bt) {
+  const cls = bt === 'fixed' ? 'fixed' : bt === 'flexible' ? 'flexible' : 'general';
+  return `<span class="btype-badge ${cls}">${_BUDGET_TYPE_LABELS[bt || '']}</span>`;
+}
+
+// קורא את מצב התקציב הנוכחי (תנועות, ייעודים, מבנה מקורות) ישירות מה-DOM החי,
+// עם נפילה חזרה ל-appData כשה-DOM עדיין לא נטען (render ראשוני)
+function _getLiveBudgetData() {
+  const txRows = document.querySelectorAll('#budgetTxBody tr[data-rid]');
+  const txs = Array.from(txRows).map(tr => ({
+    type:         tr.querySelector('.btx-type')?.value    || 'expense',
+    source:       tr.querySelector('.btx-source')?.value  || '',
+    budgetType:   tr.querySelector('.btx-btype')?.value   || '',
+    allocationId: tr.querySelector('.btx-alloc')?.value   || '',
+    amount:       Number(tr.querySelector('.btx-amount')?.value) || 0
+  }));
+
+  const allocRows = document.querySelectorAll('#budgetAllocBody tr[data-aid]');
+  const allocs = Array.from(allocRows).map(tr => ({
+    id:         tr.dataset.aid,
+    name:       tr.querySelector('.bal-name')?.value    || '(ללא שם)',
+    source:     tr.querySelector('.bal-source')?.value  || '',
+    budgetType: tr.querySelector('.bal-btype')?.value   || '',
+    planned:    Number(tr.querySelector('.bal-planned')?.value) || 0
+  }));
+
+  const structRows = document.querySelectorAll('#budgetStructureBody tr[data-src]');
+  let sourceConfig;
+  if (structRows.length) {
+    sourceConfig = {};
+    structRows.forEach(tr => {
+      sourceConfig[tr.dataset.src] = {
+        fixed:    Number(tr.querySelector('.bstruct-fixed')?.value) || 0,
+        flexible: Number(tr.querySelector('.bstruct-flex')?.value)  || 0
+      };
+    });
+  } else {
+    sourceConfig = appData.budget?.sourceConfig || {};
+  }
+
+  return {
+    txs:    txRows.length    ? txs    : (appData.budget?.transactions || []),
+    allocs: allocRows.length ? allocs : (appData.budget?.allocations  || []),
+    sourceConfig
+  };
+}
+
 // ── Unified refresh helper ────────────────────────────────────
 // Single call that keeps totals, allocation actuals, KPI dashboard,
-// and both charts consistent after any data mutation.
+// structure totals, cumulative overview, and all charts consistent
+// after any data mutation.
 function refreshBudgetComputedViews() {
   refreshBudgetTotals();
   refreshAllocActuals();
+  updateBudgetStructureTotals();
   updateBudgetDashboard();
+  updateBudgetTypeCards();
+  updateBudgetOverviewTable();
   updateBudgetCharts();
 }
 
 // ── Entry point ──────────────────────────────────────────────
 function renderBudget() {
+  renderBudgetStructure();
   renderBudgetTransactions();   // calls refreshBudgetComputedViews() internally
   renderBudgetAllocations();
   updateBudgetAllocDropdown();
@@ -5629,7 +5836,8 @@ function appendBudgetTxRow(tx) {
     { v: 'authority', l: 'רשות מקומית' }
   ].map(o => `<option value="${o.v}"${tx.source === o.v ? ' selected' : ''}>${o.l}</option>`).join('');
 
-  const allocOpts = _buildAllocOptions(tx.allocationId);
+  const allocOpts  = _buildAllocOptions(tx.allocationId);
+  const btypeOpts  = _buildBudgetTypeOptions(tx.budgetType);
 
   tr.innerHTML = `
     <td><input type="date" class="btx-date" value="${esc(tx.date||'')}"
@@ -5639,7 +5847,8 @@ function appendBudgetTxRow(tx) {
     <td><select class="btx-type" onchange="onBudgetTxTypeChange(this); markDirty()">
          ${typeOpts}</select></td>
     <td><select class="btx-source" onchange="refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
-    <td><select class="btx-alloc" onchange="refreshBudgetComputedViews(); markDirty()">
+    <td><select class="btx-btype" onchange="refreshBudgetComputedViews(); markDirty()">${btypeOpts}</select></td>
+    <td><select class="btx-alloc" onchange="onBudgetTxAllocChange(this); markDirty()">
          ${allocOpts}</select></td>
     <td><input type="number" class="btx-amount" value="${tx.amount||0}" min="0" step="0.01"
          style="width:90px;font-weight:700;direction:ltr;text-align:left"
@@ -5656,8 +5865,10 @@ function _buildAllocOptions(selectedId) {
   const liveAllocs = Array.from(
     document.querySelectorAll('#budgetAllocBody tr[data-aid]')
   ).map(tr => ({
-    id:   tr.dataset.aid,
-    name: tr.querySelector('.bal-name')?.value || ''
+    id:         tr.dataset.aid,
+    name:       tr.querySelector('.bal-name')?.value   || '',
+    source:     tr.querySelector('.bal-source')?.value || '',
+    budgetType: tr.querySelector('.bal-btype')?.value   || ''
   }));
   // אם ה-DOM ריק (לפני render), חזור ל-appData
   const allocs = liveAllocs.length
@@ -5666,7 +5877,7 @@ function _buildAllocOptions(selectedId) {
 
   let html = `<option value="">— ללא ייעוד —</option>`;
   allocs.forEach(a => {
-    html += `<option value="${esc(a.id)}"${a.id === selectedId ? ' selected' : ''}>${esc(a.name || '(ללא שם)')}</option>`;
+    html += `<option value="${esc(a.id)}" data-btype="${esc(a.budgetType||'')}" data-src="${esc(a.source||'')}"${a.id === selectedId ? ' selected' : ''}>${esc(a.name || '(ללא שם)')}</option>`;
   });
   return html;
 }
@@ -5681,6 +5892,22 @@ function onBudgetTxTypeChange(sel) {
   refreshBudgetComputedViews();
 }
 
+// כשמשייכים תנועה לייעוד — מסנכרן אוטומטית את סוג התקציב (קבוע/גמיש) ואת
+// המקור התקציבי מהייעוד שנבחר, כדי לשמור על עקביות (ניתן עדיין לשנות ידנית לאחר מכן)
+function onBudgetTxAllocChange(sel) {
+  const tr = sel.closest('tr');
+  const opt = sel.selectedOptions && sel.selectedOptions[0];
+  if (tr && opt && opt.value) {
+    const bt  = opt.dataset.btype || '';
+    const src = opt.dataset.src   || '';
+    const btypeSel = tr.querySelector('.btx-btype');
+    const srcSel   = tr.querySelector('.btx-source');
+    if (btypeSel && bt)  btypeSel.value = bt;
+    if (srcSel   && src) srcSel.value   = src;
+  }
+  refreshBudgetComputedViews();
+}
+
 function refreshBudgetTotals() {
   const totalsEl = document.getElementById('budgetTxTotals');
   if (!totalsEl) return;
@@ -5689,11 +5916,12 @@ function refreshBudgetTotals() {
   // אם ה-DOM לא עודכן מסיבה כלשהי) — במקום זאת בודקים בכל פעם מול הערכים
   // *הנוכחיים* של בקרות הסינון, בדיוק כמו filterBudgetTx(). כך הסכומים
   // תמיד עקביים עם מה שבאמת מוגדר בסינון כרגע, ולא עם מצב תצוגה ישן.
-  const fSrc  = document.getElementById('budgFilterSource')?.value || '';
-  const fType = document.getElementById('budgFilterType')?.value   || '';
-  const fAloc = document.getElementById('budgFilterAlloc')?.value  || '';
-  const fSrch = (document.getElementById('budgSearch')?.value      || '').toLowerCase();
-  const isFilterActive = !!(fSrc || fType || fAloc || fSrch);
+  const fSrc   = document.getElementById('budgFilterSource')?.value || '';
+  const fType  = document.getElementById('budgFilterType')?.value   || '';
+  const fAloc  = document.getElementById('budgFilterAlloc')?.value  || '';
+  const fBType = document.getElementById('budgFilterBType')?.value  || '';
+  const fSrch  = (document.getElementById('budgSearch')?.value      || '').toLowerCase();
+  const isFilterActive = !!(fSrc || fType || fAloc || fBType || fSrch);
 
   // סכום כלל הנתונים (לא מסוננים) — לשימוש KPI + dashboard
   let totalIncome = 0, totalExpense = 0;
@@ -5701,19 +5929,21 @@ function refreshBudgetTotals() {
   let visIncome = 0, visExpense = 0;
 
   document.querySelectorAll('#budgetTxBody tr[data-rid]').forEach(tr => {
-    const amt     = parseFloat(tr.querySelector('.btx-amount')?.value) || 0;
-    const type    = tr.querySelector('.btx-type')?.value;
-    const rowSrc  = tr.querySelector('.btx-source')?.value || '';
-    const rowAloc = tr.querySelector('.btx-alloc')?.value  || '';
-    const rowDesc = (tr.querySelector('.btx-desc')?.value  || '').toLowerCase();
+    const amt      = parseFloat(tr.querySelector('.btx-amount')?.value) || 0;
+    const type     = tr.querySelector('.btx-type')?.value;
+    const rowSrc   = tr.querySelector('.btx-source')?.value || '';
+    const rowAloc  = tr.querySelector('.btx-alloc')?.value  || '';
+    const rowBType = tr.querySelector('.btx-btype')?.value  || '';
+    const rowDesc  = (tr.querySelector('.btx-desc')?.value  || '').toLowerCase();
 
     if (type === 'income')  totalIncome  += amt;
     if (type === 'expense') totalExpense += amt;
 
-    const matchesFilter = (!fSrc  || rowSrc  === fSrc)
-                        && (!fType || type    === fType)
-                        && (!fAloc || rowAloc === fAloc)
-                        && (!fSrch || rowDesc.includes(fSrch));
+    const matchesFilter = (!fSrc   || rowSrc   === fSrc)
+                        && (!fType  || type     === fType)
+                        && (!fAloc  || rowAloc  === fAloc)
+                        && (!fBType || rowBType === fBType)
+                        && (!fSrch  || rowDesc.includes(fSrch));
 
     // מסנכרן את התצוגה בפועל של השורה עם קריטריון הסינון הנוכחי —
     // כך שורה לא יכולה להישאר "תקועה" מוסתרת/גלויה ממצב סינון קודם.
@@ -5758,6 +5988,63 @@ function renderBudgetAllocations() {
   refreshAllocActuals();
 }
 
+// ── Source structure (מבנה תקציב: קבוע/גמיש לכל מקור) ─────────
+function renderBudgetStructure() {
+  const tbody = document.getElementById('budgetStructureBody');
+  if (!tbody) return;
+  if (!appData.budget) appData.budget = { allocations: [], transactions: [] };
+  if (!appData.budget.sourceConfig) appData.budget.sourceConfig = {};
+
+  tbody.innerHTML = '';
+  _BUDGET_SOURCES.forEach(s => {
+    const c = appData.budget.sourceConfig[s] || { fixed: 0, flexible: 0, notes: '' };
+    const tr = document.createElement('tr');
+    tr.dataset.src = s;
+    tr.innerHTML = `
+      <td style="font-weight:600">${_BUDGET_SRC_LABELS[s]}</td>
+      <td><input type="number" class="bstruct-fixed" value="${c.fixed || 0}" min="0" step="0.01"
+           style="direction:ltr;text-align:left"
+           oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
+      <td><input type="number" class="bstruct-flex" value="${c.flexible || 0}" min="0" step="0.01"
+           style="direction:ltr;text-align:left"
+           oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
+      <td class="bstruct-total-cell" style="font-weight:700;direction:ltr;text-align:left">₪0.00</td>
+      <td><input type="text" class="bstruct-notes" value="${esc(c.notes || '')}"
+           placeholder="הערות" oninput="markDirty()"></td>`;
+    tbody.appendChild(tr);
+  });
+
+  const totalTr = document.createElement('tr');
+  totalTr.className = 'struct-total';
+  totalTr.innerHTML = `
+    <td>סה״כ כלל המקורות</td>
+    <td class="bstruct-grand-fixed" style="direction:ltr;text-align:left">₪0.00</td>
+    <td class="bstruct-grand-flex" style="direction:ltr;text-align:left">₪0.00</td>
+    <td class="bstruct-grand-total" style="direction:ltr;text-align:left">₪0.00</td>
+    <td></td>`;
+  tbody.appendChild(totalTr);
+
+  updateBudgetStructureTotals();
+}
+
+function updateBudgetStructureTotals() {
+  let grandFixed = 0, grandFlex = 0;
+  document.querySelectorAll('#budgetStructureBody tr[data-src]').forEach(tr => {
+    const fixed = parseFloat(tr.querySelector('.bstruct-fixed')?.value) || 0;
+    const flex  = parseFloat(tr.querySelector('.bstruct-flex')?.value)  || 0;
+    const cell  = tr.querySelector('.bstruct-total-cell');
+    if (cell) cell.textContent = _fmtILS(fixed + flex);
+    grandFixed += fixed;
+    grandFlex  += flex;
+  });
+  const gF = document.querySelector('.bstruct-grand-fixed');
+  const gX = document.querySelector('.bstruct-grand-flex');
+  const gT = document.querySelector('.bstruct-grand-total');
+  if (gF) gF.textContent = _fmtILS(grandFixed);
+  if (gX) gX.textContent = _fmtILS(grandFlex);
+  if (gT) gT.textContent = _fmtILS(grandFixed + grandFlex);
+}
+
 function appendBudgetAllocRow(alloc) {
   const tbody = document.getElementById('budgetAllocBody');
   if (!tbody) return;
@@ -5770,12 +6057,14 @@ function appendBudgetAllocRow(alloc) {
     { v: 'gapan',     l: 'גפ"ן' },
     { v: 'authority', l: 'רשות מקומית' }
   ].map(o => `<option value="${o.v}"${alloc.source === o.v ? ' selected' : ''}>${o.l}</option>`).join('');
+  const btypeOpts = _buildBudgetTypeOptions(alloc.budgetType);
 
   tr.innerHTML = `
     <td><input type="text" class="bal-name" value="${esc(alloc.name||'')}"
          placeholder="שם ייעוד..." style="min-width:140px"
          oninput="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()"></td>
-    <td><select class="bal-source" onchange="refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
+    <td><select class="bal-source" onchange="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
+    <td><select class="bal-btype" onchange="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${btypeOpts}</select></td>
     <td><input type="number" class="bal-planned" value="${alloc.planned||0}" min="0" step="0.01"
          style="width:90px;direction:ltr;text-align:left"
          oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
@@ -5848,6 +6137,7 @@ function collectBudgetFromDOM() {
     description:  tr.querySelector('.btx-desc')?.value                   || '',
     type:         tr.querySelector('.btx-type')?.value                   || 'expense',
     source:       tr.querySelector('.btx-source')?.value                 || 'parents',
+    budgetType:   tr.querySelector('.btx-btype')?.value                  || '',
     allocationId: tr.querySelector('.btx-alloc')?.value                  || '',
     amount:       parseFloat(tr.querySelector('.btx-amount')?.value)     || 0,
     notes:        tr.querySelector('.btx-notes')?.value                  || ''
@@ -5856,12 +6146,23 @@ function collectBudgetFromDOM() {
   appData.budget.allocations = Array.from(
     document.querySelectorAll('#budgetAllocBody tr[data-aid]')
   ).map(tr => ({
-    id:      tr.dataset.aid,
-    name:    tr.querySelector('.bal-name')?.value                        || '',
-    source:  tr.querySelector('.bal-source')?.value                      || '',
-    planned: parseFloat(tr.querySelector('.bal-planned')?.value)         || 0,
-    notes:   tr.querySelector('.bal-notes')?.value                       || ''
+    id:         tr.dataset.aid,
+    name:       tr.querySelector('.bal-name')?.value                        || '',
+    source:     tr.querySelector('.bal-source')?.value                      || '',
+    budgetType: tr.querySelector('.bal-btype')?.value                       || '',
+    planned:    parseFloat(tr.querySelector('.bal-planned')?.value)         || 0,
+    notes:      tr.querySelector('.bal-notes')?.value                       || ''
   }));
+
+  if (!appData.budget.sourceConfig) appData.budget.sourceConfig = {};
+  document.querySelectorAll('#budgetStructureBody tr[data-src]').forEach(tr => {
+    const s = tr.dataset.src;
+    appData.budget.sourceConfig[s] = {
+      fixed:    parseFloat(tr.querySelector('.bstruct-fixed')?.value)    || 0,
+      flexible: parseFloat(tr.querySelector('.bstruct-flex')?.value)     || 0,
+      notes:    tr.querySelector('.bstruct-notes')?.value                || ''
+    };
+  });
 }
 
 // ── Add / Remove ──────────────────────────────────────────────
@@ -5869,7 +6170,7 @@ function addBudgetTransaction() {
   if (!appData.budget) appData.budget = { allocations: [], transactions: [] };
   const tx = {
     id: newId(), date: new Date().toISOString().slice(0, 10),
-    description: '', type: 'expense', source: 'parents',
+    description: '', type: 'expense', source: 'parents', budgetType: '',
     allocationId: '', amount: 0, notes: ''
   };
   appData.budget.transactions.push(tx);
@@ -5891,7 +6192,7 @@ function addBudgetTransaction() {
 
 function addBudgetAllocation() {
   if (!appData.budget) appData.budget = { allocations: [], transactions: [] };
-  const alloc = { id: newId(), name: '', source: '', planned: 0, notes: '' };
+  const alloc = { id: newId(), name: '', source: '', budgetType: '', planned: 0, notes: '' };
   appData.budget.allocations.push(alloc);
   appendBudgetAllocRow(alloc);
   updateBudgetAllocDropdown();
@@ -5991,20 +6292,23 @@ function switchBudgetTab(tab, el) {
 
 // ── Filter ────────────────────────────────────────────────────
 function filterBudgetTx() {
-  const src  = document.getElementById('budgFilterSource')?.value || '';
-  const type = document.getElementById('budgFilterType')?.value   || '';
-  const aloc = document.getElementById('budgFilterAlloc')?.value  || '';
-  const srch = (document.getElementById('budgSearch')?.value      || '').toLowerCase();
+  const src   = document.getElementById('budgFilterSource')?.value || '';
+  const type  = document.getElementById('budgFilterType')?.value   || '';
+  const aloc  = document.getElementById('budgFilterAlloc')?.value  || '';
+  const btype = document.getElementById('budgFilterBType')?.value  || '';
+  const srch  = (document.getElementById('budgSearch')?.value      || '').toLowerCase();
 
   document.querySelectorAll('#budgetTxBody tr[data-rid]').forEach(tr => {
-    const rowSrc  = tr.querySelector('.btx-source')?.value || '';
-    const rowType = tr.querySelector('.btx-type')?.value   || '';
-    const rowAloc = tr.querySelector('.btx-alloc')?.value  || '';
-    const rowDesc = (tr.querySelector('.btx-desc')?.value  || '').toLowerCase();
-    const ok = (!src  || rowSrc  === src)
-            && (!type || rowType === type)
-            && (!aloc || rowAloc === aloc)
-            && (!srch || rowDesc.includes(srch));
+    const rowSrc   = tr.querySelector('.btx-source')?.value || '';
+    const rowType  = tr.querySelector('.btx-type')?.value   || '';
+    const rowAloc  = tr.querySelector('.btx-alloc')?.value  || '';
+    const rowBType = tr.querySelector('.btx-btype')?.value  || '';
+    const rowDesc  = (tr.querySelector('.btx-desc')?.value  || '').toLowerCase();
+    const ok = (!src   || rowSrc   === src)
+            && (!type   || rowType  === type)
+            && (!aloc   || rowAloc  === aloc)
+            && (!btype  || rowBType === btype)
+            && (!srch   || rowDesc.includes(srch));
     tr.style.display = ok ? '' : 'none';
   });
   // totals shows global + filtered breakdown; KPI/charts always global
@@ -6076,6 +6380,122 @@ function updateBudgetDashboard() {
         <div class="progress-bar-fill" style="width:${utilPct}%;background:${utilColor}"></div>
       </div>
     </div>`;
+}
+
+// ── כרטיסי קבוע / גמיש ──────────────────────────────────────
+function updateBudgetTypeCards() {
+  const grid = document.getElementById('budgetTypeGrid');
+  if (!grid) return;
+  const { txs, allocs, sourceConfig } = _getLiveBudgetData();
+
+  function calcForType(bt) {
+    const ceiling = _BUDGET_SOURCES.reduce((s, src) => s + (Number(sourceConfig[src]?.[bt]) || 0), 0);
+    const planned = allocs.filter(a => a.budgetType === bt)
+                          .reduce((s, a) => s + (Number(a.planned) || 0), 0);
+    const actual  = txs.filter(t => t.budgetType === bt && t.type === 'expense')
+                       .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    return { ceiling, planned, actual };
+  }
+
+  function cardHtml(label, icon, cls, data) {
+    const pct       = data.ceiling > 0 ? (data.actual / data.ceiling) * 100 : 0;
+    const barPct    = Math.min(100, pct);
+    const color     = data.ceiling === 0 ? 'var(--text-muted)'
+                    : pct >= 100 ? 'var(--accent)' : pct >= 75 ? 'var(--warning)' : 'var(--success)';
+    const remaining = data.ceiling - data.actual;
+    return `
+      <div class="btype-card ${cls}">
+        <h3>${icon} תקציב ${label}</h3>
+        <div class="btype-pct" style="color:${color}">${data.ceiling > 0 ? Math.round(pct) + '%' : '—'}</div>
+        <div class="progress-bar"><div class="progress-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+        <div class="btype-row" style="margin-top:10px"><span>מוקצה:</span><b>${_fmtILS(data.ceiling)}</b></div>
+        <div class="btype-row"><span>מתוכנן (ייעודים):</span><b>${_fmtILS(data.planned)}</b></div>
+        <div class="btype-row"><span>בפועל (הוצאות):</span><b>${_fmtILS(data.actual)}</b></div>
+        <div class="btype-row"><span>יתרה:</span>
+          <b style="color:${remaining >= 0 ? 'var(--success)' : 'var(--accent)'}">${_fmtILS(remaining)}</b>
+        </div>
+      </div>`;
+  }
+
+  grid.innerHTML =
+    cardHtml('קבוע', '🔒', 'fixed',    calcForType('fixed')) +
+    cardHtml('גמיש', '🎛️', 'flexible', calcForType('flexible'));
+}
+
+// ── סקירה מצטברת: מוקצה / מתוכנן / בפועל — לפי הכל, סוג ומקור ──
+function updateBudgetOverviewTable() {
+  const tbody = document.getElementById('budgetOverviewBody');
+  if (!tbody) return;
+  const { txs, allocs, sourceConfig } = _getLiveBudgetData();
+  const expenseTx = txs.filter(t => t.type === 'expense');
+
+  const sumPlanned = fn => allocs.filter(fn).reduce((s, a) => s + (Number(a.planned) || 0), 0);
+  const sumActual  = fn => expenseTx.filter(fn).reduce((s, t) => s + (Number(t.amount) || 0), 0);
+
+  function rowHtml(label, ceiling, planned, actual, opts) {
+    opts = opts || {};
+    const hasCeiling = ceiling !== null;
+    const remaining  = hasCeiling ? (ceiling - actual) : null;
+    const pct        = hasCeiling && ceiling > 0 ? (actual / ceiling) * 100 : (hasCeiling ? 0 : null);
+    const barPct     = pct !== null ? Math.min(100, pct) : 0;
+    const overBudget = pct !== null && pct > 100;
+    const color      = pct === null ? 'var(--text-muted)'
+                     : overBudget   ? 'var(--accent)'
+                     : pct >= 75    ? 'var(--warning)'
+                     :                'var(--success)';
+    return `
+      <tr class="${opts.rowClass || ''}">
+        <td class="${opts.indent ? 'ov-indent' : ''}">${label}</td>
+        <td>${hasCeiling ? _fmtILS(ceiling) : '—'}</td>
+        <td>${_fmtILS(planned)}</td>
+        <td>${_fmtILS(actual)}</td>
+        <td class="${overBudget ? 'ov-over' : ''}">${hasCeiling ? _fmtILS(remaining) : '—'}</td>
+        <td>${pct !== null ? `
+          <div class="ov-bar-wrap">
+            <div class="ov-bar-track"><div class="ov-bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+            <span style="font-size:0.75rem;min-width:34px;color:${color};font-weight:700">${Math.round(pct)}%</span>
+          </div>` : '<span style="font-size:0.75rem;color:var(--text-muted)">אין תקרה מוגדרת</span>'}
+        </td>
+      </tr>`;
+  }
+
+  const grandCeiling = _BUDGET_SOURCES.reduce((s, src) =>
+    s + (Number(sourceConfig[src]?.fixed) || 0) + (Number(sourceConfig[src]?.flexible) || 0), 0);
+  const grandPlanned = sumPlanned(() => true);
+  const grandActual  = sumActual(() => true);
+
+  let html = rowHtml('💠 סה״כ כלל התקציב', grandCeiling, grandPlanned, grandActual, { rowClass: 'ov-total' });
+
+  ['fixed', 'flexible'].forEach(bt => {
+    const ceiling = _BUDGET_SOURCES.reduce((s, src) => s + (Number(sourceConfig[src]?.[bt]) || 0), 0);
+    const planned = sumPlanned(a => a.budgetType === bt);
+    const actual  = sumActual(t => t.budgetType === bt);
+    const label   = bt === 'fixed' ? '🔒 תקציב קבוע (כלל המקורות)' : '🎛️ תקציב גמיש (כלל המקורות)';
+    html += rowHtml(label, ceiling, planned, actual, { rowClass: 'ov-type' });
+  });
+
+  const genPlanned = sumPlanned(a => !a.budgetType);
+  const genActual  = sumActual(t => !t.budgetType);
+  if (genPlanned || genActual) {
+    html += rowHtml('◻️ כללי / לא מוגדר (כלל המקורות)', null, genPlanned, genActual, { rowClass: 'ov-type' });
+  }
+
+  _BUDGET_SOURCES.forEach(src => {
+    const cfg        = sourceConfig[src] || {};
+    const srcCeiling = (Number(cfg.fixed) || 0) + (Number(cfg.flexible) || 0);
+    const srcPlanned = sumPlanned(a => a.source === src);
+    const srcActual  = sumActual(t => t.source === src);
+    html += rowHtml(`📁 ${_BUDGET_SRC_LABELS[src]} — סה״כ`, srcCeiling, srcPlanned, srcActual, { rowClass: 'ov-source' });
+
+    ['fixed', 'flexible'].forEach(bt => {
+      const c  = Number(cfg[bt]) || 0;
+      const p  = sumPlanned(a => a.source === src && a.budgetType === bt);
+      const a2 = sumActual(t => t.source === src && t.budgetType === bt);
+      html += rowHtml(_BUDGET_TYPE_LABELS[bt], c, p, a2, { indent: true });
+    });
+  });
+
+  tbody.innerHTML = html;
 }
 
 // ── Charts ────────────────────────────────────────────────────
@@ -6170,6 +6590,41 @@ function updateBudgetCharts() {
       });
     }
   }
+
+  // ── גרף שלישי: קבוע מול גמיש — מוקצה / מתוכנן / בפועל ──
+  const ctxT = document.getElementById('chartBudgetType');
+  if (ctxT) {
+    if (_chartBudgetType) { _chartBudgetType.destroy(); _chartBudgetType = null; }
+    const live = _getLiveBudgetData();
+    const expenseTx = live.txs.filter(t => t.type === 'expense');
+    const typeLabels = ['קבוע', 'גמיש'];
+    const ceilingData = ['fixed', 'flexible'].map(bt =>
+      _BUDGET_SOURCES.reduce((s, src) => s + (Number(live.sourceConfig[src]?.[bt]) || 0), 0));
+    const plannedTData = ['fixed', 'flexible'].map(bt =>
+      live.allocs.filter(a => a.budgetType === bt).reduce((s, a) => s + (Number(a.planned) || 0), 0));
+    const actualTData = ['fixed', 'flexible'].map(bt =>
+      expenseTx.filter(t => t.budgetType === bt).reduce((s, t) => s + (Number(t.amount) || 0), 0));
+
+    _chartBudgetType = new Chart(ctxT, {
+      type: 'bar',
+      data: {
+        labels: typeLabels,
+        datasets: [
+          { label: 'מוקצה',  data: ceilingData,  backgroundColor: 'rgba(107,122,141,0.55)', borderRadius: 4 },
+          { label: 'מתוכנן', data: plannedTData, backgroundColor: 'rgba(26,58,92,0.6)',      borderRadius: 4 },
+          { label: 'בפועל',  data: actualTData,  backgroundColor: 'rgba(41,128,185,0.8)',    borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { rtl: true, position: 'top', labels: { font: chartFont } } },
+        scales: {
+          x: { ticks: { font: chartFont } },
+          y: { min: 0, ticks: { callback: v => '₪' + Number(v).toLocaleString('he-IL') } }
+        }
+      }
+    });
+  }
 }
 
 // ── Export / Print ────────────────────────────────────────────
@@ -6177,16 +6632,27 @@ function exportBudgetCSV() {
   collectBudgetFromDOM();
   const srcMap   = { parents: 'תשלומי הורים', gapan: 'גפ"ן', authority: 'רשות מקומית' };
   const allocMap = Object.fromEntries((appData.budget?.allocations || []).map(a => [a.id, a.name]));
-  const rows = [['תאריך','תיאור','סוג','מקור','ייעוד','סכום','הערות']];
+  const rows = [['תאריך','תיאור','סוג','מקור','סוג תקציב','ייעוד','סכום','הערות']];
   (appData.budget?.transactions || []).forEach(t => {
     rows.push([
       t.date, t.description,
       t.type === 'income' ? 'הכנסה' : 'הוצאה',
       srcMap[t.source] || t.source,
+      _BUDGET_TYPE_LABELS[t.budgetType || ''] || '',
       allocMap[t.allocationId] || '',
       t.amount, t.notes
     ]);
   });
+
+  rows.push([]);
+  rows.push(['מבנה תקציב מקורות']);
+  rows.push(['מקור', 'תקציב קבוע מוקצה', 'תקציב גמיש מוקצה', 'סה"כ מוקצה', 'הערות']);
+  const cfg = appData.budget?.sourceConfig || {};
+  _BUDGET_SOURCES.forEach(s => {
+    const c = cfg[s] || { fixed: 0, flexible: 0, notes: '' };
+    rows.push([srcMap[s], c.fixed || 0, c.flexible || 0, (Number(c.fixed)||0) + (Number(c.flexible)||0), c.notes || '']);
+  });
+
   const csv = '\uFEFF' + rows.map(r =>
     r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')
   ).join('\r\n');
@@ -6249,7 +6715,7 @@ function printBudget() {
   </div>
   <h2>📋 תנועות</h2>
   <table><thead><tr>
-    <th>תאריך</th><th>תיאור</th><th>סוג</th><th>מקור</th>
+    <th>תאריך</th><th>תיאור</th><th>סוג</th><th>מקור</th><th>סוג תקציב</th>
     <th>ייעוד</th><th>סכום</th><th>הערות</th>
   </tr></thead><tbody>`;
 
@@ -6259,12 +6725,13 @@ function printBudget() {
       <td>${esc(t.description)}</td>
       <td class="${t.type === 'income' ? 'income' : 'expense'}">${t.type === 'income' ? 'הכנסה' : 'הוצאה'}</td>
       <td>${esc(srcMap[t.source] || t.source)}</td>
+      <td>${esc(_BUDGET_TYPE_LABELS[t.budgetType || ''] || '')}</td>
       <td>${esc(allocMap[t.allocationId] || '')}</td>
       <td style="direction:ltr;text-align:left">${fmtP(t.amount)}</td>
       <td>${esc(t.notes)}</td></tr>`;
   });
   if (isFiltered) {
-    html += `<tr><td colspan="7" style="font-size:0.8em;color:#6b7a8d;text-align:center;padding:6px">
+    html += `<tr><td colspan="8" style="font-size:0.8em;color:#6b7a8d;text-align:center;padding:6px">
       * הודפסו ${txsToPrint.length} תנועות מסוננות מתוך ${(appData.budget?.transactions || []).length} סה״כ
     </td></tr>`;
   }
@@ -6278,7 +6745,7 @@ function printBudget() {
     });
     html += `<h2>🎯 ייעודי תקציב</h2>
     <table><thead><tr>
-      <th>שם ייעוד</th><th>מקור</th><th>מתוכנן</th><th>בפועל</th><th>ניצול %</th><th>הערות</th>
+      <th>שם ייעוד</th><th>מקור</th><th>סוג תקציב</th><th>מתוכנן</th><th>בפועל</th><th>ניצול %</th><th>הערות</th>
     </tr></thead><tbody>`;
     (appData.budget?.allocations || []).forEach(a => {
       const actual  = allocExpMap[a.id] || 0;
@@ -6287,6 +6754,7 @@ function printBudget() {
       html += `<tr>
         <td>${esc(a.name)}</td>
         <td>${esc(srcMap[a.source] || a.source || 'כללי')}</td>
+        <td>${esc(_BUDGET_TYPE_LABELS[a.budgetType || ''] || '')}</td>
         <td style="direction:ltr;text-align:left">${fmtP(planned)}</td>
         <td class="${actual > planned ? 'over' : ''}" style="direction:ltr;text-align:left">${fmtP(actual)}</td>
         <td class="${pct >= 100 ? 'over' : ''}">${pct}%</td>
@@ -6294,6 +6762,73 @@ function printBudget() {
     });
     html += `</tbody></table>`;
   }
+
+  // ── מבנה תקציב מקורות + סקירה מצטברת ──
+  {
+    const cfg = appData.budget?.sourceConfig || {};
+    html += `<h2>🏗️ מבנה תקציב מקורות</h2>
+    <table><thead><tr>
+      <th>מקור</th><th>תקציב קבוע מוקצה</th><th>תקציב גמיש מוקצה</th><th>סה״כ מוקצה</th><th>הערות</th>
+    </tr></thead><tbody>`;
+    let grandFixed = 0, grandFlex = 0;
+    _BUDGET_SOURCES.forEach(s => {
+      const c = cfg[s] || { fixed: 0, flexible: 0, notes: '' };
+      grandFixed += Number(c.fixed) || 0;
+      grandFlex  += Number(c.flexible) || 0;
+      html += `<tr>
+        <td>${esc(srcMap[s])}</td>
+        <td style="direction:ltr;text-align:left">${fmtP(c.fixed)}</td>
+        <td style="direction:ltr;text-align:left">${fmtP(c.flexible)}</td>
+        <td style="direction:ltr;text-align:left">${fmtP((Number(c.fixed)||0)+(Number(c.flexible)||0))}</td>
+        <td>${esc(c.notes || '')}</td></tr>`;
+    });
+    html += `<tr style="font-weight:700"><td>סה״כ כלל המקורות</td>
+      <td style="direction:ltr;text-align:left">${fmtP(grandFixed)}</td>
+      <td style="direction:ltr;text-align:left">${fmtP(grandFlex)}</td>
+      <td style="direction:ltr;text-align:left">${fmtP(grandFixed+grandFlex)}</td><td></td></tr>`;
+    html += `</tbody></table>`;
+
+    // סקירה מצטברת
+    const allAllocs   = appData.budget?.allocations || [];
+    const allExpense  = (appData.budget?.transactions || []).filter(t => t.type === 'expense');
+    const sumPlanned  = fn => allAllocs.filter(fn).reduce((s,a) => s + (parseFloat(a.planned)||0), 0);
+    const sumActual   = fn => allExpense.filter(fn).reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
+    const ovRow = (label, ceiling, planned, actual) => {
+      const hasCeil = ceiling !== null;
+      const pct     = hasCeil && ceiling > 0 ? Math.round((actual/ceiling)*100) : (hasCeil ? 0 : null);
+      const remain  = hasCeil ? (ceiling - actual) : null;
+      return `<tr>
+        <td>${label}</td>
+        <td style="direction:ltr;text-align:left">${hasCeil ? fmtP(ceiling) : '—'}</td>
+        <td style="direction:ltr;text-align:left">${fmtP(planned)}</td>
+        <td style="direction:ltr;text-align:left">${fmtP(actual)}</td>
+        <td class="${pct !== null && pct > 100 ? 'over' : ''}" style="direction:ltr;text-align:left">${hasCeil ? fmtP(remain) : '—'}</td>
+        <td class="${pct !== null && pct > 100 ? 'over' : ''}">${pct !== null ? pct + '%' : '—'}</td></tr>`;
+    };
+    html += `<h2>📈 סקירה מצטברת</h2>
+    <table><thead><tr>
+      <th>מקור / סוג תקציב</th><th>מוקצה</th><th>מתוכנן</th><th>בפועל</th><th>יתרה</th><th>ניצול</th>
+    </tr></thead><tbody>`;
+    html += ovRow('סה״כ כלל התקציב', grandFixed + grandFlex, sumPlanned(() => true), sumActual(() => true));
+    ['fixed','flexible'].forEach(bt => {
+      const ceiling = _BUDGET_SOURCES.reduce((s, src) => s + (Number(cfg[src]?.[bt]) || 0), 0);
+      html += ovRow(bt === 'fixed' ? 'תקציב קבוע (כלל המקורות)' : 'תקציב גמיש (כלל המקורות)',
+        ceiling, sumPlanned(a => a.budgetType === bt), sumActual(t => t.budgetType === bt));
+    });
+    _BUDGET_SOURCES.forEach(src => {
+      const c = cfg[src] || {};
+      const srcCeiling = (Number(c.fixed)||0) + (Number(c.flexible)||0);
+      html += ovRow(`${srcMap[src]} — סה״כ`, srcCeiling,
+        sumPlanned(a => a.source === src), sumActual(t => t.source === src));
+      ['fixed','flexible'].forEach(bt => {
+        html += ovRow(`&nbsp;&nbsp;↳ ${_BUDGET_TYPE_LABELS[bt]}`, Number(c[bt]) || 0,
+          sumPlanned(a => a.source === src && a.budgetType === bt),
+          sumActual(t => t.source === src && t.budgetType === bt));
+      });
+    });
+    html += `</tbody></table>`;
+  }
+
   html += `</body></html>`;
   const w = window.open('', '_blank');
   if (!w) {
@@ -6836,7 +7371,7 @@ Object.assign(window, {
   // Budget module
   addBudgetTransaction, addBudgetAllocation,
   removeBudgetTx, removeBudgetAlloc,
-  onBudgetTxTypeChange, switchBudgetTab,
+  onBudgetTxTypeChange, onBudgetTxAllocChange, switchBudgetTab,
   filterBudgetTx, exportBudgetCSV, printBudget,
   refreshBudgetTotals, refreshAllocActuals,
   updateBudgetAllocDropdown, refreshBudgetComputedViews,
