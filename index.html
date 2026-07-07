@@ -1399,10 +1399,12 @@ function applyRoleUI(role, session) {
 
   if (role === 'system_admin') {
     showAdminNav(true);
+    resetNavVisibility();
     loadAllIframes(null);
   }
   else if (role === 'principal') {
     showAdminNav(true);
+    resetNavVisibility();
     loadAllIframes(null);
   }
   else if (role === 'staff_member') {
@@ -1429,6 +1431,58 @@ function setNavVisible(sectionId, visible) {
   document.querySelectorAll(`#sideNav .nav-item[data-section="${sectionId}"]`).forEach(btn => {
     btn.style.display = visible ? '' : 'none';
   });
+}
+
+// ─────────────────────────────────────────────────────────
+// GRANULAR SIDEBAR FILTERING — hides every nav-item (and its
+// group header, if the whole group becomes empty) that the
+// logged-in staff member does not have permission for.
+// Runs for EVERY id in SECTION_LIST (s0, s1, ... sdefects,
+// gantt, mtss, calendar) — not just the 4 portal frames — so
+// the right-side toolbar always mirrors the permissions set
+// in "הרשאות צוות" exactly, section by section.
+// Headers that are never permission-gated (custom links,
+// admin) are explicitly skipped.
+// ─────────────────────────────────────────────────────────
+const NAV_HEADERS_NOT_GATED = ['קישורים שונים', 'ניהול'];
+
+function applyGranularNavPerms(perms) {
+  SECTION_LIST.forEach(id => {
+    setNavVisible(id, (perms[id] || 'none') !== 'none');
+  });
+  updateNavGroupHeaders();
+}
+
+// Full access (system_admin / principal) — makes sure every nav-item and
+// group header is visible, undoing any leftover hiding from a previous
+// staff_member session in the same browser tab.
+function resetNavVisibility() {
+  document.querySelectorAll('#sideNav .nav-item').forEach(btn => { btn.style.display = ''; });
+  document.querySelectorAll('#sideNav .nav-section-header').forEach(h => { h.style.display = ''; });
+  document.getElementById('navAdminSection').style.display = '';
+}
+
+function updateNavGroupHeaders() {
+  const nav = document.getElementById('sideNav');
+  if (!nav) return;
+  let header = null;
+  let items = [];
+  const flush = () => {
+    if (header && !NAV_HEADERS_NOT_GATED.includes(header.textContent.trim())) {
+      const anyVisible = items.some(el => el.style.display !== 'none');
+      header.style.display = anyVisible ? '' : 'none';
+    }
+    items = [];
+  };
+  Array.from(nav.children).forEach(el => {
+    if (el.classList.contains('nav-section-header')) {
+      flush();
+      header = el;
+    } else {
+      items.push(el);
+    }
+  });
+  flush();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1557,6 +1611,10 @@ function applyStaffSectionPerms(perms) {
     const p = perms[f] || 'none';
     setNavVisible(f, p !== 'none');
   });
+  // Hide/show every granular sub-category (s0, s1, ... sdefects) in the
+  // right-side sidebar exactly according to the permissions set for this
+  // staff member — not just the top-level portal frames above.
+  applyGranularNavPerms(perms);
   // Send per-section permissions into plan iframe.
   // תיקון: postMessage בודד ומיידי יכול "להיאבד" אם ה-iframe (tknyt.html)
   // עדיין לא סיפק לרשום את מאזין ה-message הפנימי שלו (למשל בכניסה
