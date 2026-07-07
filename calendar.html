@@ -200,6 +200,117 @@ body {
   #ganttSyncBtn { display: none !important; }
   #scalendar .arena-panel { display: block !important; }
 }
+
+/* ══════════════════════════════════════════════════════
+   MOBILE AGENDA VIEW (≤480px) — daily rows instead of grid
+   Built by JS in renderMeetingAgendaView(). Grid markup
+   (7-column month) stays untouched for ≥768px.
+   ══════════════════════════════════════════════════════ */
+.meeting-agenda-day {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.meeting-agenda-day.today { border-color: var(--primary); }
+.meeting-agenda-day-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  min-height: 44px;
+  background: var(--primary-soft);
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.meeting-agenda-day.today .meeting-agenda-day-head { background: var(--primary); color: #fff; }
+.meeting-agenda-day-body { padding: 4px 8px 6px; }
+.meeting-agenda-empty {
+  padding: 8px 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.meeting-agenda-evt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.meeting-agenda-evt:hover, .meeting-agenda-evt:active { background: var(--primary-soft); }
+.meeting-agenda-evt .agenda-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.meeting-agenda-evt .agenda-time { font-size: 0.72rem; color: var(--text-muted); min-width: 38px; flex-shrink: 0; }
+.meeting-agenda-evt .agenda-title { flex: 1; font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meeting-agenda-add {
+  margin-right: auto;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+
+/* ══════════════════════════════════════════════════════
+   MOBILE LAYOUT FIXES (≤480px)
+   - tab bar & list-panel toolbar wrap/stack, no horizontal scroll
+   - 44×44px minimum touch targets
+   ══════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+
+  /* Tab bar: wrap + stack full-width instead of overflowing */
+  #scalendar .arena-tabs {
+    flex-wrap: wrap;
+  }
+  #scalendar .arena-tab {
+    flex: 1 1 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  /* List panel toolbar (filters + search + buttons): stack full-width */
+  #meetingPanel_list .meeting-list-toolbar {
+    flex-wrap: wrap;
+  }
+  #meetingPanel_list .meeting-list-toolbar > * {
+    flex: 1 1 100%;
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Month header nav row: stack full-width too, still no h-scroll */
+  #meetingPanel_month .meeting-month-nav {
+    flex-wrap: wrap;
+  }
+  #meetingPanel_month .meeting-month-nav > * {
+    flex: 1 1 100%;
+    min-height: 44px;
+  }
+
+  /* Generic touch targets across the module */
+  #scalendar .btn,
+  #scalendar .btn-icon,
+  #meetingModal .btn-icon {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  #scalendar .btn-icon,
+  #meetingModal .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Hide the 7-column month grid on mobile; agenda list replaces it */
+  #meetingCalGrid .meeting-cal-gridwrap { display: none; }
+}
 </style>
 </head>
 <body>
@@ -253,7 +364,7 @@ body {
   <!-- PANEL: MONTH VIEW -->
   <div id="meetingPanel_month" class="arena-panel active">
     <div class="card" style="padding:10px 20px;margin-bottom:12px">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="meeting-month-nav" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <button class="btn btn-outline"
           style="background:var(--primary);color:#fff;padding:5px 12px"
           onclick="navigateMeetingMonth(-1)">‹ חודש קודם</button>
@@ -277,7 +388,7 @@ body {
   <!-- PANEL: LIST VIEW -->
   <div id="meetingPanel_list" class="arena-panel">
     <div class="card" style="padding:12px 20px;margin-bottom:12px">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div class="meeting-list-toolbar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <select id="meetFilterType" onchange="filterMeetingList()"
           style="padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:var(--font);font-size:0.8125rem">
           <option value="">כל הסוגים</option>
@@ -693,6 +804,12 @@ function renderMeetingMonthView() {
   const grid = document.getElementById('meetingCalGrid');
   if (!grid) return;
 
+  // ≤480px: render a daily agenda list instead of the 7-column grid
+  if (_isMeetingCalMobile()) {
+    renderMeetingAgendaView(grid);
+    return;
+  }
+
   const DAY_NAMES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
   const now        = new Date();
   const firstDay   = new Date(_meetingViewYear, _meetingViewMonth, 1);
@@ -700,7 +817,7 @@ function renderMeetingMonthView() {
   const firstDow   = firstDay.getDay(); // 0=Sun
   const todayStr   = now.toISOString().slice(0, 10);
 
-  let html = `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;user-select:none">`;
+  let html = `<div class="meeting-cal-gridwrap" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;user-select:none">`;
 
   // Day headers
   DAY_NAMES.forEach((n, i) => {
@@ -768,6 +885,63 @@ function renderMeetingMonthView() {
   }
 
   html += `</div>`;
+  grid.innerHTML = html;
+}
+
+// ── MOBILE BREAKPOINT HELPER ──
+const _meetingCalMq = window.matchMedia('(max-width: 480px)');
+function _isMeetingCalMobile() { return _meetingCalMq.matches; }
+// Re-render the month/agenda view when crossing the breakpoint
+// (window resize, device rotation, or dev-tools responsive mode)
+_meetingCalMq.addEventListener('change', () => {
+  if (_meetingCurrentTab === 'month') renderMeetingMonthView();
+});
+
+// ── DAILY AGENDA VIEW (mobile ≤480px) ──
+function renderMeetingAgendaView(grid) {
+  const WEEKDAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const now       = new Date();
+  const todayStr  = now.toISOString().slice(0, 10);
+  const daysInMon = new Date(_meetingViewYear, _meetingViewMonth + 1, 0).getDate();
+
+  let html = '';
+  for (let d = 1; d <= daysInMon; d++) {
+    const dow      = new Date(_meetingViewYear, _meetingViewMonth, d).getDay();
+    const dateStr  = `${_meetingViewYear}-${String(_meetingViewMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday  = dateStr === todayStr;
+    const hebDay   = gregDayToHebrewLetters(_meetingViewYear, _meetingViewMonth, d);
+    const dayEvts  = (appData.meetings.events || [])
+      .filter(e => e.date === dateStr)
+      .sort((a, b) => (a.timeStart || '').localeCompare(b.timeStart || ''));
+
+    let evtsHtml = '';
+    if (dayEvts.length) {
+      dayEvts.forEach(evt => {
+        const opacity = evt.status === 'cancelled' ? '0.5' : '1';
+        evtsHtml += `<div class="meeting-agenda-evt" style="opacity:${opacity}"
+          onclick="openMeetingModal('${evt.id}',null)">
+          <span class="agenda-dot" style="background:${evt.color || 'var(--primary)'}"></span>
+          <span class="agenda-time">${evt.timeStart || ''}</span>
+          <span class="agenda-title">${esc(evt.title)}</span>
+        </div>`;
+      });
+    } else {
+      evtsHtml = `<div class="meeting-agenda-empty">אין פגישות</div>`;
+    }
+
+    html += `<div class="meeting-agenda-day${isToday ? ' today' : ''}">
+      <div class="meeting-agenda-day-head" onclick="openMeetingModal(null,'${dateStr}')">
+        <span>${WEEKDAY_NAMES[dow]}</span>
+        <span>${d}</span>
+        <span style="font-weight:500;opacity:0.8;font-size:0.72rem">${hebDay}</span>
+        <button type="button" class="btn-icon meeting-agenda-add"
+          onclick="event.stopPropagation();openMeetingModal(null,'${dateStr}')"
+          aria-label="פגישה חדשה">➕</button>
+      </div>
+      <div class="meeting-agenda-day-body">${evtsHtml}</div>
+    </div>`;
+  }
+
   grid.innerHTML = html;
 }
 

@@ -132,6 +132,10 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
 }
 .theme-toggle:hover { background: var(--color-border); color: var(--color-text); }
 
+/* HEADER "MORE" MENU (mobile) */
+.header-more-btn { display: none; }
+.header-more-menu { display: contents; }
+
 /* MAIN */
 .app-main { padding: var(--space-6); max-width: 1400px; margin: 0 auto; }
 
@@ -568,6 +572,7 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
 }
 .mz-event:hover { opacity: 0.85; }
 .mz-more { font-size: 10px; color: var(--color-primary); cursor: pointer; font-weight: 600; flex-shrink: 0; }
+.mz-day-events { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
 
 /* CALENDAR GRID */
 .cal-grid {
@@ -651,6 +656,7 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
   cursor: pointer; padding: 1px 0;
 }
 .cal-overflow:hover { color: var(--color-primary); }
+.cal-day-events { display: flex; flex-direction: column; gap: 1px; }
 
 /* תאריך עברי — תצוגה קטנה (מתחת למספר) */
 .cal-heb-day {
@@ -692,10 +698,97 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
 
 @media (max-width: 768px) {
   .app-main { padding: var(--space-4); }
-  .gantt-th.col-bar, .gantt-td.col-bar { display: none; }
-  .gantt-th.col-level, .gantt-td.col-level { display: none; }
   .detail-panel { max-height: 90vh; }
   .form-row { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════
+   GANTT TABLE → STACKED CARDS (≤600px)
+═══════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .gantt-table, .gantt-table tbody, .gantt-table tr, .gantt-table td {
+    display: block;
+    width: 100%;
+  }
+  .gantt-table thead { display: none; }
+  .gantt-row {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface);
+  }
+  .gantt-row:last-child { margin-bottom: 0; }
+  .gantt-td {
+    padding: var(--space-2) 0 !important;
+    border-bottom: 1px dashed var(--color-border);
+    text-align: right !important;
+  }
+  .gantt-td:last-child { border-bottom: none; }
+  .gantt-td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--color-text-faint);
+    margin-bottom: 4px;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   CALENDAR — MOBILE (≤600px)
+═══════════════════════════════════════════ */
+@media (max-width: 600px) {
+  .cal-day {
+    height: auto;
+    min-height: 92px;
+    padding: 4px 4px;
+  }
+  .cal-day-events {
+    max-height: 56px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .mz-day {
+    min-height: 78px;
+  }
+  .mz-day-events {
+    max-height: 100%;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   HEADER — "MORE" MENU (≤480px)
+═══════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .header-actions { position: relative; }
+  .header-more-btn { display: flex; }
+  .header-more-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: var(--space-3);
+    min-width: 200px;
+    z-index: 150;
+  }
+  .header-more-menu.open { display: flex; }
+  .header-more-menu .view-toggle-btn,
+  .header-more-menu .add-event-btn,
+  .header-more-menu .theme-toggle {
+    width: 100%;
+    justify-content: flex-start;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -827,21 +920,30 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
     <button class="year-nav-btn" onclick="changeYear(-1)">‹</button>
     <span class="year-badge" id="yearBadge">...</span>
     <button class="year-nav-btn" onclick="changeYear(1)">›</button>
-    <button class="view-toggle-btn" id="holidayToggleBtn" onclick="toggleHolidayLabels()" style="display:none;" title="הצג/הסתר שמות חגים">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-      חגים
+    <button class="view-toggle-btn header-more-btn" id="headerMoreBtn" onclick="toggleHeaderMoreMenu()" title="עוד" aria-label="עוד אפשרויות" aria-haspopup="true" aria-expanded="false">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+      עוד
     </button>
-    <button class="view-toggle-btn" id="hebrewDateToggleBtn" onclick="toggleHebrewDates()" style="display:none;" title="הצג תאריכים עבריים">
-      א׳
-    </button>
-    <button class="view-toggle-btn" id="viewToggleBtn" onclick="toggleView()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      לוח שנה
-    </button>
-    <button class="add-event-btn" onclick="openAddModal()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      הוסף אירוע
-    </button>
+    <div class="header-more-menu" id="headerMoreMenu">
+      <button class="view-toggle-btn" id="holidayToggleBtn" onclick="toggleHolidayLabels()" style="display:none;" title="הצג/הסתר שמות חגים">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        חגים
+      </button>
+      <button class="view-toggle-btn" id="hebrewDateToggleBtn" onclick="toggleHebrewDates()" style="display:none;" title="הצג תאריכים עבריים">
+        א׳
+      </button>
+      <button class="view-toggle-btn" id="viewToggleBtn" onclick="toggleView()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        לוח שנה
+      </button>
+      <button class="add-event-btn" onclick="openAddModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        הוסף אירוע
+      </button>
+      <button class="theme-toggle" data-theme-toggle aria-label="החלף מצב תצוגה">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
     <button class="save-btn" id="saveBtn" onclick="requestSave()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
       שמור
@@ -853,9 +955,6 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
     <button class="today-btn" onclick="scrollToToday()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       היום
-    </button>
-    <button class="theme-toggle" data-theme-toggle aria-label="החלף מצב תצוגה">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
     </button>
   </div>
 </header>
@@ -880,7 +979,7 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
           <th class="gantt-th col-period">תקופה</th>
           <th class="gantt-th col-dates">תאריכים</th>
           <th class="gantt-th col-actions">פעולות מרכזיות</th>
-          <th class="gantt-th" style="width:90px;text-align:center;">סטטוס</th>
+          <th class="gantt-th col-status" style="width:90px;text-align:center;">סטטוס</th>
         </tr>
       </thead>
       <tbody id="ganttBody"></tbody>
@@ -2249,21 +2348,21 @@ function renderGantt() {
     tr.onclick = ()=>openDetail(period.id);
 
     tr.innerHTML = `
-      <td class="gantt-td col-period">
+      <td class="gantt-td col-period" data-label="תקופה">
         <span class="period-badge" style="${badgeStyle}">${period.emoji} ${period.nameShort}</span>
       </td>
-      <td class="gantt-td col-dates">
+      <td class="gantt-td col-dates" data-label="תאריכים">
         <div class="date-range"><strong>${formatDate(period.start)}</strong> — <strong>${formatDate(period.end)}</strong></div>
         <div style="font-size:var(--text-xs);color:var(--color-text-faint);margin-top:2px;">${daysBetween(period.start,period.end)+1} ימים</div>
       </td>
-      <td class="gantt-td col-actions">
+      <td class="gantt-td col-actions" data-label="פעולות מרכזיות">
         ${period.isHoliday
           ? `<span style="color:var(--color-text-faint);font-size:var(--text-xs);">${period.name}</span>`
           : `<div class="action-preview">${firstTwo}</div>
              <span class="action-count">${allActions.length} פעולות — לחץ לפירוט</span>${dynBadge}`
         }
       </td>
-      <td class="gantt-td" style="text-align:center;"><span class="status-chip ${status}">${getStatusLabel(status)}</span></td>
+      <td class="gantt-td col-status" style="text-align:center;" data-label="סטטוס"><span class="status-chip ${status}">${getStatusLabel(status)}</span></td>
     `;
     tbody.appendChild(tr);
   });
@@ -2412,6 +2511,48 @@ function scrollToToday() {
 })();
 
 // ═══════════════════════════════════════════════════════════
+// HEADER "MORE" MENU (mobile ≤480px)
+// ═══════════════════════════════════════════════════════════
+function toggleHeaderMoreMenu(forceState) {
+  const menu = document.getElementById('headerMoreMenu');
+  const btn  = document.getElementById('headerMoreBtn');
+  if (!menu || !btn) return;
+  const open = typeof forceState === 'boolean' ? forceState : !menu.classList.contains('open');
+  menu.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('headerMoreMenu');
+  const btn  = document.getElementById('headerMoreBtn');
+  if (!menu || !menu.classList.contains('open')) return;
+  if (menu.contains(e.target) || btn.contains(e.target)) return;
+  toggleHeaderMoreMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') toggleHeaderMoreMenu(false);
+});
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 480) toggleHeaderMoreMenu(false);
+});
+
+// Re-render calendar views when crossing the 600px mobile breakpoint
+(function(){
+  let wasMobile = window.matchMedia('(max-width: 600px)').matches;
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const isMobile = window.matchMedia('(max-width: 600px)').matches;
+      if (isMobile === wasMobile) return;
+      wasMobile = isMobile;
+      if (currentView === 'calendar') renderCalendar();
+      const overlay = document.getElementById('monthZoomOverlay');
+      if (overlay && overlay.classList.contains('open')) renderMonthZoom();
+    }, 150);
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
@@ -2526,8 +2667,14 @@ function renderMonthZoom() {
       : '';
     dayEl.innerHTML = `<div class="mz-day-top">${numBadge}${hebBadge}${holName}</div>`;
 
-    // אירועים ופעולות — ללא מגבלה
-    const MAX_MZ = 5;
+    // אירועים ופעולות — במובייל: רשימה גלילה פנימית עם כל האירועים
+    const isMobileMz = window.matchMedia('(max-width: 600px)').matches;
+    const MAX_MZ = isMobileMz ? dayEvts.length : 5;
+
+    const mzEvtWrap = document.createElement('div');
+    mzEvtWrap.className = 'mz-day-events';
+    dayEl.appendChild(mzEvtWrap);
+
     dayEvts.slice(0, MAX_MZ).forEach(evt => {
       const evtEl = document.createElement('div');
       evtEl.className = 'mz-event';
@@ -2544,14 +2691,14 @@ function renderMonthZoom() {
           openDetail(evt.periodId);
         }
       };
-      dayEl.appendChild(evtEl);
+      mzEvtWrap.appendChild(evtEl);
     });
-    if (dayEvts.length > MAX_MZ) {
+    if (!isMobileMz && dayEvts.length > MAX_MZ) {
       const more = document.createElement('div');
       more.className = 'mz-more';
       more.textContent = `+${dayEvts.length - MAX_MZ} נוספים`;
       more.onclick = (e) => { e.stopPropagation(); showDayPopup(e, date, dayEvts); };
-      dayEl.appendChild(more);
+      mzEvtWrap.appendChild(more);
     }
 
     // לחיצה על תא — popup
@@ -3021,8 +3168,14 @@ function renderCalendar() {
         dayEl.appendChild(holLabel);
       }
 
-      // אירועים (עד 2 בתצוגה קטנה)
-      const MAX_SHOW = 2;
+      // אירועים — במובייל: רשימה גלילה פנימית עם כל האירועים; בדסקטופ: עד 2 + "עוד"
+      const isMobileCal = window.matchMedia('(max-width: 600px)').matches;
+      const MAX_SHOW = isMobileCal ? dayEvts.length : 2;
+
+      const evtWrap = document.createElement('div');
+      evtWrap.className = 'cal-day-events';
+      dayEl.appendChild(evtWrap);
+
       dayEvts.slice(0, MAX_SHOW).forEach(evt => {
         const evtEl = document.createElement('div');
         evtEl.className = 'cal-event';
@@ -3030,15 +3183,15 @@ function renderCalendar() {
         evtEl.title = evt.title;
         evtEl.textContent = evt.title;
         evtEl.onclick = e => { e.stopPropagation(); showDayPopup(e, date, dayEvts); };
-        dayEl.appendChild(evtEl);
+        evtWrap.appendChild(evtEl);
       });
 
-      if (dayEvts.length > MAX_SHOW) {
+      if (!isMobileCal && dayEvts.length > MAX_SHOW) {
         const more = document.createElement('div');
         more.className = 'cal-overflow';
         more.textContent = `+${dayEvts.length - MAX_SHOW} נוספים`;
         more.onclick = e => { e.stopPropagation(); showDayPopup(e, date, dayEvts); };
-        dayEl.appendChild(more);
+        evtWrap.appendChild(more);
       }
 
       dayEl.onclick = () => {

@@ -304,10 +304,69 @@ body.readonly-mode .btn-modal-ok {
 .cal-nav-btn:hover { background:#f1f5f9; }
 .cal-month-label { font-weight:700;color:var(--primary);font-size:0.88rem; }
 
-@media(max-width:600px){
-  #panelList{width:160px;min-width:140px;}
+/* ── BACK TO LIST (mobile single-screen nav) ── */
+#btnBackToList{
+  display:none;align-items:center;gap:6px;
+  background:#f8fafc;border:none;border-bottom:1px solid var(--border);
+  color:var(--hr-accent);font-family:var(--font);
+  font-size:0.85rem;font-weight:700;cursor:pointer;
+  padding:11px 16px;flex-shrink:0;width:100%;text-align:right;
+}
+#btnBackToList:hover{background:#f0f9ff;}
+
+/* ── RESPONSIVE: TABLET (≤768px) — single-screen list/detail nav ── */
+@media(max-width:768px){
+  #panelList{width:100%;min-width:0;border-left:none;}
+  #panelDetail{width:100%;}
+
+  /* Default (no teacher chosen yet on mobile): show list, hide detail panel */
+  #mainArea{position:relative;}
+  body.mobile-detail-active #panelList{display:none;}
+  body:not(.mobile-detail-active) #panelDetail{display:none;}
+
+  #btnBackToList{display:flex;}
+
   #profileCard{flex-direction:column;gap:8px;}
   .profile-actions{flex-direction:row;}
+
+  /* ── row-to-card pattern for hr-table ── */
+  .hr-table, .hr-table thead, .hr-table tbody,
+  .hr-table th, .hr-table td, .hr-table tr{display:block;}
+  .hr-table thead{
+    position:absolute;width:1px;height:1px;overflow:hidden;
+    clip:rect(0 0 0 0);white-space:nowrap;
+  }
+  .hr-table tbody{display:flex;flex-direction:column;gap:10px;}
+  .hr-table tr{
+    background:#fff;border:1px solid var(--border);border-radius:10px;
+    padding:4px 12px;box-shadow:var(--shadow);
+  }
+  .hr-table tr:hover td{background:none;}
+  .hr-table td{
+    display:flex;align-items:flex-start;justify-content:space-between;
+    gap:12px;padding:8px 0;border-bottom:1px dashed var(--border);
+    text-align:start;max-width:none !important;white-space:normal !important;
+  }
+  .hr-table td:last-child{border-bottom:none;}
+  .hr-table td::before{
+    content:attr(data-label);flex-shrink:0;
+    font-size:0.7rem;font-weight:700;text-transform:uppercase;
+    letter-spacing:.5px;color:var(--muted);padding-top:1px;
+  }
+  .hr-table td[data-label=""]::before{content:none;}
+}
+
+/* ── RESPONSIVE: MOBILE (≤480px) — calendar as day list ── */
+@media(max-width:480px){
+  #evalCalendar{display:block;}
+  .cal-header-cell{display:none;}
+  .cal-cell{
+    display:block;min-height:auto;margin-bottom:6px;
+    padding:8px 10px;border-radius:8px;
+  }
+  .cal-cell.other-month{display:none;}
+  .cal-day-num{font-size:0.85rem;margin-bottom:5px;}
+  .cal-event{white-space:normal;margin-bottom:4px;}
 }
 </style>
 </head>
@@ -341,6 +400,8 @@ body.readonly-mode .btn-modal-ok {
 
   <!-- RIGHT: detail -->
   <div id="panelDetail">
+
+    <button id="btnBackToList" onclick="backToList()">→ חזרה לרשימה</button>
 
     <div id="detailPlaceholder">
       <div class="ph-icon">👩‍🏫</div>
@@ -862,10 +923,16 @@ function renderTeacherList() {
   `).join('');
 }
 
+// ─── MOBILE SINGLE-SCREEN NAV ─────────────────────
+function isMobileNav() { return window.matchMedia('(max-width:768px)').matches; }
+function showMobileDetail() { if (isMobileNav()) document.body.classList.add('mobile-detail-active'); }
+function backToList() { document.body.classList.remove('mobile-detail-active'); }
+
 // ─── SELECT TEACHER ───────────────────────────────
 async function selectTeacher(id) {
   STATE.selectedId = id;
   renderTeacherList(); // update active highlight
+  showMobileDetail();
 
   const t = STATE.teachers.find(x => x.id === id);
   if (!t) return;
@@ -926,10 +993,10 @@ function renderEntries() {
       <tbody>
       ${STATE.entries.map(e => `
         <tr>
-          <td><span class="entry-type-badge ${typeClass(e.entry_type)}">${esc(e.entry_type||'—')}</span></td>
-          <td>${fmtDate(e.entry_date)}</td>
-          <td style="max-width:260px;white-space:pre-wrap;word-break:break-word;">${esc(e.content||'')}</td>
-          <td style="white-space:nowrap;">
+          <td data-label="סוג"><span class="entry-type-badge ${typeClass(e.entry_type)}">${esc(e.entry_type||'—')}</span></td>
+          <td data-label="תאריך">${fmtDate(e.entry_date)}</td>
+          <td data-label="תוכן" style="max-width:260px;white-space:pre-wrap;word-break:break-word;">${esc(e.content||'')}</td>
+          <td data-label="פעולות" style="white-space:nowrap;">
             <button class="btn-sm write-action" onclick="openEditEntryModal(${e.id})">✏️</button>
             <button class="btn-sm danger write-action" onclick="archiveEntry(${e.id})">🗄</button>
           </td>
@@ -970,11 +1037,11 @@ function renderBonuses() {
       <tbody>
       ${STATE.bonuses.map(b => `
         <tr>
-          <td>${esc(b.bonus_type||'—')}</td>
-          <td>${fmtDate(b.bonus_date)}</td>
-          <td class="bonus-amount">${fmtCurrency(b.amount)}</td>
-          <td style="max-width:200px;word-break:break-word;">${esc(b.description||'')}</td>
-          <td style="white-space:nowrap;">
+          <td data-label="סוג">${esc(b.bonus_type||'—')}</td>
+          <td data-label="תאריך">${fmtDate(b.bonus_date)}</td>
+          <td data-label="סכום" class="bonus-amount">${fmtCurrency(b.amount)}</td>
+          <td data-label="תיאור" style="max-width:200px;word-break:break-word;">${esc(b.description||'')}</td>
+          <td data-label="פעולות" style="white-space:nowrap;">
             <button class="btn-sm write-action" onclick="openEditBonusModal(${b.id})">✏️</button>
             <button class="btn-sm danger write-action" onclick="archiveBonus(${b.id})">🗄</button>
           </td>
@@ -1318,14 +1385,14 @@ function renderEvals() {
       <tbody>
       ${STATE.evals.map(e => `
         <tr>
-          <td>${esc(e.eval_type||'—')}</td>
-          <td>${fmtDate(e.planned_date)}</td>
-          <td><span class="eval-badge eval-${esc(e.status||'')}">${esc(e.status||'—')}</span></td>
-          <td>${esc(e.evaluator||'—')}</td>
-          <td>${fmtDate(e.actual_date)}</td>
-          <td>${esc(e.score||'—')}</td>
-          <td style="max-width:160px;word-break:break-word;">${esc(e.notes||'')}</td>
-          <td style="white-space:nowrap;">
+          <td data-label="סוג">${esc(e.eval_type||'—')}</td>
+          <td data-label="תאריך מתוכנן">${fmtDate(e.planned_date)}</td>
+          <td data-label="סטטוס"><span class="eval-badge eval-${esc(e.status||'')}">${esc(e.status||'—')}</span></td>
+          <td data-label="מעריך">${esc(e.evaluator||'—')}</td>
+          <td data-label="תאריך בפועל">${fmtDate(e.actual_date)}</td>
+          <td data-label="ציון">${esc(e.score||'—')}</td>
+          <td data-label="הערות" style="max-width:160px;word-break:break-word;">${esc(e.notes||'')}</td>
+          <td data-label="פעולות" style="white-space:nowrap;">
             <button class="btn-sm write-action" onclick="openEditEvalModal(${e.id})">✏️</button>
             <button class="btn-sm danger write-action" onclick="archiveEval(${e.id})">🗄</button>
           </td>
