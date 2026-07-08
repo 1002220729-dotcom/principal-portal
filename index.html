@@ -2693,7 +2693,17 @@ window.addEventListener('message', async (e) => {
               .then(r=>r.json()).then(sp=>{
                 if(sp){PS.planData=sp;planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*');}
                 else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
-              }).catch(()=>planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+              }).catch(err=>{
+                console.error('[portal] plan dbLoad fetch failed — sending empty school-data-update so iframe is not left hanging', err);
+                planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+              });
+          } else {
+            // בעבר: אם גם PS.school וגם PS.year ריקים לא נשלחה שום הודעה,
+            // ו-tknyt.html נשאר תקוע לצמיתות על "טוען...". עכשיו תמיד שולחים
+            // תשובה — גם ריקה — ומתריעים ב-console כדי שקל יהיה לאבחן שאין
+            // school/year ב-session (למשל חשבון/בי"ס חדש שטרם שויך).
+            console.warn('[portal] plan iframe-ready but PS.school and PS.year are both empty — no session school/year. Sending empty school-data-update instead of leaving the iframe hanging.');
+            planWin.postMessage({type:'school-data-update',schoolName:PS.school||'',year:PS.year||''},'*');
           }
         } else {
           console.log('[portal] iframe-ready plan: load already sent, skipping duplicate');
@@ -3015,8 +3025,14 @@ async function init() {
         if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
         else if (PS.school||PS.year) {
           fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
-            .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},'*');} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'); }).catch(()=>{});
-        } else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+            .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},'*');} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'); }).catch(err=>{
+              console.error('[portal] (pending-replay) plan dbLoad fetch failed — sending empty school-data-update so iframe is not left hanging', err);
+              planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+            });
+        } else {
+          console.warn('[portal] (pending-replay) plan iframe-ready but PS.school and PS.year are both empty — sending empty school-data-update instead of leaving the iframe hanging.');
+          planWin.postMessage({type:'school-data-update',schoolName:PS.school||'',year:PS.year||''},'*');
+        }
       } else {
         console.log('[portal] pending replay plan: load already sent, skipping');
       }
