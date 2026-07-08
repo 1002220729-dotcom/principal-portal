@@ -1094,12 +1094,14 @@ async function doPasswordLogin() {
   const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
 
   try {
+    const _loginT0 = performance.now();
     const res  = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, school: hintSchool, year: hintYear }),
     });
     const data = await res.json();
+    console.log(`[timing] staff-login took ${(performance.now()-_loginT0).toFixed(0)}ms`);
 
     if (!data.ok) {
       errEl.textContent = data.error || 'שגיאת כניסה';
@@ -2990,17 +2992,22 @@ async function init() {
   if (!school && !year) return;
 
   async function dbLoad(type) {
+    const t0 = performance.now();
     try {
       const res = await fetch(
         `${WORKER_URL_AUTH}/api/data?type=${type}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
         { cache: 'no-store' }
       );
-      if (!res.ok) return null;
-      return await res.json();
-    } catch { return null; }
+      if (!res.ok) { console.log(`[timing] dbLoad(${type}) FAILED status=${res.status} after ${(performance.now()-t0).toFixed(0)}ms`); return null; }
+      const text = await res.text();
+      console.log(`[timing] dbLoad(${type}) took ${(performance.now()-t0).toFixed(0)}ms, payload size=${text.length} bytes`);
+      try { return JSON.parse(text); } catch { return null; }
+    } catch (e) { console.log(`[timing] dbLoad(${type}) ERROR after ${(performance.now()-t0).toFixed(0)}ms:`, e.message); return null; }
   }
 
+  const _initT0 = performance.now();
   const [sp, sg, sm, sc, st] = await Promise.all([dbLoad('plan'), dbLoad('gantt'), dbLoad('mtss'), dbLoad('calendar'), dbLoad('teachers')]);
+  console.log(`[timing] all 5 dbLoad calls together took ${(performance.now()-_initT0).toFixed(0)}ms`);
   if(sp){ PS.planData=sp;  PS.school=sp.schoolName||PS.school; PS.year=sp.year||PS.year; }
   if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
   if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
