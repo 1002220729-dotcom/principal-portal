@@ -4329,14 +4329,20 @@ function newId() {
 function esc(str) {
   if (str === null || str === undefined) return '';
   const s = String(str);
+  let sanitized = s;
   if (typeof DOMPurify !== 'undefined' && DOMPurify.sanitize) {
-    return DOMPurify.sanitize(s, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+    sanitized = DOMPurify.sanitize(s, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  } else {
+    // fallback ידני אם CDN לא נטען
+    sanitized = sanitized
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
-  // fallback ידני אם CDN לא נטען
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  // תמיד לברוח ממרכאות, בלי קשר לנתיב שמעל: DOMPurify.sanitize() מגן על
+  // תוכן HTML בלבד ולא בורח ממרכאות — מה ששובר כל תכונת HTML (data-key,
+  // value וכו') שנבנית משם מקצוע/כיתה שמכיל גרשיים, כמו חנ"ג, זה"ב, פ"ש, בי"ס.
+  return sanitized
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
@@ -4979,13 +4985,15 @@ function onScheduleConfigFieldChange() {
   const schema = `${classesRaw.join('|')}::${subjectsRaw.join('|')}`;
   const wrap  = document.getElementById('scheduleGridWrap');
   const table = wrap?.querySelector('table');
-  if (!table || table.dataset.schema !== schema) buildScheduleGrid();
+  if (!table || table._scheduleSchema !== schema) buildScheduleGrid();
 }
 
 function buildScheduleGrid() {
   collectHoursFromDOM();
   const classesRaw   = val('sched_classes').split(',').map(s => s.trim()).filter(Boolean);
   const subjectsRaw  = val('sched_subjects').split(',').map(s => s.trim()).filter(Boolean);
+  const _buildT0 = performance.now();
+  console.log(`[timing] buildScheduleGrid start: classes=${classesRaw.length}, subjects=${subjectsRaw.length}, cells=${classesRaw.length*subjectsRaw.length}, teachers=${(appData.hoursRows||[]).length}`);
 
   if (!classesRaw.length || !subjectsRaw.length) {
     showToast('יש להזין כיתות ומקצועות', 'error');
@@ -5004,7 +5012,7 @@ function buildScheduleGrid() {
     .map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
 
   // Build table
-  let html = `<table class="sched-table" data-schema="${esc(classesRaw.join('|'))}::${esc(subjectsRaw.join('|'))}"><thead><tr><th>מקצוע</th>`;
+  let html = `<table class="sched-table"><thead><tr><th>מקצוע</th>`;
   classesRaw.forEach(cls => { html += `<th>${esc(cls)}</th>`; });
   html += `</tr></thead><tbody>`;
 
@@ -5061,7 +5069,16 @@ function buildScheduleGrid() {
   const wrap = document.getElementById('scheduleGridWrap');
   if (wrap) wrap.innerHTML = html;
 
+  // Stamp the schema as a plain JS property (NOT an HTML attribute) so the
+  // staleness check in renderScheduleGrid() is a pure string comparison —
+  // no HTML-escaping/decoding round-trip involved, which previously broke
+  // (and caused an infinite build↔render loop / frozen tab) for any class
+  // or subject name containing a double-quote (e.g. פ"ש, זה"ב, חנ"ג).
+  const builtTable = wrap?.querySelector('table');
+  if (builtTable) builtTable._scheduleSchema = `${classesRaw.join('|')}::${subjectsRaw.join('|')}`;
+
   // Fix duplicate empty option if teacher already in list
+  console.log(`[timing] buildScheduleGrid HTML+DOM write took ${(performance.now()-_buildT0).toFixed(0)}ms`);
   renderScheduleGrid();
   computeScheduleTotals();
   markDirty();
@@ -5071,6 +5088,8 @@ function renderScheduleGrid() {
   if (!appData.scheduleConfig) return;
   const { classes = [], subjects = [] } = appData.scheduleConfig;
   if (!classes.length || !subjects.length) return;
+  const _renderT0 = performance.now();
+  console.log(`[timing] renderScheduleGrid start: classes=${classes.length}, subjects=${subjects.length}, cells=${classes.length*subjects.length}`);
 
   const teacherOpts = (appData.hoursRows || [])
     .map(r => r.name).filter(Boolean);
@@ -5083,7 +5102,7 @@ function renderScheduleGrid() {
   // מקצוע חדש) מאז שהטבלה הנוכחית נבנתה — יש לבנות מחדש, אחרת
   // מקצועות/כיתות חדשים "נעלמים": השדה נשמר בטקסט אך לא מקבל שורה
   // בטבלה ולכן לעולם לא ניתן להזין/לחשב עבורו שעות.
-  if (!existingTable || existingTable.dataset.schema !== currentSchema) {
+  if (!existingTable || existingTable._scheduleSchema !== currentSchema) {
     buildScheduleGrid();
     return;
   }
@@ -5112,6 +5131,7 @@ function renderScheduleGrid() {
   });
 
   computeScheduleTotals();
+  console.log(`[timing] renderScheduleGrid (update path) took ${(performance.now()-_renderT0).toFixed(0)}ms`);
 }
 
 function onScheduleCellChange(el) {
@@ -5137,17 +5157,24 @@ function onNormHoursChange(el) {
 function computeScheduleTotals() {
   const wrap = document.getElementById('scheduleGridWrap');
   if (!wrap) return;
+  const _t0 = performance.now();
   const classes = appData.scheduleConfig?.classes || [];
+
+  // סריקה אחת בלבד של כל תאי השעות, ולא סריקה מחדש לכל כיתה —
+  // בעבר זה היה O(מס' כיתות² × מס' מקצועות), מה שיכול היה להפוך
+  // לאיטי מאוד/לקפוא עם הרבה כיתות/מקצועות.
+  const totals = {};
+  wrap.querySelectorAll('.hrs-input[data-field="hrs"]').forEach(inp => {
+    const key = inp.dataset.key || '';
+    const idx = key.lastIndexOf('__');
+    if (idx === -1) return;
+    const cls = key.slice(idx + 2);
+    const n = parseFloat(inp.value);
+    if (!isNaN(n)) totals[cls] = (totals[cls] || 0) + n;
+  });
+
   classes.forEach(cls => {
-    // Sum every "hrs" input in this class's column (key = `${subject}__${cls}`)
-    let total = 0;
-    wrap.querySelectorAll(`.hrs-input[data-field="hrs"]`).forEach(inp => {
-      const key = inp.dataset.key || '';
-      if (key.endsWith(`__${cls}`)) {
-        const n = parseFloat(inp.value);
-        if (!isNaN(n)) total += n;
-      }
-    });
+    const total = totals[cls] || 0;
 
     const totalEl = document.getElementById(`schedTotal__${cls}`);
     if (totalEl) totalEl.textContent = total ? String(total) : '0';
@@ -5175,6 +5202,7 @@ function computeScheduleTotals() {
       diffEl.className = 'sched-diff-val diff-over';
     }
   });
+  console.log(`[timing] computeScheduleTotals: classes=${classes.length} took ${(performance.now()-_t0).toFixed(0)}ms`);
 }
 
 function collectScheduleFromDOM() {
