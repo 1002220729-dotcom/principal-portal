@@ -589,6 +589,20 @@
   .sched-cell select:focus { border-color:var(--primary-light); background:#fff; outline:none; }
   .sched-subject-label { font-weight:700; color:var(--primary); font-size:0.6875rem; padding:2px 0; }
 
+  .sched-table tfoot td, .sched-table tfoot th { border-top:2px solid var(--primary); }
+  .sched-foot-label { font-weight:700; font-size:0.6875rem; background:var(--bg-soft,#f4f6fa); white-space:nowrap; }
+  .sched-total-row td { background:var(--bg-soft,#f4f6fa); }
+  .sched-total-val { display:block; text-align:center; font-weight:700; font-size:0.8rem; color:var(--primary); }
+  .sched-norm-row td { background:#fff; }
+  .sched-norm-input { width:56px; text-align:center; border:1px solid var(--border); border-radius:4px; padding:2px 4px; font-size:0.75rem; }
+  .sched-norm-input:focus { border-color:var(--primary-light); outline:none; }
+  .sched-diff-row td { background:var(--bg-soft,#f4f6fa); }
+  .sched-diff-val { display:block; text-align:center; font-weight:700; font-size:0.75rem; }
+  .sched-diff-val.diff-ok    { color:#0f9d58; }
+  .sched-diff-val.diff-under { color:#e08c00; }
+  .sched-diff-val.diff-over  { color:#d93025; }
+  .sched-diff-val.diff-empty { color:var(--text-muted); font-weight:500; }
+
   /* Per-section readonly (staff view permission) */
   .section.readonly-mode input,
   .section.readonly-mode select,
@@ -2310,6 +2324,7 @@ function buildDefaultAppData() {
     absenceRows: [],
     scheduleConfig: { classes: [], subjects: [] },
     scheduleCells: {},
+    scheduleNormHours: {},
     inventory: [],
     budget: {
       sourceConfig: {
@@ -2424,6 +2439,8 @@ function migrateContentIfNeeded(payload) {
     payload.scheduleConfig = { classes: [], subjects: [] };
   if (!payload.scheduleCells || typeof payload.scheduleCells !== 'object')
     payload.scheduleCells = {};
+  if (!payload.scheduleNormHours || typeof payload.scheduleNormHours !== 'object')
+    payload.scheduleNormHours = {};
   if (!Array.isArray(payload.inventory)) payload.inventory = [];
   payload.inventory.forEach(cat => {
     if (!Array.isArray(cat.rows)) cat.rows = [];
@@ -4999,12 +5016,38 @@ function buildScheduleGrid() {
     html += `</tr>`;
   });
 
-  html += `</tbody></table>`;
+  html += `</tbody>`;
+
+  // ── Footer: totals per class, editable "norm hours" per class, and the diff between them ──
+  if (!appData.scheduleNormHours) appData.scheduleNormHours = {};
+  html += `<tfoot>`;
+  html += `<tr class="sched-total-row"><td class="sched-foot-label">סה"כ שעות בפועל</td>`;
+  classesRaw.forEach(cls => {
+    html += `<td><span class="sched-total-val" id="schedTotal__${esc(cls)}">0</span></td>`;
+  });
+  html += `</tr>`;
+  html += `<tr class="sched-norm-row"><td class="sched-foot-label">שעות תקן</td>`;
+  classesRaw.forEach(cls => {
+    const norm = appData.scheduleNormHours[cls] ?? '';
+    html += `<td><input class="sched-norm-input" type="number" min="0" placeholder="תקן"
+      value="${esc(norm)}" data-class="${esc(cls)}"
+      oninput="onNormHoursChange(this)" title="שעות תקן לכיתה"></td>`;
+  });
+  html += `</tr>`;
+  html += `<tr class="sched-diff-row"><td class="sched-foot-label">הפרש מהתקן</td>`;
+  classesRaw.forEach(cls => {
+    html += `<td><span class="sched-diff-val" id="schedDiff__${esc(cls)}">—</span></td>`;
+  });
+  html += `</tr>`;
+  html += `</tfoot>`;
+
+  html += `</table>`;
   const wrap = document.getElementById('scheduleGridWrap');
   if (wrap) wrap.innerHTML = html;
 
   // Fix duplicate empty option if teacher already in list
   renderScheduleGrid();
+  computeScheduleTotals();
   markDirty();
 }
 
@@ -5038,6 +5081,15 @@ function renderScheduleGrid() {
     const cell = appData.scheduleCells?.[key] || {};
     inp.value  = cell.hrs || '';
   });
+
+  // Refresh "norm hours" footer inputs from appData
+  wrap.querySelectorAll('.sched-norm-input[data-class]').forEach(inp => {
+    const cls  = inp.dataset.class;
+    const norm = appData.scheduleNormHours?.[cls];
+    inp.value  = (norm === undefined || norm === null) ? '' : norm;
+  });
+
+  computeScheduleTotals();
 }
 
 function onScheduleCellChange(el) {
@@ -5046,17 +5098,75 @@ function onScheduleCellChange(el) {
   const field = el.dataset.field;
   if (!appData.scheduleCells[key]) appData.scheduleCells[key] = { hrs: '', teacher: '' };
   appData.scheduleCells[key][field] = el.value;
+  if (field === 'hrs') computeScheduleTotals();
   markDirty();
+}
+
+// Per-class column total ("סה"כ שעות בפועל"), norm-hours input handling,
+// and the diff/ratio row between them.
+function onNormHoursChange(el) {
+  if (!appData.scheduleNormHours) appData.scheduleNormHours = {};
+  const cls = el.dataset.class;
+  appData.scheduleNormHours[cls] = el.value;
+  computeScheduleTotals();
+  markDirty();
+}
+
+function computeScheduleTotals() {
+  const wrap = document.getElementById('scheduleGridWrap');
+  if (!wrap) return;
+  const classes = appData.scheduleConfig?.classes || [];
+  classes.forEach(cls => {
+    // Sum every "hrs" input in this class's column (key = `${subject}__${cls}`)
+    let total = 0;
+    wrap.querySelectorAll(`.hrs-input[data-field="hrs"]`).forEach(inp => {
+      const key = inp.dataset.key || '';
+      if (key.endsWith(`__${cls}`)) {
+        const n = parseFloat(inp.value);
+        if (!isNaN(n)) total += n;
+      }
+    });
+
+    const totalEl = document.getElementById(`schedTotal__${cls}`);
+    if (totalEl) totalEl.textContent = total ? String(total) : '0';
+
+    const normRaw = appData.scheduleNormHours?.[cls];
+    const norm    = parseFloat(normRaw);
+    const diffEl  = document.getElementById(`schedDiff__${cls}`);
+    if (!diffEl) return;
+
+    if (normRaw === undefined || normRaw === null || normRaw === '' || isNaN(norm)) {
+      diffEl.textContent = '—';
+      diffEl.className = 'sched-diff-val diff-empty';
+      return;
+    }
+
+    const diff = total - norm;
+    if (diff === 0) {
+      diffEl.textContent = `בדיוק לפי התקן (${total}/${norm})`;
+      diffEl.className = 'sched-diff-val diff-ok';
+    } else if (diff < 0) {
+      diffEl.textContent = `חסר ${Math.abs(diff)} שע' (${total}/${norm})`;
+      diffEl.className = 'sched-diff-val diff-under';
+    } else {
+      diffEl.textContent = `עודף ${diff} שע' (${total}/${norm})`;
+      diffEl.className = 'sched-diff-val diff-over';
+    }
+  });
 }
 
 function collectScheduleFromDOM() {
   if (!appData.scheduleConfig) return;
   if (!appData.scheduleCells) appData.scheduleCells = {};
+  if (!appData.scheduleNormHours) appData.scheduleNormHours = {};
   document.querySelectorAll('#scheduleGridWrap [data-key]').forEach(el => {
     const key   = el.dataset.key;
     const field = el.dataset.field;
     if (!appData.scheduleCells[key]) appData.scheduleCells[key] = { hrs: '', teacher: '' };
     appData.scheduleCells[key][field] = el.value;
+  });
+  document.querySelectorAll('#scheduleGridWrap .sched-norm-input[data-class]').forEach(el => {
+    appData.scheduleNormHours[el.dataset.class] = el.value;
   });
   if (appData.scheduleConfig) {
     appData.scheduleConfig.classes  = val('sched_classes').split(',').map(s => s.trim()).filter(Boolean);
