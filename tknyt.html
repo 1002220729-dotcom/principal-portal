@@ -1507,11 +1507,13 @@
         <div class="form-grid">
           <div class="form-group">
             <label>כיתות (מופרדות בפסיק)</label>
-            <input type="text" id="sched_classes" placeholder='א1, א2, ב1, ב2...' oninput="markDirty()">
+            <input type="text" id="sched_classes" placeholder='א1, א2, ב1, ב2...'
+              oninput="markDirty()" onchange="onScheduleConfigFieldChange()">
           </div>
           <div class="form-group">
             <label>מקצועות (מופרדים בפסיק)</label>
-            <input type="text" id="sched_subjects" placeholder='מתמטיקה, עברית, אנגלית...' oninput="markDirty()">
+            <input type="text" id="sched_subjects" placeholder='מתמטיקה, עברית, אנגלית...'
+              oninput="markDirty()" onchange="onScheduleConfigFieldChange()">
           </div>
           <div class="form-group" style="display:flex;align-items:flex-end;">
             <button class="btn btn-save" style="background:var(--primary);color:#fff;width:100%;" onclick="buildScheduleGrid()">🔄 בנה טבלת שיבוץ</button>
@@ -4966,6 +4968,20 @@ function collectHanamTherapyFromDOM() {
 // =============================================================
 //  SCHEDULE GRID (שיבוץ מקצועות לכיתות)
 // =============================================================
+// Fires on blur/change of the "כיתות"/"מקצועות" fields (in addition to the
+// manual "בנה טבלת שיבוץ" button) — so a newly added class/subject gets its
+// row/column (and can be given hours) automatically, without the user having
+// to remember to click the rebuild button.
+function onScheduleConfigFieldChange() {
+  const classesRaw  = val('sched_classes').split(',').map(s => s.trim()).filter(Boolean);
+  const subjectsRaw = val('sched_subjects').split(',').map(s => s.trim()).filter(Boolean);
+  if (!classesRaw.length || !subjectsRaw.length) return; // still mid-edit — wait for both fields
+  const schema = `${classesRaw.join('|')}::${subjectsRaw.join('|')}`;
+  const wrap  = document.getElementById('scheduleGridWrap');
+  const table = wrap?.querySelector('table');
+  if (!table || table.dataset.schema !== schema) buildScheduleGrid();
+}
+
 function buildScheduleGrid() {
   collectHoursFromDOM();
   const classesRaw   = val('sched_classes').split(',').map(s => s.trim()).filter(Boolean);
@@ -4988,7 +5004,7 @@ function buildScheduleGrid() {
     .map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
 
   // Build table
-  let html = `<table class="sched-table"><thead><tr><th>מקצוע</th>`;
+  let html = `<table class="sched-table" data-schema="${esc(classesRaw.join('|'))}::${esc(subjectsRaw.join('|'))}"><thead><tr><th>מקצוע</th>`;
   classesRaw.forEach(cls => { html += `<th>${esc(cls)}</th>`; });
   html += `</tr></thead><tbody>`;
 
@@ -5061,7 +5077,13 @@ function renderScheduleGrid() {
 
   // Update all selects cleanly
   const wrap = document.getElementById('scheduleGridWrap');
-  if (!wrap || !wrap.querySelector('table')) {
+  const existingTable = wrap?.querySelector('table');
+  const currentSchema = `${classes.join('|')}::${subjects.join('|')}`;
+  // אם עדיין אין טבלה, או שרשימת הכיתות/מקצועות השתנתה (למשל נוסף
+  // מקצוע חדש) מאז שהטבלה הנוכחית נבנתה — יש לבנות מחדש, אחרת
+  // מקצועות/כיתות חדשים "נעלמים": השדה נשמר בטקסט אך לא מקבל שורה
+  // בטבלה ולכן לעולם לא ניתן להזין/לחשב עבורו שעות.
+  if (!existingTable || existingTable.dataset.schema !== currentSchema) {
     buildScheduleGrid();
     return;
   }
@@ -7010,6 +7032,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const levelEl = document.getElementById('gi_level');
   if (levelEl) levelEl.addEventListener('change', updateBackgroundDataFields);
   updateBackgroundDataFields();
+
+  // שיבוץ מקצועות: מאזין קבוע (delegation) על מיכל הטבלה עצמו — לא על
+  // כל תא בנפרד — כדי שסה"כ השעות/הפרש מהתקן יתעדכנו תמיד בזמן אמת,
+  // גם אם ה-DOM הפנימי נבנה מחדש (בנה טבלת שיבוץ) ואפילו אם ה-oninput
+  // הפרטני על תא ספציפי לא נורה מסיבה כלשהי (למשל הדבקה/אוטופיל).
+  const scheduleWrapEl = document.getElementById('scheduleGridWrap');
+  if (scheduleWrapEl) {
+    ['input', 'change'].forEach(evt => {
+      scheduleWrapEl.addEventListener(evt, (e) => {
+        if (e.target.classList?.contains('hrs-input') || e.target.classList?.contains('sched-norm-input')) {
+          computeScheduleTotals();
+        }
+      });
+    });
+  }
 
   if (_pendingPayload) {
     _applyLoadedData(_pendingPayload);
