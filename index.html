@@ -1146,6 +1146,7 @@ async function doPasswordLogin() {
     setPortalSession(sessionData);
     persistResolvedSchoolYear(resolvedSchool, resolvedYear);
     applyRoleUI('staff_member', sessionData);
+    loadPortalDataAndNotifyFrames();
 
   } catch(e) {
     errEl.textContent = 'שגיאת רשת: ' + e.message;
@@ -1213,6 +1214,7 @@ async function submitPasswordChange() {
       setPortalSession(sessionData);
       persistResolvedSchoolYear(resolvedSchool, resolvedYear);
       applyRoleUI('staff_member', sessionData);
+      loadPortalDataAndNotifyFrames();
     } else {
       toast('✅ הסיסמא שונתה. יש להתחבר מחדש.', 'ok');
       portalLogout();
@@ -1349,6 +1351,7 @@ async function handleGoogleCredential(response) {
     setPortalSession(sessionData);
     persistResolvedSchoolYear(resolvedSchool, resolvedYear);
     applyRoleUI(data.role, sessionData);
+    loadPortalDataAndNotifyFrames();
 
   } catch(e) {
     showLoginError('שגיאת רשת: ' + e.message);
@@ -1773,6 +1776,7 @@ window.smCheckPassword = function() {
       setPortalSession(adminSession);
       document.getElementById('smPasswordModal').style.display = 'none';
       applyRoleUI('system_admin', adminSession);
+      loadPortalDataAndNotifyFrames();
     } else {
       document.getElementById('smPasswordError').style.display = 'block';
     }
@@ -2452,6 +2456,7 @@ const PS = {
   lastSync:null, syncCount:0,
   activeFrame:'plan',
   _initDone: false,
+  _dataLoadStarted: false,  // מונע קריאה כפולה ל-loadPortalDataAndNotifyFrames (init() + login handler)
   _pendingIframeReady: [],   // iframe-ready events that arrived before init() finished
   _planLoadSent: false,      // האם כבר שלחנו load-data ל-planFrame — מונע שליחה כפולה
 };
@@ -2986,9 +2991,32 @@ async function init() {
     return; // לא מחובר — אין נתונים לטעון
   }
 
+  await loadPortalDataAndNotifyFrames();
+}
+
+// ═══════════════════════════════════════════════════════
+//  loadPortalDataAndNotifyFrames()
+//  תיקון: בעבר הקוד הזה היה חלק מ-init() בלבד, שרץ פעם אחת
+//  ב-DOMContentLoaded. אם באותו רגע עדיין לא הייתה session
+//  (למשל כניסה ראשונה — עדיין לפני login), init() היה יוצא
+//  מוקדם (return) בלי לטעון נתונים ובלי להגדיר PS._initDone.
+//  לאחר מכן, כשה-login מסתיים בהצלחה, applyRoleUI() נקרא
+//  ישירות מתוך loginSubmit/handleGoogleCredential/וכו' —
+//  אבל אף אחד מהם לא הפעיל את טעינת הנתונים מ-D1 ולא ניקז את
+//  _pendingIframeReady, כך שה-iframes נשארו תקועים לצמיתות
+//  במצב "ממתין" (עד שרענון דף גרם ל-init() לרוץ מחדש, הפעם עם
+//  session קיים מ-localStorage). הפתרון: מוציאים את הלוגיקה
+//  לפונקציה עצמאית שנקראת גם מ-init() (כשיש session מההתחלה)
+//  וגם מכל אחד ממסלולי ה-login המוצלח — כדי שהנתונים ייטענו
+//  מיד, בלי צורך ברענון.
+// ═══════════════════════════════════════════════════════
+async function loadPortalDataAndNotifyFrames() {
+  if (PS._dataLoadStarted) return; // מונע טעינה כפולה אם נקרא יותר מפעם אחת
+  PS._dataLoadStarted = true;
+
   // טעינת נתוני פורטל מ-D1
-  const school = PS.school || session.school || '';
-  const year   = PS.year   || session.year   || '';
+  const school = PS.school || '';
+  const year   = PS.year   || '';
   if (!school && !year) return;
 
   async function dbLoad(type) {
