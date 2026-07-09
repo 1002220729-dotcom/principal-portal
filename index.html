@@ -2678,7 +2678,7 @@ window.addEventListener('message', async (e) => {
 
     case 'iframe-ready':
       // אם init() עדיין לא סיים — שמור ב-pending ועבד אחרי שה-session מוכן
-      if (!PS._initDone && !PS.school && !PS.year) {
+      if (!PS._initDone) {
         console.log('[portal] iframe-ready PENDING (init not done yet):', e.data.docType);
         PS._pendingIframeReady.push({ data: e.data, source: e.source });
         // רק סמן כ-ready (ללא load)
@@ -2726,6 +2726,23 @@ window.addEventListener('message', async (e) => {
               if(sg){PS.ganttData=sg;ganttWin.postMessage({type:'load-data',payload:sg},'*');}
               else ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
             }).catch(()=>ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+        }
+      }
+      if (e.data.docType==='mtss') {
+        // תיקון: מסלול זה ("live", אחרי ש-init/dataLoad כבר הסתיימו) היה
+        // חסר טיפול ב-mtss לגמרי — mtss.html לא קיבל מעולם נתונים אם
+        // ה-iframe-ready שלו הגיע אחרי ש-PS._initDone כבר true (למשל
+        // רענון פנימי של ה-iframe לבד). מוסיפים כאן טיפול זהה לזה
+        // שקיים כבר עבור gantt.
+        PS.mtssReady=true; setReady('mtss',true); setStatus('MTSS מוכן');
+        if (PS.mtssData) {
+          mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+        } else if (PS.school||PS.year) {
+          fetch(`${WORKER_URL_AUTH}/api/data?type=mtss&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            .then(r=>r.json()).then(sm=>{
+              if(sm){PS.mtssData=sm;mtssWin.postMessage({type:'load-data',payload:sm},'*');}
+              else mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+            }).catch(()=>mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
         }
       }
       if (e.data.docType==='teachers' && fromTeachers) {
