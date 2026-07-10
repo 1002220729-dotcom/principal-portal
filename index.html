@@ -605,6 +605,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <button class="nav-item" data-target="plan" data-section="s_dash" data-perm="plan" onclick="navClick(this)">
       <span class="ni-icon">📈</span> דשבורד
     </button>
+    <button class="nav-item" data-target="plan" data-section="splan" data-perm="plan" onclick="navClick(this)">
+      <span class="ni-icon">🗺️</span> מתווה עבודה
+    </button>
 
     <div class="nav-section-header">כלים</div>
     <button class="nav-item" data-target="gantt" data-perm="gantt" onclick="navClick(this)">
@@ -1654,9 +1657,15 @@ function loadAllIframes(perms) {
     const frameEl = document.getElementById(name + 'Frame');
     if (!frameEl) return;
     const p = perms ? (perms[name] || 'none') : 'edit';
+    PS._framePerms[name] = p; // נשמר לשימוש ב-iframe-ready handler (ראו הערה על PS._framePerms)
     if (p === 'none') return;
     if (!frameEl.src || frameEl.src === 'about:blank') frameEl.src = src;
     if (p === 'view') {
+      // תיקון מירוץ תזמון: אם ה-iframe נטען מהר/מה-cache, אירוע ה-load
+      // עלול להתרחש עוד לפני שהקוד מגיע לרשום את המאזין הזה, וההודעה
+      // אף פעם לא נשלחת. משאירים את מנגנון ה-load כרשת ביטחון נוספת,
+      // אבל המנגנון האמין באמת הוא שליחה בתגובה להודעת ה-iframe-ready
+      // שה-iframe עצמו שולח כשהוא מוכן (ראו טיפול ב-case 'iframe-ready').
       frameEl.addEventListener('load', function onLoad() {
         frameEl.removeEventListener('load', onLoad);
         frameEl.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:name }, '*');
@@ -1669,6 +1678,17 @@ function loadAllIframes(perms) {
   // knows whether to flag readonly once the iframe actually loads.
   const teachersPerm = perms ? (perms.teachers || 'none') : 'edit';
   PS._teachersPerm = teachersPerm;
+}
+
+// נשלח בתגובה להודעת 'iframe-ready' (שה-iframe שולח ברגע שהמאזין הפנימי
+// שלו כבר רשום) — זהו ערוץ המסירה האמין להרשאת 'view', בניגוד לאירוע
+// ה-load החיצוני שעלול להתרחש לפני שהמאזין הפנימי נרשם. ראו הערה ב-
+// PS._framePerms וב-loadAllIframes.
+function sendFrameReadOnlyIfNeeded(docType, win) {
+  if (!win) return;
+  if (PS._framePerms && PS._framePerms[docType] === 'view') {
+    win.postMessage({ type:'set-readonly', readonly:true, docType }, '*');
+  }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2459,6 +2479,12 @@ const PS = {
   _dataLoadStarted: false,  // מונע קריאה כפולה ל-loadPortalDataAndNotifyFrames (init() + login handler)
   _pendingIframeReady: [],   // iframe-ready events that arrived before init() finished
   _planLoadSent: false,      // האם כבר שלחנו load-data ל-planFrame — מונע שליחה כפולה
+  // הרשאה מחושבת ('view'|'edit'|'none') לכל אחד מה-frames שנטענים דרך
+  // loadAllIframes (plan/gantt/mtss/calendar) — נשמר כדי שנוכל לשלוח
+  // set-readonly גם בתגובה להודעת iframe-ready ולא רק לאירוע load,
+  // ולמנוע את מירוץ התזמון שבו ה-iframe נטען מה-cache/מהר מדי ו-load
+  // מתרחש לפני שה-listener נרשם.
+  _framePerms: {},
 };
 
 // ═══════════════════════════════════════════════════════
@@ -2687,10 +2713,20 @@ window.addEventListener('message', async (e) => {
         if (e.data.docType==='mtss')     { PS.mtssReady=true;  setReady('mtss',true);  }
         if (e.data.docType==='calendar') { PS.calendarReady=true; }
         if (e.data.docType==='teachers') { PS.teachersReady=true; setReady('teachers',true); }
+        // ה-iframe יכול היה להיטען רק אחרי ש-loadAllIframes כבר רץ (זה מה
+        // שמגדיר את ה-src שלו), כך ש-PS._framePerms כבר מחושב בשלב הזה —
+        // אפשר ומומלץ לשלוח את ה-readonly כבר עכשיו, מיד כשה-iframe מוכן,
+        // בלי לחכות לסיום init().
+        const readyWin = e.source;
+        sendFrameReadOnlyIfNeeded(
+          e.data.docType==='principal' ? 'plan' : e.data.docType,
+          readyWin
+        );
         break;
       }
       if (e.data.docType==='plan'||e.data.docType==='principal') {
         PS.planReady=true; setReady('plan',true); setStatus('תכנית עבודה מוכנה');
+        sendFrameReadOnlyIfNeeded('plan', planWin);
         if (!PS._planLoadSent) {
           PS._planLoadSent = true;
           if (PS.planData) {
@@ -2718,6 +2754,7 @@ window.addEventListener('message', async (e) => {
       }
       if (e.data.docType==='gantt') {
         PS.ganttReady=true; setReady('gantt',true); setStatus('גאנט מוכן');
+        sendFrameReadOnlyIfNeeded('gantt', ganttWin);
         if (PS.ganttData) {
           ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
         } else if (PS.school||PS.year) {
@@ -2735,6 +2772,7 @@ window.addEventListener('message', async (e) => {
         // רענון פנימי של ה-iframe לבד). מוסיפים כאן טיפול זהה לזה
         // שקיים כבר עבור gantt.
         PS.mtssReady=true; setReady('mtss',true); setStatus('MTSS מוכן');
+        sendFrameReadOnlyIfNeeded('mtss', mtssWin);
         if (PS.mtssData) {
           mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
         } else if (PS.school||PS.year) {
@@ -2771,6 +2809,7 @@ window.addEventListener('message', async (e) => {
       if (e.data.docType==='calendar' && fromCalendar) {
         PS.calendarReady = true;
         setStatus('יומן מנהל מוכן');
+        sendFrameReadOnlyIfNeeded('calendar', calendarWin);
         if (PS.calendarData) {
           calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
         } else if (PS.school||PS.year) {
@@ -3072,6 +3111,7 @@ async function loadPortalDataAndNotifyFrames() {
     const teachersFrm = document.getElementById('teachersFrame');
     const dt = ev.data.docType;
     if ((dt==='plan'||dt==='principal') && planWin) {
+      sendFrameReadOnlyIfNeeded('plan', planWin);
       if (!PS._planLoadSent) {
         PS._planLoadSent = true;
         if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
@@ -3090,18 +3130,24 @@ async function loadPortalDataAndNotifyFrames() {
       }
     }
     if (dt==='gantt' && ganttWin) {
+      sendFrameReadOnlyIfNeeded('gantt', ganttWin);
       if (PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
       else if (PS.school||PS.year) ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
     }
     if (dt==='mtss' && mtssWin) {
+      sendFrameReadOnlyIfNeeded('mtss', mtssWin);
       if (PS.mtssData) mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
       else if (PS.school||PS.year) mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
     }
     if (dt==='calendar' && calendarWin) {
+      sendFrameReadOnlyIfNeeded('calendar', calendarWin);
       if (PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
       else if (PS.school||PS.year) calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
     }
     if (dt==='teachers' && teachersFrm?.contentWindow) {
+      if (PS._teachersPerm === 'view') {
+        teachersFrm.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:'teachers' }, '*');
+      }
       if (PS.teachersData) teachersFrm.contentWindow.postMessage({type:'load-data',payload:PS.teachersData},'*');
     }
   }
