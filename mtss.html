@@ -1039,6 +1039,29 @@ ${clonedElement.outerHTML}
             const [showEditNoteDialog, setShowEditNoteDialog] = useState(false);
             const [editingNote, setEditingNote] = useState({ studentName: '', noteKey: '', currentNote: '' });
 
+            // הרשאות צפייה/עריכה שהתקבלו מהפורטל
+            const [isReadOnly, setIsReadOnly] = useState(!!window.__mtss_isReadOnly);
+            const [sectionPerms, setSectionPerms] = useState(window.__mtss_sectionPerms || {});
+
+            // true אם אין הרשאת עריכה לזירה הנתונה (הרשאה גלובלית או פר-זירה)
+            const arenaIsReadOnly = (arena) => {
+                if (isReadOnly) return true;
+                const p = sectionPerms[arena];
+                return p === 'view' || p === 'none';
+            };
+            // true אם אין הרשאת עריכה מלאה בכל הזירות (לפעולות גלובליות: ייבוא/מיזוג/מחיקת-הכל)
+            const anyArenaReadOnly = () => {
+                if (isReadOnly) return true;
+                return ['learning', 'support', 'staffSupport', 'populations'].some(arenaIsReadOnly);
+            };
+            const blockIfReadOnly = (arena) => {
+                if (arenaIsReadOnly(arena)) {
+                    alert('🔒 אין לך הרשאת עריכה לאזור זה — צפייה בלבד');
+                    return true;
+                }
+                return false;
+            };
+
             const classes = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'יא', 'יב'];
 
             // --- LocalStorage Functions ---
@@ -1165,6 +1188,22 @@ ${clonedElement.outerHTML}
                 };
                 window.addEventListener('mtss-switch-tab', handleSwitchTab);
                 return () => window.removeEventListener('mtss-switch-tab', handleSwitchTab);
+            }, []);
+
+            // הרשאות צפייה/עריכה מהפורטל
+            useEffect(() => {
+                const handleSetReadOnly = (e) => {
+                    setIsReadOnly(!!(e.detail && e.detail.readonly));
+                };
+                const handleSetSectionPermissions = (e) => {
+                    setSectionPerms((e.detail && e.detail.permissions) || {});
+                };
+                window.addEventListener('mtss-set-readonly', handleSetReadOnly);
+                window.addEventListener('mtss-set-section-permissions', handleSetSectionPermissions);
+                return () => {
+                    window.removeEventListener('mtss-set-readonly', handleSetReadOnly);
+                    window.removeEventListener('mtss-set-section-permissions', handleSetSectionPermissions);
+                };
             }, []);
 
             // Auto-save whenever data changes
@@ -1778,6 +1817,7 @@ ${clonedElement.outerHTML}
 
             // --- לוגיקה (זהה למקור) ---
             const addOrUpdateItem = () => {
+                if (blockIfReadOnly(activeArena)) return;
                 const selectedDomains = Object.entries(formData.domains)
                     .filter(([_, isSelected]) => isSelected)
                     .map(([domain]) => domain);
@@ -1816,6 +1856,7 @@ ${clonedElement.outerHTML}
             };
 
             const handleDelete = (id) => {
+                if (blockIfReadOnly(activeArena)) return;
                 if (confirm('האם למחוק פריט זה?')) {
                     setItems(prev => ({ ...prev, [activeArena]: prev[activeArena].filter(item => item.id !== id) }));
                 }
@@ -1823,6 +1864,7 @@ ${clonedElement.outerHTML}
 
             // לוגיקת אוכלוסיות
             const addStudentToCategory = () => {
+                if (blockIfReadOnly('populations')) return;
                 if (!studentInput.trim()) return alert('יש להזין שם תלמיד');
                 const classKey = selectedClassNumber === 'כל השכבה' ? selectedClass : `${selectedClass}${selectedClassNumber}`;
                 const key = `${classKey}-${selectedCategory}`;
@@ -1846,6 +1888,7 @@ ${clonedElement.outerHTML}
             };
 
             const removeStudent = (className, categoryId, studentIndex) => {
+                if (blockIfReadOnly('populations')) return;
                 const key = `${className}-${categoryId}`;
                 const students = populationsData[key] || [];
                 const studentName = students[studentIndex];
@@ -1870,6 +1913,7 @@ ${clonedElement.outerHTML}
             };
 
             const saveEditedNote = () => {
+                if (blockIfReadOnly('populations')) return;
                 if (editingNote.currentNote.trim()) {
                     setStudentNotes(prev => ({ ...prev, [editingNote.noteKey]: editingNote.currentNote.trim() }));
                 } else {
@@ -1893,6 +1937,7 @@ ${clonedElement.outerHTML}
             };
 
             const addClassToGrade = () => {
+                if (blockIfReadOnly('populations')) return;
                 if (!newClassName.trim()) return alert('יש להזין שם/מספר כיתה');
                 setClassStructure(prev => ({
                     ...prev,
@@ -1903,6 +1948,7 @@ ${clonedElement.outerHTML}
             };
 
             const removeClassFromGrade = (grade, className) => {
+                if (blockIfReadOnly('populations')) return;
                 if (confirm(`האם למחוק את כיתה ${grade}${className}?`)) {
                     setClassStructure(prev => ({
                         ...prev,
@@ -2006,6 +2052,11 @@ ${clonedElement.outerHTML}
             };
 
             const importFromJSON = (event) => {
+                if (anyArenaReadOnly()) {
+                    alert('🔒 אין לך הרשאת עריכה מלאה — לא ניתן לייבא נתונים במצב צפייה');
+                    event.target.value = '';
+                    return;
+                }
                 const file = event.target.files[0];
                 if (!file) return;
 
@@ -2046,6 +2097,11 @@ ${clonedElement.outerHTML}
             };
 
             const handleMultipleFiles = (event) => {
+                if (anyArenaReadOnly()) {
+                    alert('🔒 אין לך הרשאת עריכה מלאה — לא ניתן למזג נתונים במצב צפייה');
+                    event.target.value = '';
+                    return;
+                }
                 const files = Array.from(event.target.files);
                 if (files.length === 0) return;
 
@@ -2131,6 +2187,11 @@ ${clonedElement.outerHTML}
             };
 
             const executeMerge = () => {
+                if (anyArenaReadOnly()) {
+                    alert('🔒 אין לך הרשאת עריכה מלאה — לא ניתן למזג נתונים במצב צפייה');
+                    setShowMergeDialog(false);
+                    return;
+                }
                 if (!mergePreview) return;
 
                 // Merge items
@@ -2172,6 +2233,10 @@ ${clonedElement.outerHTML}
             };
 
             const clearAllData = () => {
+                if (anyArenaReadOnly()) {
+                    alert('🔒 אין לך הרשאת עריכה מלאה — לא ניתן למחוק את כל הנתונים במצב צפייה');
+                    return;
+                }
                 if (confirm('⚠️ האם אתה בטוח שברצונך למחוק את כל הנתונים? פעולה זו אינה הפיכה!')) {
                     setItems({ learning: [], support: [], staffSupport: [] });
                     setPopulationsData({});
@@ -2327,6 +2392,16 @@ ${clonedElement.outerHTML}
 
             return (
                 <>
+                    {(isReadOnly || arenaIsReadOnly(activeArena)) && (
+                        <div style={{
+                            position: 'sticky', top: 0, zIndex: 9999,
+                            background: '#fbbf24', color: '#3f2d00',
+                            fontWeight: 700, textAlign: 'center',
+                            padding: '8px 16px', fontSize: '0.9rem'
+                        }}>
+                            👁 מצב צפייה בלבד — אין לך הרשאת עריכה {isReadOnly ? 'באזור זה' : `בלשונית "${arenas[activeArena]?.title || activeArena}"`}
+                        </div>
+                    )}
                     {showChartsView ? (
                         // === Charts View ===
                         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
@@ -3819,7 +3894,8 @@ ${clonedElement.outerHTML}
 
                                                     <button
                                                         onClick={addOrUpdateItem}
-                                                        className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-cyan-900/20 transition-all flex items-center justify-center gap-2"
+                                                        disabled={arenaIsReadOnly(activeArena)}
+                                                        className={`w-full font-bold py-3.5 rounded-xl shadow-lg shadow-cyan-900/20 transition-all flex items-center justify-center gap-2 ${arenaIsReadOnly(activeArena) ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white'}`}
                                                     >
                                                         {editingItem ? <span><i className="fas fa-save"></i> שמור שינויים</span> : <span><i className="fas fa-plus"></i> הוסף למאגר</span>}
                                                     </button>
@@ -3847,7 +3923,9 @@ ${clonedElement.outerHTML}
                                                                 <h4 className="text-lg font-bold text-white group-hover:text-cyan-300 transition-colors">{item.name}</h4>
                                                                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                     <button onClick={() => handleEdit(item)} className="tap-44 w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-900/50 text-cyan-400 flex items-center justify-center transition-colors"><i className="fas fa-pencil-alt text-xs"></i></button>
-                                                                    <button onClick={() => handleDelete(item.id)} className="tap-44 w-8 h-8 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-rose-400 flex items-center justify-center transition-colors"><i className="fas fa-trash text-xs"></i></button>
+                                                                    {!arenaIsReadOnly(activeArena) && (
+                                                                        <button onClick={() => handleDelete(item.id)} className="tap-44 w-8 h-8 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-rose-400 flex items-center justify-center transition-colors"><i className="fas fa-trash text-xs"></i></button>
+                                                                    )}
                                                                 </div>
                                                             </div>
 
@@ -3984,7 +4062,7 @@ ${clonedElement.outerHTML}
                                                     </div>
                                                     <button
                                                         onClick={addStudentToCategory}
-                                                        disabled={!selectedCategory || !studentInput}
+                                                        disabled={!selectedCategory || !studentInput || arenaIsReadOnly('populations')}
                                                         className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-cyan-900/20 transition-all"
                                                     >
                                                         הוסף
@@ -4227,7 +4305,8 @@ ${clonedElement.outerHTML}
                                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                                     <button
                                         onClick={clearAllData}
-                                        className="w-full sm:w-auto min-h-[44px] text-rose-400 hover:text-rose-300 px-4 py-2 rounded-lg hover:bg-rose-900/20 transition-colors flex items-center justify-center gap-2 border border-rose-500/30"
+                                        disabled={anyArenaReadOnly()}
+                                        className="w-full sm:w-auto min-h-[44px] text-rose-400 hover:text-rose-300 px-4 py-2 rounded-lg hover:bg-rose-900/20 transition-colors flex items-center justify-center gap-2 border border-rose-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
                                     >
                                         <i className="fas fa-trash-alt"></i> מחק הכל
                                     </button>
@@ -4324,7 +4403,8 @@ ${clonedElement.outerHTML}
                                         <div className="flex gap-3">
                                             <button
                                                 onClick={addClassToGrade}
-                                                className="flex-1 min-h-[44px] bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold py-3 rounded-xl transition-all"
+                                                disabled={arenaIsReadOnly('populations')}
+                                                className="flex-1 min-h-[44px] bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                             >
                                                 הוסף
                                             </button>
@@ -4579,6 +4659,20 @@ ${clonedElement.outerHTML}
         // ── מעבר ללשונית ספציפית מהפורטל (switch-tab) ─────────────────
         if (e.data.type === 'switch-tab' && e.data.tab) {
             window.dispatchEvent(new CustomEvent('mtss-switch-tab', { detail: { tab: e.data.tab } }));
+        }
+
+        // ── הרשאת צפייה/עריכה כללית מהפורטל (set-readonly) ────────────
+        if (e.data.type === 'set-readonly') {
+            window.__mtss_isReadOnly = !!e.data.readonly;
+            window.dispatchEvent(new CustomEvent('mtss-set-readonly', { detail: { readonly: !!e.data.readonly } }));
+        }
+
+        // ── הרשאות פר-תת-אזור מהפורטל (set-section-permissions) ───────
+        // תתי-אזורים אפשריים: learning / support / staffSupport / populations
+        if (e.data.type === 'set-section-permissions') {
+            const perms = e.data.permissions || {};
+            window.__mtss_sectionPerms = perms;
+            window.dispatchEvent(new CustomEvent('mtss-set-section-permissions', { detail: { permissions: perms } }));
         }
     });
     </script>

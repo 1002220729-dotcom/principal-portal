@@ -898,6 +898,31 @@ body { font-family: var(--font-body); font-size: var(--text-base); color: var(--
   padding: 1px 7px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;
   display: inline-block;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   READ-ONLY MODE
+   ═══════════════════════════════════════════════════════════ */
+.readonly-banner {
+  position: sticky; top: 0; z-index: 200;
+  background: #fbbf24; color: #3f2d00; font-weight: 700;
+  font-size: var(--text-sm); text-align: center;
+  padding: var(--space-2) var(--space-4);
+}
+body.readonly-mode .add-event-btn,
+body.readonly-mode #saveBtn,
+body.readonly-mode .evt-btn.delete,
+body.readonly-mode .btn-primary,
+body.readonly-mode #dpm-remove-btn {
+  display: none !important;
+}
+body.readonly-mode .action-card {
+  cursor: default; pointer-events: none; opacity: 0.85;
+}
+body.readonly-mode #editModal input,
+body.readonly-mode #editModal select,
+body.readonly-mode #editModal textarea {
+  pointer-events: none; background: var(--color-surface-2); opacity: 0.75;
+}
 </style>
 </head>
 <body>
@@ -1168,6 +1193,35 @@ let currentDetailPeriodId = null;
 let isDirtyLocal = false;
 let lastLoadedSignature = '';
 
+// ═══════════════════════════════════════════════════════════
+// READ-ONLY / PERMISSIONS
+// ═══════════════════════════════════════════════════════════
+let _isReadOnly = false;
+
+function _blockIfReadOnly() {
+  if (_isReadOnly) {
+    showToast('🔒 אין לך הרשאת עריכה לאזור זה — צפייה בלבד', 'error');
+    return true;
+  }
+  return false;
+}
+
+function applyReadOnlyUI() {
+  document.body.classList.toggle('readonly-mode', !!_isReadOnly);
+  let banner = document.getElementById('readonlyBanner');
+  if (_isReadOnly) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'readonlyBanner';
+      banner.className = 'readonly-banner';
+      banner.textContent = '👁 מצב צפייה בלבד — אין לך הרשאת עריכה באזור זה';
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+  } else if (banner) {
+    banner.remove();
+  }
+}
+
 // Selected actions: { [periodId_sectionName_actionIndex]: true }
 // Wrapped in try-catch: Chrome throws SecurityError on localStorage in file:// / cross-origin iframes
 let selectedActions = (() => {
@@ -1183,6 +1237,7 @@ function getActionKey(periodId, section, idx) {
 }
 
 function toggleActionSelection(periodId, section, idx) {
+  if (_blockIfReadOnly()) return;
   const key = getActionKey(periodId, section, idx);
   if (selectedActions[key]) {
     delete selectedActions[key];
@@ -1457,6 +1512,7 @@ function requestSave() {
 // MESSAGE BUS
 // ═══════════════════════════════════════════════════════════
 function broadcastToPlan(periodId) {
+    if (_blockIfReadOnly()) return;
     const period = PERIODS.find(p => p.id === periodId);
     if (!period) return;
 
@@ -1567,6 +1623,7 @@ function _showBroadcastTargetDialog(periodId, broadcastItems) {
 }
 
 function _executeBroadcast(periodId, targetChoice) {
+    if (_blockIfReadOnly()) return;
     try {
         const dialog = document.getElementById('broadcastTargetDialog');
         if (dialog) dialog.remove();
@@ -1616,6 +1673,23 @@ function initMessageBus() {
   window.addEventListener('message', (e) => {
     const msg = e.data;
     if (!msg || typeof msg !== 'object') return;
+
+    if (msg.type === 'set-readonly') {
+      _isReadOnly = !!msg.readonly;
+      applyReadOnlyUI();
+      return;
+    }
+
+    if (msg.type === 'set-section-permissions') {
+      // לוח הגאנט הוא אזור יחיד ללא תתי-לשוניות — משתמשים בהרשאת gantt הכללית
+      const perms = msg.permissions || {};
+      const p = perms.gantt || perms.gnt || null;
+      if (p !== null && p !== undefined) {
+        _isReadOnly = (p === 'view' || p === 'none');
+        applyReadOnlyUI();
+      }
+      return;
+    }
 
     if (handleIncomingPayload(msg)) return;
 
@@ -1712,6 +1786,7 @@ function addOrUpdateEvent(evt) {
 }
 
 function deleteEvent(id) {
+  if (_blockIfReadOnly()) return;
   if (!confirm('למחוק את האירוע?')) return;
 
   removeEventFromAll(id);
@@ -1742,12 +1817,14 @@ function populatePeriodSelect(selectedId) {
   });
 }
 function openAddModal() {
+  if (_blockIfReadOnly()) return;
   resetModal();
   document.getElementById('modalTitle').textContent = 'הוסף אירוע חדש';
   populatePeriodSelect(_currentDetailPeriodId || '');
   openModal();
 }
 function openAddModalForPeriod() {
+  if (_blockIfReadOnly()) return;
   resetModal();
   document.getElementById('modalTitle').textContent = 'הוסף אירוע לתקופה';
   populatePeriodSelect(_currentDetailPeriodId || '');
@@ -1787,6 +1864,7 @@ function toggleSchoolField() {
     document.getElementById('evtType').value === 'school' ? 'flex' : 'none';
 }
 function saveEvent() {
+  if (_blockIfReadOnly()) return;
   const title = document.getElementById('evtTitle').value.trim();
   const periodId = document.getElementById('evtPeriod').value;
   const existingId = document.getElementById('editEventId').value;
@@ -3348,6 +3426,7 @@ function dpmCancel() {
 }
 
 function dpmRemove() {
+  if (_blockIfReadOnly()) return;
   const key = _dpm.actionKey;
   delete selectedActions[key];
   delete selectedActionDates[key];
@@ -3362,6 +3441,7 @@ function dpmRemove() {
 }
 
 function dpmConfirm() {
+  if (_blockIfReadOnly()) return;
   const dateStart = document.getElementById('modalDateStart').value;
   const dateEnd   = document.getElementById('modalDateEnd').value;
 
@@ -3445,6 +3525,7 @@ document.getElementById('datePickerOverlay').addEventListener('click', e => {
 // OVERRIDE toggleActionSelection — intercept with date modal
 // ═══════════════════════════════════════════════════════════
 function toggleActionSelection(periodId, section, idx) {
+  if (_blockIfReadOnly()) return;
   const key = getActionKey(periodId, section, idx);
   const per = PERIODS.find(p => p.id === periodId);
   if (!per) return;

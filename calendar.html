@@ -311,6 +311,48 @@ body {
   /* Hide the 7-column month grid on mobile; agenda list replaces it */
   #meetingCalGrid .meeting-cal-gridwrap { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════
+   [MEETINGS READONLY] — PASTE THIS BLOCK TOO (part of [MEETINGS CSS])
+   מצב "צפייה בלבד" ליומן המנהל. בכוונה לא חוסם ניווט/סינון/מעבר
+   תצוגות (חודש/רשימה) — רק פעולות שמשנות נתונים: הוספה, עריכה,
+   שכפול ומחיקה של פגישה.
+   ══════════════════════════════════════════════════════ */
+body.readonly-mode #scalendar::before {
+  content: '👁 מצב צפייה בלבד — אין הרשאת עריכה ביומן זה';
+  display: block;
+  background: #7c3aed;
+  color: #fff;
+  text-align: center;
+  padding: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+body.readonly-mode .btn-icon[title="ערוך"],
+body.readonly-mode .btn-icon[title="שכפל"],
+body.readonly-mode .btn-icon[title="מחק"],
+body.readonly-mode .meeting-agenda-add,
+body.readonly-mode #meetModalDeleteBtn {
+  display: none !important;
+}
+/* כפתורי "פגישה חדשה" בכרטיסי הכלים (לא ה-➕ הקטן שכבר טופל למעלה) */
+body.readonly-mode #meetingPanel_month .btn-save,
+body.readonly-mode #meetingPanel_list  .btn-save {
+  pointer-events: none;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* בתוך המודאל עצמו: כל השדות מושבתים חזותית, וכפתור השמירה מוסתר
+   (מוסתר גם ע"י JS ב-applyMeetingModalReadOnlyState, זה גיבוי חזותי) */
+body.readonly-mode #meetingModal input,
+body.readonly-mode #meetingModal select,
+body.readonly-mode #meetingModal textarea {
+  pointer-events: none;
+  opacity: 0.65;
+  background: #f4f6f9;
+}
 </style>
 </head>
 <body>
@@ -1131,6 +1173,13 @@ function renderMeetingByPeriod() {
 // ── MODAL ──
 // ════════════════════════════════════════════════════════════
 function openMeetingModal(id, dateStr) {
+  // יצירת פגישה חדשה חסומה לגמרי במצב צפייה בלבד; עריכת פגישה קיימת
+  // עדיין נפתחת כדי לאפשר צפייה בפרטים, אבל בתצוגה מושבתת (ראה למטה).
+  if (_isReadOnly && !id) {
+    showToast('אין לך הרשאת עריכה ביומן זה — ניתן לצפות בלבד', 'error');
+    return;
+  }
+
   const evt = id ? (appData.meetings.events || []).find(e => e.id === id) : null;
 
   document.getElementById('meetModalId').value           = id || '';
@@ -1151,8 +1200,36 @@ function openMeetingModal(id, dateStr) {
 
   const modal = document.getElementById('meetingModal');
   modal.style.display = 'flex';
+  applyMeetingModalReadOnlyState(_isReadOnly);
   // Trap focus
   setTimeout(() => document.getElementById('meetModalTitleInput').focus(), 80);
+}
+
+// משביתה/מפעילה את שדות המודאל וכפתור השמירה לפי הרשאת העריכה הנוכחית.
+// נקראת גם בפתיחת המודאל וגם מיידית אם ההרשאה מתעדכנת תוך כדי שהמודאל פתוח.
+function applyMeetingModalReadOnlyState(readOnly) {
+  const fieldIds = [
+    'meetModalTitleInput','meetModalDate','meetModalTimeStart','meetModalTimeEnd',
+    'meetModalType','meetModalPriority','meetModalStatus','meetModalLocation',
+    'meetModalAttendees','meetModalColor','meetModalAgenda','meetModalSummary'
+  ];
+  fieldIds.forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) el.disabled = !!readOnly;
+  });
+  const saveBtn   = document.querySelector('#meetingModal .btn-save');
+  const deleteBtn = document.getElementById('meetModalDeleteBtn');
+  if (saveBtn)   saveBtn.style.display   = readOnly ? 'none' : '';
+  const titleEl = document.getElementById('meetModalTitle');
+  if (titleEl) {
+    const id = document.getElementById('meetModalId')?.value;
+    titleEl.textContent = readOnly
+      ? 'פרטי פגישה (צפייה בלבד)'
+      : (id ? 'עריכת פגישה' : 'פגישה חדשה');
+  }
+  // כפתור המחיקה כבר מוסתר ע"י CSS (body.readonly-mode #meetModalDeleteBtn) —
+  // רק ודא שלא נשאר גלוי אם אין id (פגישה חדשה) בכל מקרה
+  if (deleteBtn && readOnly) deleteBtn.style.display = 'none';
 }
 
 function closeMeetingModal() {
@@ -1160,6 +1237,7 @@ function closeMeetingModal() {
 }
 
 function saveMeetingModal() {
+  if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
   const id    = document.getElementById('meetModalId').value;
   const title = document.getElementById('meetModalTitleInput').value.trim();
   const date  = document.getElementById('meetModalDate').value;
@@ -1209,6 +1287,7 @@ function saveMeetingModal() {
 }
 
 function deleteMeeting(id) {
+  if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
   if (!id) return;
   if (!confirm('למחוק פגישה זו?')) return;
   appData.meetings.events = (appData.meetings.events || []).filter(e => e.id !== id);
@@ -1220,6 +1299,7 @@ function deleteMeeting(id) {
 }
 
 function duplicateMeeting(id) {
+  if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
   const src = (appData.meetings.events || []).find(e => e.id === id);
   if (!src) return;
   const dup = { ...src, id: newId(), isFromGantt: false, title: 'עותק — ' + src.title };
@@ -1374,6 +1454,18 @@ const DOC_TYPE      = 'calendar';
 const PORTAL_ORIGIN = '*';
 const _inPortal     = window.parent !== window;
 
+// דגל הרשאת עריכה — נקבע ע"י הפורטל דרך 'set-readonly' / 'set-section-permissions'.
+// כל עוד לא התקבלה הודעה מהפורטל, ברירת המחדל היא עריכה מלאה (מצב standalone/דמו).
+let _isReadOnly = false;
+
+function _applyReadOnly(readOnly) {
+  _isReadOnly = !!readOnly;
+  document.body.classList.toggle('readonly-mode', _isReadOnly);
+  // אם המודאל פתוח כרגע, עדכן את מצבו מיידית (ולא רק בפתיחה הבאה)
+  const modal = document.getElementById('meetingModal');
+  if (modal && modal.style.display === 'flex') applyMeetingModalReadOnlyState(_isReadOnly);
+}
+
 let _portalSchool = '';
 let _portalYear   = '';
 
@@ -1442,6 +1534,18 @@ window.addEventListener('message', e => {
   if (msg.type === 'school-data-update') {
     if (msg.schoolName) _portalSchool = msg.schoolName;
     if (msg.year)       _portalYear   = msg.year;
+    return;
+  }
+  // ── הרשאות: זהה בפורמט למנגנון שבקובץ הראשי (תוכנית עבודה) ──
+  if (msg.type === 'set-readonly') {
+    _applyReadOnly(!!msg.readonly);
+    return;
+  }
+  if (msg.type === 'set-section-permissions') {
+    const perms = msg.permissions || {};
+    // ייתכן שהפורטל מזהה את מודול היומן במפתחות שונים — בודקים את הסבירים ביותר
+    const p = perms.scalendar || perms.calendar || perms[DOC_TYPE];
+    if (p !== undefined) _applyReadOnly(p === 'view');
     return;
   }
 });
