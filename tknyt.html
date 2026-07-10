@@ -1680,7 +1680,9 @@
         <div class="card-title"><span class="icon">🔄</span> סנכרון מול סדין השעות</div>
         <p class="text-muted" style="margin-bottom:12px;">
           שיבוץ מקצועות רגיל מנוכה אוטומטית משעות ה<strong>תקן הבסיסי (הפרונטליות)</strong> של כל מורה בסדין השעות בלבד —
-          סלי שעות אחרים (אמירים, שילוב וכד') אינם מושפעים מטבלה זו. הנתונים מתעדכנים אוטומטית ומוצגים גם בסדין השעות.
+          סלי שעות אחרים (אמירים, שילוב וכד') אינם מושפעים מטבלה זו. שעות <strong>תפקיד / רוחב</strong> אינן נספרות
+          כאן בשום מקרה — גם אם הן מנוכות מסל התקן הבסיסי — כי לא ניתן לשבץ אותן למקצועות הוראה בכיתה.
+          הנתונים מתעדכנים אוטומטית ומוצגים גם בסדין השעות.
         </p>
         <div class="table-wrap">
           <table class="data-table" id="scheduleSyncTable">
@@ -5324,12 +5326,17 @@ function computeTeacherScheduleTotals() {
 // שעות התקן הבסיסי (הפרונטליות) שהוקצו למורה מסוימת: קודם כל לפי שיוך מפורש
 // לסל הבסיס (במודאל "סלי שעות"), ואם אין — נופלים חזרה לשדה "שעות פרונטליות"
 // הכללי שלה בטבלה הראשית, כדי שהתכונה תעבוד גם בלי מילוי הסלים.
+// חשוב: שעות "תפקיד / רוחב" (row.role) אף פעם לא נספרות כאן, גם אם הן חלק
+// מהשעות שהוקצו למורה מסל התקן הבסיסי — כי אי אפשר לשבץ אותן למקצועות הוראה
+// בכיתה, ולכן הן חייבות להישאר מחוץ לתקן שמוצג במסך "שיבוץ מקצועות".
 function getTeacherBaseBasketHours(row) {
+  const roleHours = parseFloat(row.role) || 0;
   const baseBasket = (appData.hourBaskets || []).find(b => b.isBase);
   if (baseBasket) {
     const alloc = (row.basketAllocations || []).find(a => a.basketId === baseBasket.id);
     if (alloc && alloc.hours !== '' && alloc.hours !== undefined && alloc.hours !== null) {
-      return parseFloat(alloc.hours) || 0;
+      const allocHours = parseFloat(alloc.hours) || 0;
+      return Math.max(0, allocHours - roleHours);
     }
   }
   return parseFloat(row.frontal) || 0;
