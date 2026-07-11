@@ -524,7 +524,61 @@
   }
 
   /* ===== SCHEDULE GRID ===== */
+  /* הופכים את אזור הטבלה לתיבת גלילה עצמאית עם גובה מוגבל — כך ה-sticky
+     של הכותרת/העמודה מתייחס לתיבה הזו עצמה ולא לגלילת כל הדף, וההתנהגות
+     יציבה בכל מקום שהטבלה מוצגת בו (כולל מצב פורטל, מודלים וכו') */
+  #scheduleGridWrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: var(--radius); }
   .sched-table { border-collapse:collapse; font-size:0.75rem; }
+
+  /* --- כותרת עליונה דביקה (שמות הכיתות) --- */
+  .sched-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 25;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+
+  /* --- עמודה ראשונה דביקה (שמות המקצועות) --- */
+  .sched-table tbody td:first-child,
+  .sched-table tfoot td:first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 15;
+    background: var(--card);
+    box-shadow: 2px 0 4px rgba(0,0,0,0.08);
+  }
+
+  /* --- תא הפינה (הכותרת של עמודת המקצועות): גם עליון וגם צדדי, מעל הכול --- */
+  .sched-table thead th:first-child {
+    position: sticky;
+    top: 0;
+    inset-inline-start: 0;
+    z-index: 35;
+  }
+
+  /* --- תא ששובץ בו מורה: הרקע נצבע אינליין (ראו JS), כאן רק המראה הכללי --- */
+  .sched-table td.sched-cell-assigned { transition: background 0.15s; }
+
+  /* ===== TEACHER COLOR LEGEND (מקרא צבעי מורים) ===== */
+  .teacher-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .teacher-legend-item {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 20px;
+    padding: 3px 10px 3px 4px; font-size: 0.75rem;
+  }
+  .teacher-legend-item input[type="color"] {
+    width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
+    cursor: pointer; background: none;
+  }
+  .teacher-legend-item input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .teacher-legend-item input[type="color"]::-webkit-color-swatch { border: 1.5px solid rgba(0,0,0,0.15); border-radius: 50%; }
+  .teacher-legend-item input[type="color"]::-moz-color-swatch { border: 1.5px solid rgba(0,0,0,0.15); border-radius: 50%; }
+  .teacher-legend-reset {
+    border: none; background: none; cursor: pointer; font-size: 0.75rem;
+    color: var(--text-muted); padding: 0 2px; line-height: 1;
+  }
+  .teacher-legend-reset:hover { color: var(--accent); }
+  .teacher-legend-empty { color: var(--text-muted); font-size: 0.8rem; }
   /* ===== PATHWAY VIEW (מתווה עבודה) ===== */
   .pathway-goal-card {
     background: var(--card);
@@ -1669,8 +1723,19 @@
       </div>
 
       <div class="card">
+        <div class="card-title"><span class="icon">🎨</span> צבעי מורים</div>
+        <p class="text-muted" style="margin-bottom:10px;">
+          לכל מורה מוקצה אוטומטית צבע קבוע. ניתן ללחוץ על העיגול ולבחור צבע אחר לפי טעמכם — הבחירה תישמר.
+          התאים בטבלת השיבוץ למטה יצבעו בצבע המורה המשובץ בהם, כך שקל לראות מה שובץ ומה עדיין ריק.
+        </p>
+        <div id="teacherColorLegend" class="teacher-legend">
+          <span class="teacher-legend-empty">הוסיפו מורים בסדין השעות כדי לראות כאן מקרא צבעים</span>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-title"><span class="icon">📋</span> טבלת שיבוץ</div>
-        <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ</p>
+        <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ. תא עם מורה משובץ יצבע בצבע המורה.</p>
         <div id="scheduleGridWrap" class="table-wrap">
           <div style="color:var(--text-muted);text-align:center;padding:32px;">הגדר כיתות ומקצועות ולחץ "בנה טבלת שיבוץ"</div>
         </div>
@@ -2502,6 +2567,7 @@ function buildDefaultAppData() {
     scheduleConfig: { classes: [], subjects: [] },
     scheduleCells: {},
     scheduleNormHours: {},
+    teacherColors: {},
     inventory: [],
     budget: {
       sourceConfig: {
@@ -2670,6 +2736,8 @@ function migrateContentIfNeeded(payload) {
     payload.scheduleCells = {};
   if (!payload.scheduleNormHours || typeof payload.scheduleNormHours !== 'object')
     payload.scheduleNormHours = {};
+  if (!payload.teacherColors || typeof payload.teacherColors !== 'object')
+    payload.teacherColors = {};
   if (!Array.isArray(payload.inventory)) payload.inventory = [];
   payload.inventory.forEach(cat => {
     if (!Array.isArray(cat.rows)) cat.rows = [];
@@ -5365,6 +5433,7 @@ function refreshHoursScheduleSync() {
     el.className = `hr-sync-val ${cls}`;
   });
   renderScheduleSyncTable(scheduledMap);
+  renderTeacherColorLegend();
 }
 
 function renderScheduleSyncTable(scheduledMapArg) {
@@ -5703,6 +5772,120 @@ function onScheduleConfigFieldChange() {
   if (!table || table._scheduleSchema !== schema) buildScheduleGrid();
 }
 
+// =============================================================
+//  TEACHER COLORS (שיבוץ מקצועות) — צבע אוטומטי לכל מורה + אפשרות
+//  לבחירה ידנית. הצבע "האמיתי" (רווי) משמש למקרא ולפס הצבע בתא;
+//  גרסה בהירה (pastel) של אותו צבע משמשת לרקע התא כדי שהטקסט/השדות
+//  שבתוכו יישארו קריאים.
+// =============================================================
+function _hashStr(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+function _hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+function _hexToHsl(hex) {
+  hex = (hex || '').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length !== 6) return [0, 0, 50];
+  const r = parseInt(hex.substr(0, 2), 16) / 255;
+  const g = parseInt(hex.substr(2, 2), 16) / 255;
+  const b = parseInt(hex.substr(4, 2), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s; const l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      default: h = (r - g) / d + 4;
+    }
+    h /= 6;
+  }
+  return [h * 360, s * 100, l * 100];
+}
+// צבע הזהות של המורה (רווי) — קבוע לפי בחירה ידנית אם קיימת, אחרת נגזר
+// אוטומטית ובעקביות משם המורה (אותו שם -> תמיד אותו צבע).
+function getTeacherColor(name) {
+  if (!name) return null;
+  if (!appData.teacherColors) appData.teacherColors = {};
+  if (appData.teacherColors[name]) return appData.teacherColors[name];
+  const hue = _hashStr(name) % 360;
+  return _hslToHex(hue, 62, 45);
+}
+function getTeacherColorTint(name) {
+  const hex = getTeacherColor(name);
+  if (!hex) return null;
+  const [h, s] = _hexToHsl(hex);
+  return _hslToHex(h, Math.min(s, 70), 91);
+}
+function onTeacherColorPick(name, value) {
+  if (!name) return;
+  if (!appData.teacherColors) appData.teacherColors = {};
+  appData.teacherColors[name] = value;
+  applyScheduleCellColors();
+  renderTeacherColorLegend();
+  markDirty();
+}
+function resetTeacherColor(name) {
+  if (!name) return;
+  if (appData.teacherColors) delete appData.teacherColors[name];
+  applyScheduleCellColors();
+  renderTeacherColorLegend();
+  markDirty();
+}
+// צובע (או מנקה) תא בודד בטבלת השיבוץ לפי שם המורה המשובץ בו
+function setScheduleCellColor(td, teacherName) {
+  if (!td) return;
+  if (teacherName) {
+    td.style.background = getTeacherColorTint(teacherName);
+    td.style.borderInlineStart = `3px solid ${getTeacherColor(teacherName)}`;
+    td.classList.add('sched-cell-assigned');
+  } else {
+    td.style.background = '';
+    td.style.borderInlineStart = '';
+    td.classList.remove('sched-cell-assigned');
+  }
+}
+// עובר על כל תאי טבלת השיבוץ הקיימת ומרענן את הצביעה שלהם (למשל אחרי שינוי צבע במקרא)
+function applyScheduleCellColors() {
+  const wrap = document.getElementById('scheduleGridWrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('td[data-sched-td]').forEach(td => {
+    const key  = td.dataset.schedTd;
+    const cell = appData.scheduleCells?.[key] || {};
+    setScheduleCellColor(td, cell.teacher || '');
+  });
+}
+// בונה את מקרא הצבעים מעל טבלת השיבוץ, עם עיגול צבע לכל מורה שניתן ללחוץ
+// עליו ולבחור צבע ידני, וכפתור איפוס חזרה לצבע האוטומטי
+function renderTeacherColorLegend() {
+  const box = document.getElementById('teacherColorLegend');
+  if (!box) return;
+  const names = Array.from(new Set((appData.hoursRows || []).map(r => r.name).filter(Boolean)));
+  if (!names.length) {
+    box.innerHTML = `<span class="teacher-legend-empty">הוסיפו מורים בסדין השעות כדי לראות כאן מקרא צבעים</span>`;
+    return;
+  }
+  box.innerHTML = names.map(n => `
+    <span class="teacher-legend-item">
+      <input type="color" value="${esc(getTeacherColor(n))}" data-teacher="${esc(n)}"
+        title="בחר/י צבע עבור ${esc(n)}" onchange="onTeacherColorPick(this.dataset.teacher, this.value)">
+      <span>${esc(n)}</span>
+      <button type="button" class="teacher-legend-reset" data-teacher="${esc(n)}"
+        title="איפוס לצבע אוטומטי" onclick="resetTeacherColor(this.dataset.teacher)">↺</button>
+    </span>`).join('');
+}
+
 function buildScheduleGrid() {
   collectHoursFromDOM();
   const classesRaw   = val('sched_classes').split(',').map(s => s.trim()).filter(Boolean);
@@ -5734,7 +5917,11 @@ function buildScheduleGrid() {
     classesRaw.forEach(cls => {
       const key = `${subj}__${cls}`;
       const cell = appData.scheduleCells[key] || { hrs: '', teacher: '' };
-      html += `<td>
+      const cellStyle = cell.teacher
+        ? `style="background:${getTeacherColorTint(cell.teacher)};border-inline-start:3px solid ${getTeacherColor(cell.teacher)};"`
+        : '';
+      const cellClass = cell.teacher ? ' sched-cell-assigned' : '';
+      html += `<td data-sched-td="${esc(key)}" class="${cellClass}" ${cellStyle}>
         <div class="sched-cell">
           <input class="hrs-input" type="number" min="0" placeholder="שע'"
             value="${esc(cell.hrs)}"
@@ -5793,6 +5980,7 @@ function buildScheduleGrid() {
   // Fix duplicate empty option if teacher already in list
   renderScheduleGrid();
   computeScheduleTotals();
+  renderTeacherColorLegend();
   markDirty();
 }
 
@@ -5840,6 +6028,8 @@ function renderScheduleGrid() {
     inp.value  = (norm === undefined || norm === null) ? '' : norm;
   });
 
+  applyScheduleCellColors();
+  renderTeacherColorLegend();
   computeScheduleTotals();
 }
 
@@ -5849,6 +6039,11 @@ function onScheduleCellChange(el) {
   const field = el.dataset.field;
   if (!appData.scheduleCells[key]) appData.scheduleCells[key] = { hrs: '', teacher: '' };
   appData.scheduleCells[key][field] = el.value;
+  // שינוי המורה המשובץ בתא -> לצבוע/לנקות מיידית את התא לפי צבע המורה
+  if (field === 'teacher') {
+    const td = el.closest('td[data-sched-td]');
+    setScheduleCellColor(td, el.value);
+  }
   // גם שינוי שעות וגם שינוי מורה משפיעים על סנכרון סדין השעות (computeScheduleTotals מרענן אותו)
   if (field === 'hrs' || field === 'teacher') computeScheduleTotals();
   markDirty();
