@@ -538,6 +538,24 @@
     box-shadow: 0 2px 4px rgba(0,0,0,0.15);
   }
 
+  /* --- שם הכיתה + שדה מחנך/ת בתוך כותרת העמודה --- */
+  .sched-class-name { font-weight: 700; margin-bottom: 4px; }
+  .sched-homeroom-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 3px 5px;
+    text-align: center;
+    white-space: normal;
+  }
+  .sched-homeroom-input::placeholder { color: rgba(255,255,255,0.65); }
+  .sched-homeroom-input:focus { background: #fff; color: var(--primary); outline: none; border-color: #fff; }
+
   /* --- עמודה ראשונה דביקה (שמות המקצועות) --- */
   .sched-table tbody td:first-child,
   .sched-table tfoot td:first-child {
@@ -2567,6 +2585,7 @@ function buildDefaultAppData() {
     scheduleConfig: { classes: [], subjects: [] },
     scheduleCells: {},
     scheduleNormHours: {},
+    scheduleHomeroom: {},
     teacherColors: {},
     inventory: [],
     budget: {
@@ -2736,6 +2755,8 @@ function migrateContentIfNeeded(payload) {
     payload.scheduleCells = {};
   if (!payload.scheduleNormHours || typeof payload.scheduleNormHours !== 'object')
     payload.scheduleNormHours = {};
+  if (!payload.scheduleHomeroom || typeof payload.scheduleHomeroom !== 'object')
+    payload.scheduleHomeroom = {};
   if (!payload.teacherColors || typeof payload.teacherColors !== 'object')
     payload.teacherColors = {};
   if (!Array.isArray(payload.inventory)) payload.inventory = [];
@@ -5901,6 +5922,7 @@ function buildScheduleGrid() {
   appData.scheduleConfig.classes  = classesRaw;
   appData.scheduleConfig.subjects = subjectsRaw;
   if (!appData.scheduleCells) appData.scheduleCells = {};
+  if (!appData.scheduleHomeroom) appData.scheduleHomeroom = {};
 
   // Build teacher options from hours rows
   const teacherOpts = (appData.hoursRows || [])
@@ -5909,7 +5931,15 @@ function buildScheduleGrid() {
 
   // Build table
   let html = `<table class="sched-table"><thead><tr><th>מקצוע</th>`;
-  classesRaw.forEach(cls => { html += `<th>${esc(cls)}</th>`; });
+  classesRaw.forEach(cls => {
+    const homeroom = appData.scheduleHomeroom[cls] || '';
+    html += `<th>
+      <div class="sched-class-name">${esc(cls)}</div>
+      <input class="sched-homeroom-input" type="text" placeholder="מחנך/ת"
+        value="${esc(homeroom)}" data-class="${esc(cls)}"
+        oninput="onHomeroomChange(this)" title="שם מחנך/ת הכיתה">
+    </th>`;
+  });
   html += `</tr></thead><tbody>`;
 
   subjectsRaw.forEach(subj => {
@@ -6028,6 +6058,12 @@ function renderScheduleGrid() {
     inp.value  = (norm === undefined || norm === null) ? '' : norm;
   });
 
+  // Refresh homeroom-teacher header inputs from appData
+  wrap.querySelectorAll('.sched-homeroom-input[data-class]').forEach(inp => {
+    const cls = inp.dataset.class;
+    inp.value = appData.scheduleHomeroom?.[cls] || '';
+  });
+
   applyScheduleCellColors();
   renderTeacherColorLegend();
   computeScheduleTotals();
@@ -6056,6 +6092,13 @@ function onNormHoursChange(el) {
   const cls = el.dataset.class;
   appData.scheduleNormHours[cls] = el.value;
   computeScheduleTotals();
+  markDirty();
+}
+
+// שם מחנך/ת הכיתה, מוזן ישירות בכותרת העמודה של הכיתה בטבלת השיבוץ
+function onHomeroomChange(el) {
+  if (!appData.scheduleHomeroom) appData.scheduleHomeroom = {};
+  appData.scheduleHomeroom[el.dataset.class] = el.value;
   markDirty();
 }
 
@@ -6109,6 +6152,7 @@ function collectScheduleFromDOM() {
   if (!appData.scheduleConfig) return;
   if (!appData.scheduleCells) appData.scheduleCells = {};
   if (!appData.scheduleNormHours) appData.scheduleNormHours = {};
+  if (!appData.scheduleHomeroom) appData.scheduleHomeroom = {};
   document.querySelectorAll('#scheduleGridWrap [data-key]').forEach(el => {
     const key   = el.dataset.key;
     const field = el.dataset.field;
@@ -6117,6 +6161,9 @@ function collectScheduleFromDOM() {
   });
   document.querySelectorAll('#scheduleGridWrap .sched-norm-input[data-class]').forEach(el => {
     appData.scheduleNormHours[el.dataset.class] = el.value;
+  });
+  document.querySelectorAll('#scheduleGridWrap .sched-homeroom-input[data-class]').forEach(el => {
+    appData.scheduleHomeroom[el.dataset.class] = el.value;
   });
   if (appData.scheduleConfig) {
     appData.scheduleConfig.classes  = val('sched_classes').split(',').map(s => s.trim()).filter(Boolean);
@@ -8489,6 +8536,7 @@ Object.assign(window, {
   onAbsenceReasonChange, onAbsenceSubChange,
   buildScheduleGrid, onScheduleCellChange,
   onNormHoursChange, computeScheduleTotals, onScheduleConfigFieldChange,
+  onHomeroomChange,
   onTeacherColorPick, resetTeacherColor,
   addInventoryCategory, addInventoryRow,
   removeInventoryCategory, removeInventoryRow,
