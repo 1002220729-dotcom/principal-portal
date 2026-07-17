@@ -500,7 +500,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <button class="login-role-btn" id="roleBtnPrincipal" data-role="principal">
         <span style="font-size:1.3rem;">🎓</span> מנהל/ת בית ספר
       </button>
-      <button class="login-role-btn" id="roleBtnStaff" data-role="staff_member">
+      <button class="login-role-btn" id="roleBtnStaff" data-role="staffmember">
         <span style="font-size:1.3rem;">👤</span> בעל/ת תפקיד
       </button>
     </div>
@@ -738,14 +738,16 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <span><div class="fb-dot" id="fbCustomLink" style="display:inline-block"></div>
           <span id="customLinkBarTitle">🔗 קישור</span></span>
         <div style="display:flex;gap:8px;align-items:center">
-          <a id="customLinkOpenNewTab" href="#" target="_blank" rel="noopener"
+          <a id="customLinkOpenNewTab" href="#" target="_blank" rel="noopener noreferrer"
             style="color:#fff;font-size:0.78rem;text-decoration:underline;cursor:pointer">פתח בלשונית חדשה ↗</a>
           <button onclick="deleteCustomLink(window.__activeCustomLinkId)"
             style="background:rgba(255,255,255,0.15);border:none;color:#fff;border-radius:6px;
             padding:3px 10px;font-size:0.78rem;cursor:pointer;font-family:var(--font)">🗑 מחק קישור</button>
         </div>
       </div>
-      <iframe id="customLinkFrame" src="about:blank" title="קישור מותאם אישית"></iframe>
+      <iframe id="customLinkFrame" src="about:blank" title="קישור מותאם אישית"
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+        referrerpolicy="no-referrer"></iframe>
     </div>
 
   </div>
@@ -928,6 +930,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 <!-- ══════════════════════════════════════════════
      SCRIPT
 ══════════════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
 <script>
 // ═══════════════════════════════════════════════════════
 //  CONSTANTS
@@ -935,8 +938,24 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 const ISDEV = false;
 const GOOGLE_CLIENT_ID   = '492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com';
 const PORTAL_SESSION_KEY = 'portalRoleSession';
-const WORKER_URL_AUTH    = 'https://principal-api.1002220729.workers.dev';
+// SECURITY: which Worker to call is derived from the ACTUAL hostname
+// this page is served from, not hardcoded — so the same static files
+// are safe to deploy to both the production and staging Pages URLs.
+// Only the exact production hostname gets the production Worker;
+// everything else (staging, preview URLs, localhost) defaults to
+// staging — the safe direction to fail in, since accidentally
+// hitting staging is harmless but the reverse is not.
+const WORKER_URL_AUTH = (location.hostname === 'principal-portal.pages.dev')
+  ? 'https://principal-api.1002220729.workers.dev'
+  : 'https://principal-api-staging.1002220729.workers.dev';
 const WORKER_URL_SUP     = WORKER_URL_AUTH;
+
+// SECURITY: exact, hard-coded origin for this portal and all of its
+// same-domain iframes (budget/gantt/mtss/calendar/teachers/...).
+// postMessage must never be sent with '*' as target origin, and incoming
+// messages must never be trusted without verifying event.origin against
+// this exact value.
+const PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
 
 // Section IDs for permission gating
 // ═══════════════════════════════════════════════════════
@@ -980,7 +999,13 @@ const SECTION_LIST = SECTION_GROUPS.flatMap(g => g.sections.map(s => s.id));
 // ═══════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = s => {
+  const str = String(s ?? '');
+  const out = window.DOMPurify
+    ? DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+    : str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return out.replace(/'/g, '&#39;');
+};
 const lsGet = k => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch{return null;} };
 const lsSet = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch{} };
   // lsMerge: עדכון חלקי ל-localStorage בלי לדרוס שדות אחרים
@@ -1055,6 +1080,47 @@ function clearPortalSession() {
 }
 
 // ═══════════════════════════════════════════════════════
+//  AUTHENTICATED FETCH — Phase 8
+//  The session token is issued by the Worker on login and stored
+//  ONLY in sessionStorage (never localStorage), inside the same
+//  portalRoleSession object used for school/year/role/permissions.
+//  Every call to the Worker API MUST go through authFetch() so the
+//  Authorization header can never be silently omitted. Frontend
+//  role/permission state is UX only — the Worker is the sole
+//  authority; a 401/403 from it always wins over local state.
+// ═══════════════════════════════════════════════════════
+function getSessionToken() {
+  const s = getPortalSession();
+  return (s && s.token) || null;
+}
+
+async function authFetch(url, options = {}) {
+  const token = getSessionToken();
+  const headers = { ...(options.headers || {}) };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (networkErr) {
+    throw networkErr; // let caller's existing try/catch show the network error as before
+  }
+
+  if (res.status === 401) {
+    clearPortalSession();
+    toast('פג תוקף ההתחברות. יש להתחבר מחדש.', 'warn');
+    applyRoleUI(null, null);
+    throw new Error('unauthorized');
+  }
+  if (res.status === 403) {
+    toast('אין הרשאה לביצוע פעולה זו.', 'warn');
+    throw new Error('forbidden');
+  }
+  return res;
+}
+
+// ═══════════════════════════════════════════════════════
 //  AUTH — LOGIN FLOW
 // ═══════════════════════════════════════════════════════
 let _pendingRole = null;
@@ -1115,17 +1181,20 @@ async function doPasswordLogin() {
 
     _staffLoginUsername = username;
 
+    // Hardened backend response shape: { ok, token, session: {...} }
+    const srv = data.session || {};
+
     // Check if password change is required
-    if (data.mustChangePassword) {
+    if (srv.mustChangePassword) {
       if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
-      showMustChangePasswordModal(username, data.passwordExpired);
+      showMustChangePasswordModal(username, srv.passwordExpired);
       return;
     }
 
-    // מקור האמת הסופי הוא מה שהשרת מחזיר (data.school/data.year),
+    // מקור האמת הסופי הוא מה שהשרת מחזיר (srv.school/srv.year),
     // ולא הרמז המקומי. בדיקת בטיחות לפני כניסה למסך ריק בשקט.
-    const resolvedSchool = data.school || hintSchool || '';
-    const resolvedYear   = ensureSchoolYear(data.year || hintYear || '');
+    const resolvedSchool = srv.school || hintSchool || '';
+    const resolvedYear   = ensureSchoolYear(srv.year || hintYear || '');
     if (!resolvedSchool) {
       errEl.textContent = 'לא הצלחנו לזהות את בית הספר המשויך למשתמש/ת זה. פנה/י למנהל/ת המערכת.';
       errEl.style.display = 'block';
@@ -1140,15 +1209,19 @@ async function doPasswordLogin() {
     }
 
     const sessionData = {
-      ...data,
-      portalRole: 'staff_member',
+      token: data.token,
+      portalRole: 'staffmember',
       loginMethod: 'password',
+      username: srv.username,
+      name: srv.name || '',
+      roleTitle: srv.roleTitle || '',
+      permissions: srv.permissions || {},
       school: resolvedSchool,
       year:   resolvedYear,
     };
     setPortalSession(sessionData);
     persistResolvedSchoolYear(resolvedSchool, resolvedYear);
-    applyRoleUI('staff_member', sessionData);
+    applyRoleUI('staffmember', sessionData);
     loadPortalDataAndNotifyFrames();
 
   } catch(e) {
@@ -1180,7 +1253,7 @@ async function submitPasswordChange() {
   errEl.style.display = 'none';
 
   if (!current) { errEl.textContent='הזן/י את הסיסמא הנוכחית'; errEl.style.display='block'; return; }
-  if (new1.length < 8) { errEl.textContent='הסיסמא החדשה חייבת להכיל לפחות 8 תווים'; errEl.style.display='block'; return; }
+  if (new1.length < 12) { errEl.textContent='הסיסמא החדשה חייבת להכיל לפחות 12 תווים'; errEl.style.display='block'; return; }
   if (new1 !== new2) { errEl.textContent='הסיסמאות אינן תואמות'; errEl.style.display='block'; return; }
   if (!_staffLoginUsername) { errEl.textContent='שגיאה: שם משתמש לא ידוע. נסה/י להתחבר מחדש.'; errEl.style.display='block'; return; }
 
@@ -1206,17 +1279,28 @@ async function submitPasswordChange() {
     });
     const loginData = await loginRes.json();
     if (loginData.ok) {
-      const resolvedSchool = loginData.school || hintSchool || '';
-      const resolvedYear   = ensureSchoolYear(loginData.year || hintYear || '');
+      const srv2 = loginData.session || {};
+      const resolvedSchool = srv2.school || hintSchool || '';
+      const resolvedYear   = ensureSchoolYear(srv2.year || hintYear || '');
       if (!resolvedSchool || !resolvedYear) {
         toast('⚠️ הסיסמא שונתה, אך לא זוהו בית הספר/שנת הלימודים. פנה/י למנהל/ת המערכת.', 'warn');
         portalLogout();
         return;
       }
-      const sessionData = { ...loginData, portalRole:'staff_member', loginMethod:'password', school: resolvedSchool, year: resolvedYear };
+      const sessionData = {
+        token: loginData.token,
+        portalRole: 'staffmember',
+        loginMethod: 'password',
+        username: srv2.username,
+        name: srv2.name || '',
+        roleTitle: srv2.roleTitle || '',
+        permissions: srv2.permissions || {},
+        school: resolvedSchool,
+        year: resolvedYear,
+      };
       setPortalSession(sessionData);
       persistResolvedSchoolYear(resolvedSchool, resolvedYear);
-      applyRoleUI('staff_member', sessionData);
+      applyRoleUI('staffmember', sessionData);
       loadPortalDataAndNotifyFrames();
     } else {
       toast('✅ הסיסמא שונתה. יש להתחבר מחדש.', 'ok');
@@ -1233,7 +1317,7 @@ function selectRole(role, btn) {
   document.querySelectorAll('.login-role-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
 
-  const roleNames = { principal:'מנהל/ת בית ספר', staff_member:'בעל/ת תפקיד' };
+  const roleNames = { principal:'מנהל/ת בית ספר', staffmember:'בעל/ת תפקיד' };
   document.getElementById('loginRoleLabel').textContent = `כניסה כ${roleNames[role]||role}`;
   document.getElementById('loginError').style.display = 'none';
   document.getElementById('loginError').textContent = '';
@@ -1241,9 +1325,9 @@ function selectRole(role, btn) {
   const btnContainer = document.getElementById('loginGoogleBtn');
   btnContainer.innerHTML = '';
 
-  // For staff_member: show password login section with tabs
-  if (role === 'staff_member' || role === 'staffmember') {
-    _pendingRole = 'staff_member';
+  // For staffmember: show password login section with tabs
+  if (role === 'staffmember' || role === 'staffmember') {
+    _pendingRole = 'staffmember';
     const altContainer = document.getElementById('loginGoogleBtnAlt');
     altContainer.innerHTML = '';
     document.getElementById('loginPasswordSection').style.display = 'block';
@@ -1291,8 +1375,16 @@ function backToRoles() {
 }
 
 async function handleGoogleCredential(response) {
-  const payload = parseJwt(response.credential);
-  const email   = payload.email;
+  // SECURITY: the Google ID token (response.credential) is sent to the
+  // Worker AS-IS and verified there via Google's tokeninfo endpoint.
+  // We only use the client-decoded payload for cosmetic display (name/
+  // picture) — never for the email/role that authorization is based on.
+  // That must always come back from the server, which has actually
+  // checked the token's signature. (Previously this function decoded
+  // the JWT itself and sent the resulting email as a plain query param
+  // to GET /api/auth/role — anyone who knew/guessed an email could
+  // impersonate that person with no credential at all. Fixed.)
+  const payload = (() => { try { return parseJwt(response.credential); } catch { return {}; } })();
   const role    = _pendingRole;
   const errEl   = document.getElementById('loginError');
   errEl.style.display = 'none';
@@ -1302,58 +1394,63 @@ async function handleGoogleCredential(response) {
   const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
 
   try {
-    const res  = await fetch(
-      `${WORKER_URL_AUTH}/api/auth/role?email=${encodeURIComponent(email)}&school=${encodeURIComponent(hintSchool)}&year=${encodeURIComponent(hintYear)}`,
-      { cache: 'no-store' }
-    );
+    const res = await fetch(`${WORKER_URL_AUTH}/api/auth/google-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        idToken: response.credential,
+        requestedRole: role,
+        school: hintSchool,
+        year: hintYear,
+      }),
+    });
     const data = await res.json();
 
-    if (!res.ok || data.role === 'unknown') {
-      showLoginError('המשתמש/ת אינו/ה מורשה/ת לגשת לפורטל זה. פנה/י למנהל/ת המערכת.');
+    if (!res.ok || !data.ok) {
+      showLoginError(data.error || 'המשתמש/ת אינו/ה מורשה/ת לגשת לפורטל זה. פנה/י למנהל/ת המערכת.');
       return;
     }
 
-    // Verify selected role matches returned role
-    if (role === 'principal' && !['principal','system_admin'].includes(data.role)) {
-      showLoginError(`המייל ${esc(email)} אינו רשום כמנהל/ת בית ספר.`);
+    const srv = data.session || {};
+
+    // Verify selected role matches the server-resolved role
+    if (role === 'principal' && !['principal', 'systemadmin'].includes(srv.role)) {
+      showLoginError(`המייל ${esc(srv.username || '')} אינו רשום כמנהל/ת בית ספר.`);
       return;
     }
-    if (role === 'staff_member' && data.role !== 'staff_member') {
-      showLoginError(`המייל ${esc(email)} אינו רשום כבעל/ת תפקיד עבור בית ספר זה.`);
+    if (role === 'staffmember' && srv.role !== 'staffmember') {
+      showLoginError(`המייל ${esc(srv.username || '')} אינו רשום כבעל/ת תפקיד עבור בית ספר זה.`);
       return;
     }
 
-    // מקור האמת הסופי הוא תמיד מה שהשרת מחזיר; ה-hint מה-URL הוא רק
-    // ברירת מחדל למקרה שהשרת לא סיפק ערך (למשל system_admin כללי).
-    const resolvedSchool = data.school || hintSchool || '';
-
-    // בדיקת בטיחות: אם לאחר הכל אין לנו בית ספר מזוהה — לא להמשיך
-    // בשקט למסך ריק. עדיף להציג הודעה ברורה למשתמש/ת.
-    if (!resolvedSchool && role !== 'system_admin') {
+    const resolvedSchool = srv.school || hintSchool || '';
+    if (!resolvedSchool && srv.role !== 'systemadmin') {
       showLoginError('לא הצלחנו לזהות את בית הספר המשויך למייל זה. פנה/י למנהל/ת המערכת כדי לוודא שהמייל משויך לבית ספר.');
       return;
     }
 
-    const resolvedYear = (role === 'system_admin')
-      ? (data.year || hintYear || '')
-      : ensureSchoolYear(data.year || hintYear || '');
-    if (!resolvedYear && role !== 'system_admin') {
+    const resolvedYear = (srv.role === 'systemadmin')
+      ? (srv.year || hintYear || '')
+      : ensureSchoolYear(srv.year || hintYear || '');
+    if (!resolvedYear && srv.role !== 'systemadmin') {
       showLoginError('לא ניתן להמשיך ללא הגדרת שנת לימודים.');
       return;
     }
 
     const sessionData = {
-      ...data,
-      portalRole: data.role,
-      email,
-      name:    payload.name  || '',
+      token: data.token,
+      portalRole: srv.role,
+      username: srv.username,
+      email: srv.username, // email IS the username for google-based sessions
+      name:    payload.name  || srv.name || '',
       picture: payload.picture || '',
+      permissions: srv.permissions || {},
       school:  resolvedSchool,
       year:    resolvedYear,
     };
     setPortalSession(sessionData);
     persistResolvedSchoolYear(resolvedSchool, resolvedYear);
-    applyRoleUI(data.role, sessionData);
+    applyRoleUI(srv.role, sessionData);
     loadPortalDataAndNotifyFrames();
 
   } catch(e) {
@@ -1392,7 +1489,7 @@ function applyRoleUI(role, session) {
   const ub = document.getElementById('userBadge');
   ub.classList.add('show');
   document.getElementById('userName').textContent = esc(session.name || session.email || '');
-  const roleLabels = { system_admin:'מנהל מערכת', principal:'מנהל/ת', staff_member:'בעל/ת תפקיד' };
+  const roleLabels = { systemadmin:'מנהל מערכת', principal:'מנהל/ת', staffmember:'בעל/ת תפקיד' };
   document.getElementById('userRoleLabel').textContent = roleLabels[role] || role;
 
   // Avatar
@@ -1405,7 +1502,7 @@ function applyRoleUI(role, session) {
     av.textContent = (session.name||session.email||'?')[0].toUpperCase();
   }
 
-  if (role === 'system_admin') {
+  if (role === 'systemadmin') {
     showAdminNav(true);
     resetNavVisibility();
     loadAllIframes(null);
@@ -1415,7 +1512,7 @@ function applyRoleUI(role, session) {
     resetNavVisibility();
     loadAllIframes(null);
   }
-  else if (role === 'staff_member') {
+  else if (role === 'staffmember') {
     const perms = session.permissions || {};
     showAdminNav(false);
     loadAllIframes(perms);
@@ -1461,9 +1558,9 @@ function applyGranularNavPerms(perms) {
   updateNavGroupHeaders();
 }
 
-// Full access (system_admin / principal) — makes sure every nav-item and
+// Full access (systemadmin / principal) — makes sure every nav-item and
 // group header is visible, undoing any leftover hiding from a previous
-// staff_member session in the same browser tab.
+// staffmember session in the same browser tab.
 function resetNavVisibility() {
   document.querySelectorAll('#sideNav .nav-item').forEach(btn => { btn.style.display = ''; });
   document.querySelectorAll('#sideNav .nav-section-header').forEach(h => { h.style.display = ''; });
@@ -1506,7 +1603,7 @@ async function loadCustomLinks() {
   try {
     const school = PS.school || '';
     const year   = PS.year   || '';
-    const res = await fetch(
+    const res = await authFetch(
       `${WORKER_URL_AUTH}/api/data?type=${encodeURIComponent(CUSTOM_LINKS_TYPE)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
       { cache: 'no-store' }
     );
@@ -1522,7 +1619,7 @@ async function loadCustomLinks() {
 async function saveCustomLinksToServer(links) {
   const school = PS.school || '';
   const year   = PS.year   || '';
-  await fetch(`${WORKER_URL_AUTH}/api/data`, {
+  await authFetch(`${WORKER_URL_AUTH}/api/data`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type: CUSTOM_LINKS_TYPE, school, year, payload: links })
@@ -1634,7 +1731,7 @@ function applyStaffSectionPerms(perms) {
   const planFrameEl = document.getElementById('planFrame');
   const sendPerms = () => {
     const w = planFrameEl?.contentWindow;
-    if (w) w.postMessage({ type:'set-section-permissions', permissions: perms }, '*');
+    if (w) w.postMessage({ type:'set-section-permissions', permissions: perms },PORTAL_ORIGIN);
   };
   sendPerms();
   if (planFrameEl) planFrameEl.addEventListener('load', sendPerms, { once: true });
@@ -1668,7 +1765,7 @@ function loadAllIframes(perms) {
       // שה-iframe עצמו שולח כשהוא מוכן (ראו טיפול ב-case 'iframe-ready').
       frameEl.addEventListener('load', function onLoad() {
         frameEl.removeEventListener('load', onLoad);
-        frameEl.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:name }, '*');
+        frameEl.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:name },PORTAL_ORIGIN);
       });
     }
   });
@@ -1687,7 +1784,7 @@ function loadAllIframes(perms) {
 function sendFrameReadOnlyIfNeeded(docType, win) {
   if (!win) return;
   if (PS._framePerms && PS._framePerms[docType] === 'view') {
-    win.postMessage({ type:'set-readonly', readonly:true, docType }, '*');
+    win.postMessage({ type:'set-readonly', readonly:true, docType },PORTAL_ORIGIN);
   }
 }
 
@@ -1695,7 +1792,16 @@ function sendFrameReadOnlyIfNeeded(docType, win) {
 //  LOGOUT
 // ═══════════════════════════════════════════════════════
 function portalLogout() {
+  const token = getSessionToken();
   clearPortalSession();
+  if (token) {
+    // Best-effort server-side revoke; don't block the UI on it and
+    // don't use authFetch here (session is already being torn down).
+    fetch(`${WORKER_URL_AUTH}/api/auth/logout`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  }
   window.location.reload();
 }
 
@@ -1785,24 +1891,20 @@ window.toggleSaEditPerms       = toggleSaEditPerms;
 window.setSaEditPerm           = setSaEditPerm;
 window.saveSaEditPerms         = saveSaEditPerms;
 
+// SECURITY (Phase 8): this used to compare against a hardcoded,
+// base64-"obfuscated" client-side string and, on match, fabricate a
+// systemadmin session ENTIRELY LOCALLY — no server round-trip, no
+// token, no real credential at all. Since it's shipped in the JS
+// source, it was never actually a secret. It has been removed rather
+// than "fixed", because there is no client-side way to make a
+// client-only secret real; systemadmin access must go through
+// POST /api/auth/google-login with an email present in the `admins`
+// table (server-verified). Left as a no-op + message so the button
+// doesn't silently do nothing with no feedback.
 window.smCheckPassword = function() {
-  const val = document.getElementById('smPasswordInput').value;
-  try {
-    if (val === atob(_smK)) {
-      const adminSession = {
-        portalRole:'system_admin', email:'admin@system',
-        name:'מנהל מערכת', picture:'', school: PS.school, year: PS.year || new Date().getFullYear().toString(),
-      };
-      setPortalSession(adminSession);
-      document.getElementById('smPasswordModal').style.display = 'none';
-      applyRoleUI('system_admin', adminSession);
-      loadPortalDataAndNotifyFrames();
-    } else {
-      document.getElementById('smPasswordError').style.display = 'block';
-    }
-  } catch {
-    document.getElementById('smPasswordError').style.display = 'block';
-  }
+  document.getElementById('smPasswordError').textContent =
+    'הכניסה כמנהל מערכת מתבצעת כעת אך ורק דרך התחברות Google עם מייל הרשום כמנהל מערכת.';
+  document.getElementById('smPasswordError').style.display = 'block';
 };
 
 // ═══════════════════════════════════════════════════════
@@ -1821,8 +1923,8 @@ async function loadStaffPermissions() {
 
   try {
     const [staffRes, principalsRes] = await Promise.all([
-      fetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
-      fetch(`${WORKER_URL_AUTH}/api/principals/list`, { cache:'no-store' })
+      authFetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
+      authFetch(`${WORKER_URL_AUTH}/api/principals/list`, { cache:'no-store' })
     ]);
     const staffData      = await staffRes.json();
     const principalsData = await principalsRes.json();
@@ -1944,9 +2046,9 @@ async function deleteStaffRow(i) {
 
     try {
       if (row._type === 'principal' || row.role === 'principal') {
-        await fetch(`${WORKER_URL_AUTH}/api/principals?email=${encodeURIComponent(row.email)}`, { method:'DELETE' });
+        await authFetch(`${WORKER_URL_AUTH}/api/principals?email=${encodeURIComponent(row.email)}`, { method:'DELETE' });
       } else {
-        await fetch(`${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(row.email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { method:'DELETE' });
+        await authFetch(`${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(row.email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { method:'DELETE' });
       }
     } catch {}
   }
@@ -1963,12 +2065,12 @@ async function saveStaffPermissions() {
     if (!row.email) continue;
     if (row._type === 'principal' || row.role === 'principal') continue;
     try {
-      const res = await fetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
+      const res = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           email: row.email, name: row.name, roleTitle: row.roleTitle||row.role_title||'',
           school: PS.school||session.school||'', year: PS.year||session.year||new Date().getFullYear().toString(),
-          permissions: row.permissions, createdBy: session.email,
+          permissions: row.permissions,
         }),
       });
       if (res.ok) ok++; else fail++;
@@ -1994,7 +2096,7 @@ let principalRows = [];
 
 async function loadPrincipals() {
   try {
-    const res = await fetch(WORKER_URL_AUTH + '/api/principals/list', { cache: 'no-store' });
+    const res = await authFetch(WORKER_URL_AUTH + '/api/principals/list', { cache: 'no-store' });
     const data = await res.json();
     principalRows = Array.isArray(data) ? data : [];
   } catch { principalRows = []; }
@@ -2030,7 +2132,7 @@ async function savePrincipals() {
   for (const row of principalRows) {
     if (!row.email) continue;
     try {
-      const res = await fetch(WORKER_URL_AUTH + '/api/principals', {
+      const res = await authFetch(WORKER_URL_AUTH + '/api/principals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: row.email, name: row.name, school: row.school })
@@ -2100,7 +2202,7 @@ async function toggleSaEditPerms(username) {
   const year    = PS.year   || session?.year   || '';
   let perms = {};
   try {
-    const res  = await fetch(
+    const res  = await authFetch(
       `${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
       { cache: 'no-store' }
     );
@@ -2159,9 +2261,9 @@ async function saveSaEditPerms(username) {
   const email   = emailEl ? emailEl.dataset.saEmailVal || username : username;
 
   try {
-    const res = await fetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
+    const res = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, school, year, permissions: perms, createdBy: session?.email || 'admin' }),
+      body: JSON.stringify({ email, school, year, permissions: perms }),
     });
     if (res.ok) {
       toast(`✅ הרשאות ${username} נשמרו`, 'ok');
@@ -2191,7 +2293,7 @@ async function loadStaffAuth() {
 
   try {
     const url     = `${WORKER_URL_AUTH}/api/admin/staff-auth/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`;
-    const authRes = await fetch(url, { cache: 'no-store' });
+    const authRes = await authFetch(url, { cache: 'no-store' });
     const data    = await authRes.json();
     if (!Array.isArray(data)) throw new Error('bad response');
     renderStaffAuthTable(data);
@@ -2274,8 +2376,8 @@ async function addStaffAuth() {
     errEl.textContent = 'שם משתמש וסיסמא נדרשים'; errEl.style.display = '';
     return;
   }
-  if (password.length < 8) {
-    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 8 תווים'; errEl.style.display = '';
+  if (password.length < 12) {
+    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 12 תווים'; errEl.style.display = '';
     return;
   }
   if (/\s/.test(username)) {
@@ -2291,7 +2393,7 @@ async function addStaffAuth() {
 
   try {
     // 1. Create the staff-auth (username+password) record
-    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth`, {
+    const res = await authFetch(`${WORKER_URL_AUTH}/api/admin/staff-auth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, name, email, school, year, roleTitle, mustChangePassword: mustChange }),
@@ -2307,7 +2409,7 @@ async function addStaffAuth() {
     // תיקון: חייב להיות תואם בדיוק לברירת המחדל בשרת (email || `${username}@local`),
     // אחרת חיפוש ההרשאות בכניסה לא ימצא את השורה הזו לעולם.
     const permEmail = email || `${username}@local`; // prefer real email; fall back to server's default
-    const permRes = await fetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
+    const permRes = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2316,7 +2418,6 @@ async function addStaffAuth() {
         roleTitle: roleTitle || '',
         school, year,
         permissions: _saNewPerms,
-        createdBy: session?.email || 'admin',
       }),
     });
     const permOk = permRes.ok;
@@ -2345,12 +2446,12 @@ function openAdminResetPwd(username) {
 async function submitAdminResetPassword() {
   const newPwd = document.getElementById('adminResetPwdNew')?.value;
   const errEl  = document.getElementById('adminResetPwdError');
-  if (!newPwd || newPwd.length < 8) {
-    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 8 תווים'; errEl.style.display = '';
+  if (!newPwd || newPwd.length < 12) {
+    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 12 תווים'; errEl.style.display = '';
     return;
   }
   try {
-    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(_saResetUsername)}/reset-password`, {
+    const res = await authFetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(_saResetUsername)}/reset-password`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newPassword: newPwd }),
@@ -2367,7 +2468,7 @@ async function submitAdminResetPassword() {
 
 async function unlockStaffAuth(username) {
   try {
-    const res = await fetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}/unlock`, {
+    const res = await authFetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}/unlock`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
     const data = await res.json();
@@ -2436,15 +2537,15 @@ async function deleteStaffAuth(username) {
   const emailEl = document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`);
   const email   = emailEl ? (emailEl.dataset.saEmailVal || username) : username;
 
-  const res = await fetch(
-    `https://principal-api.1002220729.workers.dev/api/admin/staff-auth/${encodeURIComponent(username)}`,
+  const res = await authFetch(
+    `${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`,
     { method: 'DELETE' }
   );
   const data = await res.json();
   if (data.ok) {
     // Also remove from staffpermissions so the user disappears from the permissions table
     try {
-      await fetch(
+      await authFetch(
         `${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
         { method: 'DELETE' }
       );
@@ -2518,9 +2619,9 @@ function navClick(btn) {
   const mtssWin      = document.getElementById('mtssFrame')?.contentWindow;
   const teachersWin  = document.getElementById('teachersFrame')?.contentWindow;
 
-  if (target==='plan'      && section) planWin.postMessage({ type:'switch-section', section }, '*');
-  if (target==='mtss'      && tab)     mtssWin.postMessage({ type:'switch-tab', tab }, '*');
-  if (target==='mtss')                 mtssWin.postMessage({ type:'request-data' }, '*');
+  if (target==='plan'      && section) planWin.postMessage({ type:'switch-section', section },PORTAL_ORIGIN);
+  if (target==='mtss'      && tab)     mtssWin.postMessage({ type:'switch-tab', tab },PORTAL_ORIGIN);
+  if (target==='mtss')                 mtssWin.postMessage({ type:'request-data' },PORTAL_ORIGIN);
   if (target==='teachers')             _ensureTeachersLoaded();
   if (target==='customlink' && btn.dataset.linkId) openCustomLink(btn.dataset.linkId);
 }
@@ -2573,11 +2674,11 @@ function flashSync(n) {
 //  SAVE ALL
 // ═══════════════════════════════════════════════════════
 function triggerSave() {
-  document.getElementById('planFrame')?.contentWindow.postMessage({ type:'trigger-save' }, '*');
-  document.getElementById('ganttFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
-  document.getElementById('mtssFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
-  document.getElementById('calendarFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
-  document.getElementById('teachersFrame')?.contentWindow.postMessage({ type:'request-data' }, '*');
+  document.getElementById('planFrame')?.contentWindow.postMessage({ type:'trigger-save' },PORTAL_ORIGIN);
+  document.getElementById('ganttFrame')?.contentWindow.postMessage({ type:'request-data' },PORTAL_ORIGIN);
+  document.getElementById('mtssFrame')?.contentWindow.postMessage({ type:'request-data' },PORTAL_ORIGIN);
+  document.getElementById('calendarFrame')?.contentWindow.postMessage({ type:'request-data' },PORTAL_ORIGIN);
+  document.getElementById('teachersFrame')?.contentWindow.postMessage({ type:'request-data' },PORTAL_ORIGIN);
   toast('💾 שולח בקשות שמירה...', '', 1500);
 }
 
@@ -2649,7 +2750,7 @@ async function dbSave(type, payload) {
     return;
   }
   try {
-    await fetch(`${WORKER_URL_AUTH}/api/data`, {
+    await authFetch(`${WORKER_URL_AUTH}/api/data`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, school, year, payload }),
@@ -2679,11 +2780,13 @@ function _ensureTeachersLoaded() {
     frameEl.contentWindow.postMessage({
       type: 'load-data',
       payload: { school: PS.school, year: PS.year }
-    }, '*');
+    },PORTAL_ORIGIN);
   }
 }
 
 window.addEventListener('message', async (e) => {
+  // SECURITY: silently reject messages not from the trusted, exact origin.
+  if (e.origin !== PORTAL_ORIGIN) return;
   if (!e.data||typeof e.data!=='object') return;
   if (typeof e.data.type!=='string') return;
 
@@ -2701,6 +2804,14 @@ window.addEventListener('message', async (e) => {
   if (!fromPlan&&!fromGantt&&!fromMtss&&!fromCalendar&&!fromTeachers) return;
 
   switch(e.data.type) {
+
+    case 'session-expired':
+      // A child iframe's Worker call got a 401. Only the top-level shell
+      // can show the login screen, so tear the session down here.
+      clearPortalSession();
+      toast('פג תוקף ההתחברות. יש להתחבר מחדש.', 'warn');
+      applyRoleUI(null, null);
+      break;
 
     case 'iframe-ready':
       // אם init() עדיין לא סיים — שמור ב-pending ועבד אחרי שה-session מוכן
@@ -2730,15 +2841,15 @@ window.addEventListener('message', async (e) => {
         if (!PS._planLoadSent) {
           PS._planLoadSent = true;
           if (PS.planData) {
-            planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
+            planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},PORTAL_ORIGIN);
           } else if (PS.school||PS.year) {
-            fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            authFetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
               .then(r=>r.json()).then(sp=>{
-                if(sp){PS.planData=sp;planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},'*');}
-                else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+                if(sp){PS.planData=sp;planWin.postMessage({type:'load-data',payload:sp,year:sp.year||PS.year,schoolName:sp.schoolName||PS.school},PORTAL_ORIGIN);}
+                else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
               }).catch(err=>{
                 console.error('[portal] plan dbLoad fetch failed — sending empty school-data-update so iframe is not left hanging', err);
-                planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+                planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
               });
           } else {
             // בעבר: אם גם PS.school וגם PS.year ריקים לא נשלחה שום הודעה,
@@ -2746,7 +2857,7 @@ window.addEventListener('message', async (e) => {
             // תשובה — גם ריקה — ומתריעים ב-console כדי שקל יהיה לאבחן שאין
             // school/year ב-session (למשל חשבון/בי"ס חדש שטרם שויך).
             console.warn('[portal] plan iframe-ready but PS.school and PS.year are both empty — no session school/year. Sending empty school-data-update instead of leaving the iframe hanging.');
-            planWin.postMessage({type:'school-data-update',schoolName:PS.school||'',year:PS.year||''},'*');
+            planWin.postMessage({type:'school-data-update',schoolName:PS.school||'',year:PS.year||''},PORTAL_ORIGIN);
           }
         } else {
           console.log('[portal] iframe-ready plan: load already sent, skipping duplicate');
@@ -2756,13 +2867,13 @@ window.addEventListener('message', async (e) => {
         PS.ganttReady=true; setReady('gantt',true); setStatus('גאנט מוכן');
         sendFrameReadOnlyIfNeeded('gantt', ganttWin);
         if (PS.ganttData) {
-          ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
+          ganttWin.postMessage({type:'load-data',payload:PS.ganttData},PORTAL_ORIGIN);
         } else if (PS.school||PS.year) {
-          fetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+          authFetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
             .then(r=>r.json()).then(sg=>{
-              if(sg){PS.ganttData=sg;ganttWin.postMessage({type:'load-data',payload:sg},'*');}
-              else ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
-            }).catch(()=>ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+              if(sg){PS.ganttData=sg;ganttWin.postMessage({type:'load-data',payload:sg},PORTAL_ORIGIN);}
+              else ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
+            }).catch(()=>ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN));
         }
       }
       if (e.data.docType==='mtss') {
@@ -2774,13 +2885,13 @@ window.addEventListener('message', async (e) => {
         PS.mtssReady=true; setReady('mtss',true); setStatus('MTSS מוכן');
         sendFrameReadOnlyIfNeeded('mtss', mtssWin);
         if (PS.mtssData) {
-          mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+          mtssWin.postMessage({type:'load-data',payload:PS.mtssData},PORTAL_ORIGIN);
         } else if (PS.school||PS.year) {
-          fetch(`${WORKER_URL_AUTH}/api/data?type=mtss&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+          authFetch(`${WORKER_URL_AUTH}/api/data?type=mtss&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
             .then(r=>r.json()).then(sm=>{
-              if(sm){PS.mtssData=sm;mtssWin.postMessage({type:'load-data',payload:sm},'*');}
-              else mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
-            }).catch(()=>mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'));
+              if(sm){PS.mtssData=sm;mtssWin.postMessage({type:'load-data',payload:sm},PORTAL_ORIGIN);}
+              else mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
+            }).catch(()=>mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN));
         }
       }
       if (e.data.docType==='teachers' && fromTeachers) {
@@ -2790,17 +2901,17 @@ window.addEventListener('message', async (e) => {
         const teachersFrameEl = document.getElementById('teachersFrame');
         if (teachersFrameEl?.contentWindow) {
           if (PS.teachersData) {
-            teachersFrameEl.contentWindow.postMessage({ type:'load-data', payload:PS.teachersData }, '*');
+            teachersFrameEl.contentWindow.postMessage({ type:'load-data', payload:PS.teachersData },PORTAL_ORIGIN);
           } else if (PS.school || PS.year) {
-            fetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            authFetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
               .then(r=>r.json()).then(st=>{
-                if(st){PS.teachersData=st;teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:st},'*');}
-                else teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:{school:PS.school,year:PS.year}},'*');
-              }).catch(()=>teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:{school:PS.school,year:PS.year}},'*'));
+                if(st){PS.teachersData=st;teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:st},PORTAL_ORIGIN);}
+                else teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:{school:PS.school,year:PS.year}},PORTAL_ORIGIN);
+              }).catch(()=>teachersFrameEl.contentWindow.postMessage({type:'load-data',payload:{school:PS.school,year:PS.year}},PORTAL_ORIGIN));
           }
           if (PS._teachersPerm === 'view') {
             teachersFrameEl.contentWindow.postMessage(
-              { type: 'set-readonly', readonly: true, docType: 'teachers' }, '*'
+              { type: 'set-readonly', readonly: true, docType: 'teachers' }, PORTAL_ORIGIN
             );
           }
         }
@@ -2811,12 +2922,12 @@ window.addEventListener('message', async (e) => {
         setStatus('יומן מנהל מוכן');
         sendFrameReadOnlyIfNeeded('calendar', calendarWin);
         if (PS.calendarData) {
-          calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
+          calendarWin.postMessage({type:'load-data',payload:PS.calendarData},PORTAL_ORIGIN);
         } else if (PS.school||PS.year) {
-          fetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+          authFetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
             .then(r=>r.json()).then(sc=>{
-              if(sc){PS.calendarData=sc;calendarWin.postMessage({type:'load-data',payload:sc},'*');}
-              else calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+              if(sc){PS.calendarData=sc;calendarWin.postMessage({type:'load-data',payload:sc},PORTAL_ORIGIN);}
+              else calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
             }).catch(()=>{});
         }
         break;
@@ -2831,29 +2942,21 @@ window.addEventListener('message', async (e) => {
         PS.planData=e.data.payload;
         if (e.data.payload?.schoolName) { PS.school=e.data.payload.schoolName; updateBadges(); }
         if (e.data.payload?.year)       { PS.year=e.data.payload.year;         updateBadges(); }
-        const _dbgArenas = Object.values(e.data.payload?.arenas||{}).reduce((s,a)=>s+(a.rows?.length||0),0);
-        const _dbgSsKeys = Object.keys(e.data.payload?.statusSnapshot||{}).filter(k=>k!=='teacherEdu'&&(e.data.payload.statusSnapshot[k]||'').length>0);
-        console.log('[portal] saving plan | school:', PS.school, '| year:', PS.year,
-          '| arena rows:', _dbgArenas,
-          '| quarters:', Object.values(e.data.payload?.quarters||{}).reduce((s,q)=>s+(q.rows?.length||0),0),
-          '| ss fields with data:', _dbgSsKeys,
-          '| defects:', (e.data.payload?.defects||[]).length,
-          '| staff:', (e.data.payload?.staffRows||[]).length);
         await dbSave('plan', e.data.payload);
-        planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},'*');
+        planWin.postMessage({type:'save-confirm',message:'נשמר ✓'},PORTAL_ORIGIN);
         updateStatus(); setStatus('תכנית עבודה נשמרה'); toast('💾 תכנית עבודה נשמרה','ok');
       }
       if (e.data.docType==='gantt'||fromGantt) {
         PS.ganttData=e.data.payload;
         await dbSave('gantt', e.data.payload);
-        ganttWin.postMessage({type:'save-confirm',message:'גאנט נשמר ✓'},'*');
+        ganttWin.postMessage({type:'save-confirm',message:'גאנט נשמר ✓'},PORTAL_ORIGIN);
         updateStatus(); setStatus('גאנט נשמר'); toast('💾 גאנט נשמר','ok');
       }
       if (e.data.docType==='mtss'||fromMtss) {
         PS.mtssData=e.data.payload;
         if (e.data.payload?.schoolName&&!PS.school) { PS.school=e.data.payload.schoolName; updateBadges(); }
         await dbSave('mtss', e.data.payload);
-        mtssWin.postMessage({type:'save-confirm',message:'MTSS נשמר ✓'},'*');
+        mtssWin.postMessage({type:'save-confirm',message:'MTSS נשמר ✓'},PORTAL_ORIGIN);
         updateStatus(); setStatus('MTSS נשמר'); toast('💾 MTSS נשמר','mtss');
       }
       if (e.data.docType==='calendar'||fromCalendar) {
@@ -2868,7 +2971,7 @@ window.addEventListener('message', async (e) => {
         // לתקן את מצבו.
         if (incomingEvents.length === 0 && existingEvents.length > 0) {
           console.warn('[portal] calendar save-request BLOCKED — incoming 0 events but server has', existingEvents.length, '. Re-sending load-data to calendar.');
-          if (calendarWin) calendarWin.postMessage({type:'load-data', payload: PS.calendarData}, '*');
+          if (calendarWin) calendarWin.postMessage({type:'load-data', payload: PS.calendarData},PORTAL_ORIGIN);
           break;
         }
 
@@ -2876,34 +2979,33 @@ window.addEventListener('message', async (e) => {
         // ודא שה-school/year מוגדרים ב-payload (לוח_שנה שולח אותם, אבל כ-fallback נוסיף מ-PS)
         if (!PS.calendarData.school && PS.school) PS.calendarData.school = PS.school;
         if (!PS.calendarData.year   && PS.year)   PS.calendarData.year   = PS.year;
-        console.log('[portal] saving calendar | school:', PS.calendarData.school, '| year:', PS.calendarData.year, '| events:', (PS.calendarData.meetings?.events||[]).length);
         await dbSave('calendar', PS.calendarData);
-        calendarWin.postMessage({type:'save-confirm',message:'יומן נשמר ✓'},'*');
+        calendarWin.postMessage({type:'save-confirm',message:'יומן נשמר ✓'},PORTAL_ORIGIN);
         updateStatus(); setStatus('יומן מנהל נשמר'); toast('💾 יומן מנהל נשמר','ok');
       }
       if (e.data.docType==='teachers'||fromTeachers) {
         PS.teachersData=e.data.payload;
         await dbSave('teachers', e.data.payload);
         const twf = document.getElementById('teachersFrame')?.contentWindow;
-        if (twf) twf.postMessage({type:'save-confirm',message:'מורים נשמרו ✓'},'*');
+        if (twf) twf.postMessage({type:'save-confirm',message:'מורים נשמרו ✓'},PORTAL_ORIGIN);
         updateStatus(); setStatus('ניהול מורים נשמר'); toast('💾 ניהול מורים נשמר','ok');
       }
       break;
     }
 
     case 'trigger-save':
-      if (planWin)     planWin.postMessage({type:'trigger-save'},'*');
-      if (ganttWin)    ganttWin.postMessage({type:'request-data'},'*');
-      if (mtssWin)     mtssWin.postMessage({type:'request-data'},'*');
-      if (calendarWin) calendarWin.postMessage({type:'request-data'},'*');
-      if (teachersWin) teachersWin.postMessage({type:'request-data'},'*');
+      if (planWin)     planWin.postMessage({type:'trigger-save'},PORTAL_ORIGIN);
+      if (ganttWin)    ganttWin.postMessage({type:'request-data'},PORTAL_ORIGIN);
+      if (mtssWin)     mtssWin.postMessage({type:'request-data'},PORTAL_ORIGIN);
+      if (calendarWin) calendarWin.postMessage({type:'request-data'},PORTAL_ORIGIN);
+      if (teachersWin) teachersWin.postMessage({type:'request-data'},PORTAL_ORIGIN);
       break;
 
     case 'sync-gantt':
       if (!PS.ganttReady) { toast('⚠️ גאנט לא מוכן','err'); break; }
       PS.school=e.data.school||PS.school; PS.year=e.data.year||PS.year;
       PS.syncCount=e.data.items?.length||0; PS.lastSync=new Date().toISOString();
-      ganttWin.postMessage({type:'load-data',payload:buildGanttPayload(e.data.items,e.data.year,e.data.school)},'*');
+      ganttWin.postMessage({type:'load-data',payload:buildGanttPayload(e.data.items,e.data.year,e.data.school)},PORTAL_ORIGIN);
       updateBadges(); updateStatus(); flashSync(PS.syncCount);
       toast(`📅 ${PS.syncCount} משימות סונכרנו לגאנט`,'sync');
       break;
@@ -2916,13 +3018,13 @@ window.addEventListener('message', async (e) => {
           planWin.postMessage({type:'add-quarter-row',
             quarter:b.quarter||dateToQuarter(b.evt?.start),
             goal:b.evt?.title||b.action?.text||'',
-            dates:b.evt?.start?`${b.evt.start}${b.evt.end?' – '+b.evt.end:''}`:''},'*');
+            dates:b.evt?.start?`${b.evt.start}${b.evt.end?' – '+b.evt.end:''}`:''},PORTAL_ORIGIN);
           rows++;
         }
         if (b.kind==='summary') {
           const d=b.evt?.start||new Date().toISOString().slice(0,10);
           planWin.postMessage({type:'add-summary',title:b.evt?.title||'',desc:b.evt?.desc||'',
-            date:d,quarter:`q${dateToQuarter(d)}`},'*');
+            date:d,quarter:`q${dateToQuarter(d)}`},PORTAL_ORIGIN);
           sums++;
         }
       });
@@ -2939,7 +3041,7 @@ window.addEventListener('message', async (e) => {
         if (_scSession) setPortalSession({..._scSession, school: e.data.school});
         updateBadges(); updateStatus();
         if (fromPlan && PS.ganttReady)
-          ganttWin.postMessage({type:'school-data-update', schoolName: e.data.school},'*');
+          ganttWin.postMessage({type:'school-data-update', schoolName: e.data.school},PORTAL_ORIGIN);
       }
       break;
     }
@@ -2957,10 +3059,10 @@ window.addEventListener('message', async (e) => {
     }
 
     case 'request-data':
-      if (fromGantt&&PS.ganttData)       ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
-      if (fromMtss&&PS.mtssData)         mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
-      if (fromCalendar&&PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
-      if (fromTeachers&&PS.teachersData) { const tf=document.getElementById('teachersFrame')?.contentWindow; if(tf) tf.postMessage({type:'load-data',payload:PS.teachersData},'*'); }
+      if (fromGantt&&PS.ganttData)       ganttWin.postMessage({type:'load-data',payload:PS.ganttData},PORTAL_ORIGIN);
+      if (fromMtss&&PS.mtssData)         mtssWin.postMessage({type:'load-data',payload:PS.mtssData},PORTAL_ORIGIN);
+      if (fromCalendar&&PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},PORTAL_ORIGIN);
+      if (fromTeachers&&PS.teachersData) { const tf=document.getElementById('teachersFrame')?.contentWindow; if(tf) tf.postMessage({type:'load-data',payload:PS.teachersData},PORTAL_ORIGIN); }
       break;
 
     // ── RELAY: calendar requests Gantt data for meeting sync ──
@@ -2969,28 +3071,30 @@ window.addEventListener('message', async (e) => {
       const _calReqSource = e.source;
       const _ganttWin = document.getElementById('ganttFrame')?.contentWindow;
       if (!_ganttWin) {
-        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:null},'*');
+        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:null},PORTAL_ORIGIN);
         break;
       }
       // Use cached data if available, otherwise request fresh from gantt
       if (PS.ganttData) {
-        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:PS.ganttData},'*');
+        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:PS.ganttData},PORTAL_ORIGIN);
         break;
       }
       // Listen once for Gantt's save-request response
       const _ganttReplyHandler = function(evt2) {
+        // SECURITY: silently reject messages not from the trusted origin.
+        if (evt2.origin !== PORTAL_ORIGIN) return;
         const m2 = evt2.data;
         if (!m2 || m2.type !== 'save-request' || m2.docType !== 'gantt') return;
         window.removeEventListener('message', _ganttReplyHandler);
         PS.ganttData = m2.payload;
-        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:m2.payload},'*');
+        _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:m2.payload},PORTAL_ORIGIN);
       };
       window.addEventListener('message', _ganttReplyHandler);
-      _ganttWin.postMessage({type:'request-data'},'*');
+      _ganttWin.postMessage({type:'request-data'},PORTAL_ORIGIN);
       // Safety timeout
       setTimeout(() => {
         window.removeEventListener('message', _ganttReplyHandler);
-        try { _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:null},'*'); } catch(_){}
+        try { _calReqSource.postMessage({type:'gantt-data-for-meetings',payload:null},PORTAL_ORIGIN); } catch(_){}
       }, 4000);
       break;
     }
@@ -3005,15 +3109,15 @@ document.getElementById('mtssFrame').addEventListener('load', () => {
   if (PS.planReady&&PS.ganttReady&&PS.mtssReady) setStatus('כל האפליקציות מוכנות ✓');
   const mtssWin=document.getElementById('mtssFrame').contentWindow;
   if (PS.mtssData) {
-    mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
+    mtssWin.postMessage({type:'load-data',payload:PS.mtssData},PORTAL_ORIGIN);
   } else if (PS.school||PS.year) {
-    fetch(`${WORKER_URL_AUTH}/api/data?type=mtss&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+    authFetch(`${WORKER_URL_AUTH}/api/data?type=mtss&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
       .then(r=>r.json()).then(sm=>{
-        if(sm){PS.mtssData=sm;mtssWin.postMessage({type:'load-data',payload:sm},'*');}
-        else setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'),1500);
-      }).catch(()=>setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'),1500));
+        if(sm){PS.mtssData=sm;mtssWin.postMessage({type:'load-data',payload:sm},PORTAL_ORIGIN);}
+        else setTimeout(()=>mtssWin.postMessage({type:'request-data'},PORTAL_ORIGIN),1500);
+      }).catch(()=>setTimeout(()=>mtssWin.postMessage({type:'request-data'},PORTAL_ORIGIN),1500));
   } else {
-    setTimeout(()=>mtssWin.postMessage({type:'request-data'},'*'),1500);
+    setTimeout(()=>mtssWin.postMessage({type:'request-data'},PORTAL_ORIGIN),1500);
   }
 });
 
@@ -3078,7 +3182,7 @@ async function loadPortalDataAndNotifyFrames() {
   async function dbLoad(type) {
     const t0 = performance.now();
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `${WORKER_URL_AUTH}/api/data?type=${type}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
         { cache: 'no-store' }
       );
@@ -3114,16 +3218,16 @@ async function loadPortalDataAndNotifyFrames() {
       sendFrameReadOnlyIfNeeded('plan', planWin);
       if (!PS._planLoadSent) {
         PS._planLoadSent = true;
-        if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},'*');
+        if (PS.planData) planWin.postMessage({type:'load-data',payload:PS.planData,year:PS.planData.year||PS.year,schoolName:PS.planData.schoolName||PS.school},PORTAL_ORIGIN);
         else if (PS.school||PS.year) {
-          fetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
-            .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},'*');} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*'); }).catch(err=>{
+          authFetch(`${WORKER_URL_AUTH}/api/data?type=plan&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
+            .then(r=>r.json()).then(s=>{ if(s){PS.planData=s;planWin.postMessage({type:'load-data',payload:s,year:s.year||PS.year,schoolName:s.schoolName||PS.school},PORTAL_ORIGIN);} else planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN); }).catch(err=>{
               console.error('[portal] (pending-replay) plan dbLoad fetch failed — sending empty school-data-update so iframe is not left hanging', err);
-              planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+              planWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
             });
         } else {
           console.warn('[portal] (pending-replay) plan iframe-ready but PS.school and PS.year are both empty — sending empty school-data-update instead of leaving the iframe hanging.');
-          planWin.postMessage({type:'school-data-update',schoolName:PS.school||'',year:PS.year||''},'*');
+          planWin.postMessage({type:'school-data-update',schoolName:PS.school||'',year:PS.year||''},PORTAL_ORIGIN);
         }
       } else {
         console.log('[portal] pending replay plan: load already sent, skipping');
@@ -3131,24 +3235,24 @@ async function loadPortalDataAndNotifyFrames() {
     }
     if (dt==='gantt' && ganttWin) {
       sendFrameReadOnlyIfNeeded('gantt', ganttWin);
-      if (PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},'*');
-      else if (PS.school||PS.year) ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      if (PS.ganttData) ganttWin.postMessage({type:'load-data',payload:PS.ganttData},PORTAL_ORIGIN);
+      else if (PS.school||PS.year) ganttWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
     }
     if (dt==='mtss' && mtssWin) {
       sendFrameReadOnlyIfNeeded('mtss', mtssWin);
-      if (PS.mtssData) mtssWin.postMessage({type:'load-data',payload:PS.mtssData},'*');
-      else if (PS.school||PS.year) mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      if (PS.mtssData) mtssWin.postMessage({type:'load-data',payload:PS.mtssData},PORTAL_ORIGIN);
+      else if (PS.school||PS.year) mtssWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
     }
     if (dt==='calendar' && calendarWin) {
       sendFrameReadOnlyIfNeeded('calendar', calendarWin);
-      if (PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},'*');
-      else if (PS.school||PS.year) calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},'*');
+      if (PS.calendarData) calendarWin.postMessage({type:'load-data',payload:PS.calendarData},PORTAL_ORIGIN);
+      else if (PS.school||PS.year) calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
     }
     if (dt==='teachers' && teachersFrm?.contentWindow) {
       if (PS._teachersPerm === 'view') {
-        teachersFrm.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:'teachers' }, '*');
+        teachersFrm.contentWindow.postMessage({ type:'set-readonly', readonly:true, docType:'teachers' },PORTAL_ORIGIN);
       }
-      if (PS.teachersData) teachersFrm.contentWindow.postMessage({type:'load-data',payload:PS.teachersData},'*');
+      if (PS.teachersData) teachersFrm.contentWindow.postMessage({type:'load-data',payload:PS.teachersData},PORTAL_ORIGIN);
     }
   }
   if (!pending.length) PS._initDone = true; // already set above, belt-and-suspenders
@@ -3210,26 +3314,26 @@ function reloadFrameData() {
   const mtssWin    = document.getElementById('mtssFrame')?.contentWindow;
   const calWin     = document.getElementById('calendarFrame')?.contentWindow;
   if ((PS.school || PS.year) && ganttWin) {
-    fetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
+    authFetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => r.json()).then(sg => {
-        if (sg) { PS.ganttData = sg; ganttWin.postMessage({ type: 'load-data', payload: sg }, '*'); }
+        if (sg) { PS.ganttData = sg; ganttWin.postMessage({ type: 'load-data', payload: sg },PORTAL_ORIGIN); }
       }).catch(() => {});
   }
-  if (mtssWin) mtssWin.postMessage({ type: 'request-data' }, '*');
-  if (calWin)  calWin.postMessage({ type: 'request-data' }, '*');
+  if (mtssWin) mtssWin.postMessage({ type: 'request-data' },PORTAL_ORIGIN);
+  if (calWin)  calWin.postMessage({ type: 'request-data' },PORTAL_ORIGIN);
 
   // טעינה מחדש של יומן ומורים
   const teachersFrameElR = document.getElementById('teachersFrame');
   if ((PS.school || PS.year) && PS.calendarReady && calWin) {
-    fetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
+    authFetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => r.json()).then(sc => {
-        if (sc) { PS.calendarData = sc; calWin.postMessage({ type: 'load-data', payload: sc }, '*'); }
+        if (sc) { PS.calendarData = sc; calWin.postMessage({ type: 'load-data', payload: sc },PORTAL_ORIGIN); }
       }).catch(() => {});
   }
   if (PS.teachersReady && teachersFrameElR?.contentWindow) {
-    fetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
+    authFetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => r.json()).then(st => {
-        if (st) { PS.teachersData = st; teachersFrameElR.contentWindow.postMessage({ type: 'load-data', payload: st }, '*'); }
+        if (st) { PS.teachersData = st; teachersFrameElR.contentWindow.postMessage({ type: 'load-data', payload: st },PORTAL_ORIGIN); }
       }).catch(() => {});
   }
 }

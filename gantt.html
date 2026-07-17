@@ -1166,7 +1166,17 @@ body.readonly-mode #editModal textarea {
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
+<!-- Phase 8: shared authenticated-fetch helper, included for forward-
+     compatibility. This file's only direct fetch() is to the external
+     Hebcal API (holidays), not the Worker — gantt data is exchanged
+     with index.html via postMessage. Any future direct Worker call
+     here must go through PortalAuth.authFetch(). -->
+<script src="auth-shared.js"></script>
 <script>
+// SECURITY: exact, hard-coded parent-portal origin — never use '*'.
+const PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
+
 // ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
@@ -1195,6 +1205,11 @@ let lastLoadedSignature = '';
 
 // ═══════════════════════════════════════════════════════════
 // READ-ONLY / PERMISSIONS
+// NOTE (Zero Trust): _isReadOnly is UX-only — it hides/disables edit
+// controls and shows a toast. It must NEVER be treated as a security
+// boundary. The backend Worker must independently verify the user's
+// session/role before honouring any save/update/delete request,
+// regardless of the value of this client-side flag.
 // ═══════════════════════════════════════════════════════════
 let _isReadOnly = false;
 
@@ -1355,7 +1370,7 @@ function doAutosave() {
     docType: 'gantt',
     payload: buildPayload(),
     auto:    true           // סימון שזו שמירה אוטומטית
-  }, '*');
+  }, PORTAL_ORIGIN);
 
   // fallback — אם אין save-confirm תוך 6 שניות, שחרר
   setTimeout(() => {
@@ -1475,7 +1490,7 @@ function sendSaveRequestToParent() {
     type: 'save-request',
     docType: 'gantt',
     payload: buildPayload()
-  }, '*');
+  }, PORTAL_ORIGIN);
 }
 
 function requestSave() {
@@ -1492,7 +1507,7 @@ function requestSave() {
         docType: 'gantt',
         payload: buildPayload(),
         auto: false
-      }, '*');
+      }, PORTAL_ORIGIN);
       setTimeout(() => {
         const currentBtn = document.getElementById('saveBtn');
         if (currentBtn && currentBtn.disabled) {
@@ -1652,7 +1667,7 @@ function _executeBroadcast(periodId, targetChoice) {
 }
 
 function _sendBroadcast(periodId, broadcasts) {
-    window.parent.postMessage({ type: 'gantt-broadcast', periodId, broadcasts }, '*');
+    window.parent.postMessage({ type: 'gantt-broadcast', periodId, broadcasts }, PORTAL_ORIGIN);
     showToast(`✅ ${broadcasts.length} פריטים שודרו למתווה`, 'success');
 }
 
@@ -1667,10 +1682,12 @@ function dateToQuarter(dateStr) {
 
 function initMessageBus() {
   try {
-    window.parent.postMessage({ type: 'iframe-ready', docType: 'gantt' }, '*');
+    window.parent.postMessage({ type: 'iframe-ready', docType: 'gantt' }, PORTAL_ORIGIN);
   } catch (_) {}
 
   window.addEventListener('message', (e) => {
+    // SECURITY: silently reject messages not from the trusted parent origin.
+    if (e.origin !== PORTAL_ORIGIN) return;
     const msg = e.data;
     if (!msg || typeof msg !== 'object') return;
 
@@ -2308,7 +2325,11 @@ const PERIOD_ACTIONS = {
 // HELPERS
 // ═══════════════════════════════════════════════════════════
 function escapeHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const str = String(s ?? '');
+  const out = window.DOMPurify
+    ? DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+    : str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return out.replace(/'/g, '&#39;');
 }
 function formatDate(d) {
   return d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric',year:'2-digit'});
@@ -2741,7 +2762,7 @@ function renderMonthZoom() {
       ? `<span class="mz-heb-day">${getHebrewDay(date)}</span>`
       : '';
     const holName = holEvt
-      ? `<span class="mz-hol-name" title="${holEvt.title}">${holEvt.title}</span>`
+      ? `<span class="mz-hol-name" title="${escapeHtml(holEvt.title)}">${escapeHtml(holEvt.title)}</span>`
       : '';
     dayEl.innerHTML = `<div class="mz-day-top">${numBadge}${hebBadge}${holName}</div>`;
 
@@ -3303,7 +3324,7 @@ function showDayPopup(mouseEvt, date, evts) {
     html += `<div class="cal-popup-evt" onclick="${evt.source==='manual'?`openEditModal('${evt.id}')`:evt.periodId?`closeCalPopup();if(currentView==='calendar')toggleView();openDetail('${evt.periodId}')`:'closeCalPopup()'}">
       <span class="cal-popup-dot" style="background:${evt.color}"></span>
       <div>
-        <div style="font-weight:600;">${evt.title}</div>
+        <div style="font-weight:600;">${escapeHtml(evt.title)}</div>
         <div style="color:var(--color-text-faint);font-size:10px;">${label}${evt.source==='manual'&&evt.end&&evt.end!==evt.start?' · עד '+formatDate(evt.end):''}</div>
       </div>
     </div>`;

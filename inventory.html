@@ -172,15 +172,38 @@ body.readonly-mode .readonly-banner{display:block;}
   <div class="sum-item">למחיקה: <strong id="sumDiscard" style="color:#fca5a5;">0</strong></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
+<script src="auth-shared.js"></script>
 <script>
-const WORKER = 'https://hacala-api.1002220729.workers.dev';
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// SECURITY (Phase 8): this pointed at a different, stale Worker
+// ('hacala-api...') than the rest of the portal ('principal-api...').
+// Fixed to the same hardened backend everything else uses.
+// SECURITY: hostname-based Worker selection — see index.html for rationale.
+const WORKER = (location.hostname === 'principal-portal.pages.dev')
+  ? 'https://principal-api.1002220729.workers.dev'
+  : 'https://principal-api-staging.1002220729.workers.dev';
+
+// SECURITY: exact, hard-coded parent-portal origin — never use '*'.
+const PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
+
+// esc(): sanitizes a value before it goes into HTML (via DOMPurify) and
+// also strips it down to safe plain text for the single-quoted attribute
+// contexts used in this file (e.g. onclick="fn('${esc(x)}')").
+const esc = s => {
+  const str = String(s ?? '');
+  const out = window.DOMPurify
+    ? DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+    : str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return out.replace(/'/g, '&#39;');
+};
 
 let STATE = { school:'', year:'', categories:{} };
 // categories: { [catName]: [ {id,itemName,quantity,condition,notes}, ... ] }
 
 // ─── postMessage ──────────────────────────────────
 window.addEventListener('message', e => {
+  // SECURITY: silently reject messages not from the trusted parent origin.
+  if (e.origin !== PORTAL_ORIGIN) return;
   if (!e.data || typeof e.data !== 'object') return;
   if (e.data.type === 'load-data') {
     const { school, year } = e.data.payload || {};
@@ -191,19 +214,21 @@ window.addEventListener('message', e => {
     loadFromWorker();
   }
   if (e.data.type === 'set-readonly') {
+    // UX-only flag — the backend Worker must independently authorize
+    // every save/update/delete request against the user's session.
     document.body.classList.toggle('readonly-mode', !!e.data.readonly);
   }
   if (e.data.type === 'request-data') saveToPortal();
 });
 
 // signal ready
-window.parent.postMessage({ type:'iframe-ready', docType:'inventory' }, '*');
+window.parent.postMessage({ type:'iframe-ready', docType:'inventory' }, PORTAL_ORIGIN);
 
 // ─── LOAD ──────────────────────────────────────────
 async function loadFromWorker() {
   if (!STATE.school || !STATE.year) return;
   try {
-    const res  = await fetch(`${WORKER}/api/inventory?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`);
+    const res  = await PortalAuth.authFetch(`${WORKER}/api/inventory?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`);
     const rows = await res.json();
     STATE.categories = {};
     (rows || []).forEach(r => {
@@ -412,7 +437,7 @@ async function saveToPortal() {
     type: 'save-request',
     docType: 'inventory',
     payload: { school: STATE.school, year: STATE.year, rows: allRows },
-  }, '*');
+  }, PORTAL_ORIGIN);
 }
 
 // ─── SEARCH / FILTER ──────────────────────────────

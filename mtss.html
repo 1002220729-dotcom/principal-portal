@@ -417,7 +417,18 @@
 
     <div id="root"></div>
 
+    <!-- Phase 8: shared authenticated-fetch helper, included for forward-
+         compatibility. This file has no direct Worker calls today —
+         mtss data is exchanged with index.html via postMessage. Any
+         future direct Worker call here must go through
+         PortalAuth.authFetch(). -->
+    <script src="auth-shared.js"></script>
     <script>
+// SECURITY: exact, hard-coded parent-portal origin — never use '*'.
+// Set as a global property (not a block-scoped const) so it's safely
+// available to every <script> block in this file regardless of order.
+window.PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
+
 // ══════════════════════════════════════════════════════════════════
 //  פונקציות ייצוא — הוצאו מ-Babel JSX כדי למנוע שגיאת import
 // ══════════════════════════════════════════════════════════════════
@@ -1098,7 +1109,7 @@ ${clonedElement.outerHTML}
                         type: 'save-request',
                         docType: 'mtss',
                         payload: dataToSave
-                    }, '*');
+                    }, window.PORTAL_ORIGIN);
                 }
             };
 
@@ -2379,10 +2390,9 @@ ${clonedElement.outerHTML}
                     const element = document.getElementById(studentId);
                     if (element) {
                         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    } else {
-                        console.log('Element not found:', studentId);
-                        console.log('Looking for:', studentId);
                     }
+                    // (debug logging of studentId removed — it embeds student
+                    // name/grade/class and must not be printed to the console)
                 }, 800);
 
                 setTimeout(() => {
@@ -4594,7 +4604,7 @@ ${clonedElement.outerHTML}
                     window.parent.postMessage({ 
                         type: 'school-changed', 
                         school: target.value 
-                    }, '*');
+                    }, window.PORTAL_ORIGIN);
                 }
             }
         });
@@ -4608,11 +4618,13 @@ ${clonedElement.outerHTML}
     // ── שלח iframe-ready לפורטל כשה-DOM מוכן ────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
         if (window.parent !== window) {
-            window.parent.postMessage({ type: 'iframe-ready', docType: 'mtss' }, '*');
+            window.parent.postMessage({ type: 'iframe-ready', docType: 'mtss' }, window.PORTAL_ORIGIN);
         }
     });
 
     window.addEventListener('message', (e) => {
+        // SECURITY: silently reject messages not from the trusted parent origin.
+        if (e.origin !== window.PORTAL_ORIGIN) return;
         if (!e.data || window.parent === window) return;
 
         // ── הפורטל מבקש נתונים לשמירה (request-data) ─────────────────
@@ -4625,7 +4637,7 @@ ${clonedElement.outerHTML}
                         type: 'save-request',
                         docType: 'mtss',
                         payload: { ...data, docType: 'mtss' }
-                    }, '*');
+                    }, window.PORTAL_ORIGIN);
                 }
             } catch (err) {
                 console.error('MTSS: failed to send data to portal', err);
@@ -4662,6 +4674,11 @@ ${clonedElement.outerHTML}
         }
 
         // ── הרשאת צפייה/עריכה כללית מהפורטל (set-readonly) ────────────
+        // NOTE (Zero Trust): window.__mtss_isReadOnly and the per-section
+        // permissions below are UX-only — they hide/disable controls in
+        // the UI. They must NEVER be treated as an authorization boundary;
+        // the backend Worker must independently verify the user's session
+        // and role before honouring any save/update/delete request.
         if (e.data.type === 'set-readonly') {
             window.__mtss_isReadOnly = !!e.data.readonly;
             window.dispatchEvent(new CustomEvent('mtss-set-readonly', { detail: { readonly: !!e.data.readonly } }));
@@ -4669,6 +4686,7 @@ ${clonedElement.outerHTML}
 
         // ── הרשאות פר-תת-אזור מהפורטל (set-section-permissions) ───────
         // תתי-אזורים אפשריים: learning / support / staffSupport / populations
+        // (UX-only, see note above — backend must re-check authorization)
         if (e.data.type === 'set-section-permissions') {
             const perms = e.data.permissions || {};
             window.__mtss_sectionPerms = perms;
