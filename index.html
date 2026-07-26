@@ -1125,6 +1125,7 @@ async function authFetch(url, options = {}) {
 // ═══════════════════════════════════════════════════════
 let _pendingRole = null;
 let _staffLoginUsername = null; // for password change flow
+let _pendingPasswordChangeToken = null; // restricted session; kept in memory only
 
 function switchLoginMethod(method, btn) {
   document.querySelectorAll('.login-method-tab').forEach(b => b.classList.remove('active'));
@@ -1186,10 +1187,12 @@ async function doPasswordLogin() {
 
     // Check if password change is required
     if (srv.mustChangePassword) {
+      _pendingPasswordChangeToken = data.token || null;
       if (btn) { btn.disabled = false; btn.textContent = 'כניסה'; }
       showMustChangePasswordModal(username, srv.passwordExpired);
       return;
     }
+    _pendingPasswordChangeToken = null;
 
     // מקור האמת הסופי הוא מה שהשרת מחזיר (srv.school/srv.year),
     // ולא הרמז המקומי. בדיקת בטיחות לפני כניסה למסך ריק בשקט.
@@ -1256,11 +1259,15 @@ async function submitPasswordChange() {
   if (new1.length < 12) { errEl.textContent='הסיסמא החדשה חייבת להכיל לפחות 12 תווים'; errEl.style.display='block'; return; }
   if (new1 !== new2) { errEl.textContent='הסיסמאות אינן תואמות'; errEl.style.display='block'; return; }
   if (!_staffLoginUsername) { errEl.textContent='שגיאה: שם משתמש לא ידוע. נסה/י להתחבר מחדש.'; errEl.style.display='block'; return; }
+  if (!_pendingPasswordChangeToken) { errEl.textContent='שגיאה: סשן החלפת הסיסמה אינו תקף. נסה/י להתחבר מחדש.'; errEl.style.display='block'; return; }
 
   try {
     const res = await fetch(`${WORKER_URL_AUTH}/api/auth/staff-change-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${_pendingPasswordChangeToken}`,
+      },
       body: JSON.stringify({ username: _staffLoginUsername, currentPassword: current, newPassword: new1 }),
     });
     const data = await res.json();
@@ -1269,6 +1276,7 @@ async function submitPasswordChange() {
       errEl.style.display = 'block';
       return;
     }
+    _pendingPasswordChangeToken = null;
     document.getElementById('changePasswordModal').style.display = 'none';
     // Now complete login — re-fetch role with new session
     const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
@@ -1793,6 +1801,7 @@ function sendFrameReadOnlyIfNeeded(docType, win) {
 // ═══════════════════════════════════════════════════════
 function portalLogout() {
   const token = getSessionToken();
+  _pendingPasswordChangeToken = null;
   clearPortalSession();
   if (token) {
     // Best-effort server-side revoke; don't block the UI on it and

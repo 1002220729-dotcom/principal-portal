@@ -615,14 +615,6 @@ body.readonly-mode #meetingModal textarea {
 // ════════════════════════════════════════════════════════════
 const ISDEV = false;
 
-// Stub: DOMPurify — in real (management) file, the CDN loads the real library.
-// This stub strips all tags/attrs by default so the standalone demo behaves
-// the same (safe) way as production, instead of only escaping < and >.
-const DOMPurify = { sanitize: (s, opts) => {
-  const str = String(s ?? '').replace(/<[^>]*>/g, '');
-  return opts && opts.ALLOWED_TAGS && opts.ALLOWED_TAGS.length ? str : str;
-} };
-
 // Stub: appData  — in real file this is the global app state object
 const appData = {
   meetings: {
@@ -649,9 +641,27 @@ function newId() {
   return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-// Stub: esc (in real file uses DOMPurify or manual escaping)
+// Encode plain text for both HTML text and quoted-attribute contexts.
+// Do not use regex-based tag stripping here: it is not an HTML sanitizer.
 function esc(s) {
-  return DOMPurify.sanitize(String(s ?? '')).replace(/'/g, '&#39;');
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[ch]);
+}
+
+function safeMeetingId(value) {
+  const id = String(value ?? '');
+  return /^[A-Za-z0-9_-]{1,100}$/.test(id) ? id : '';
+}
+
+function safeMeetingTime(value) {
+  const time = String(value ?? '');
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '';
+}
+
+function safeMeetingColor(value) {
+  const color = String(value ?? '');
+  return /^#[0-9A-Fa-f]{6}$/.test(color) ? color : 'var(--primary)';
 }
 
 // Stub: formatDate — in real file formatDate accepts a Date or ISO string
@@ -906,13 +916,13 @@ function renderMeetingMonthView() {
     dayEvts.slice(0, MAX_SHOW).forEach(evt => {
       const opacity = evt.status === 'cancelled' ? '0.45' : '1';
       evtsHtml += `<div
-        style="background:${evt.color || 'var(--primary)'};color:#fff;border-radius:4px;
+        style="background:${safeMeetingColor(evt.color)};color:#fff;border-radius:4px;
                padding:2px 5px;font-size:10px;font-weight:600;margin-bottom:2px;
                cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
                opacity:${opacity}"
-        title="${esc(evt.title)} ${evt.timeStart || ''}"
-        onclick="event.stopPropagation();openMeetingModal('${evt.id}',null)">
-        ${evt.timeStart ? evt.timeStart + ' ' : ''}${esc(evt.title)}
+        title="${esc(evt.title)} ${esc(safeMeetingTime(evt.timeStart))}"
+        onclick="event.stopPropagation();openMeetingModal('${safeMeetingId(evt.id)}',null)">
+        ${safeMeetingTime(evt.timeStart) ? esc(safeMeetingTime(evt.timeStart)) + ' ' : ''}${esc(evt.title)}
       </div>`;
     });
     if (dayEvts.length > MAX_SHOW) {
@@ -973,9 +983,9 @@ function renderMeetingAgendaView(grid) {
       dayEvts.forEach(evt => {
         const opacity = evt.status === 'cancelled' ? '0.5' : '1';
         evtsHtml += `<div class="meeting-agenda-evt" style="opacity:${opacity}"
-          onclick="openMeetingModal('${evt.id}',null)">
-          <span class="agenda-dot" style="background:${evt.color || 'var(--primary)'}"></span>
-          <span class="agenda-time">${evt.timeStart || ''}</span>
+          onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">
+          <span class="agenda-dot" style="background:${safeMeetingColor(evt.color)}"></span>
+          <span class="agenda-time">${esc(safeMeetingTime(evt.timeStart))}</span>
           <span class="agenda-title">${esc(evt.title)}</span>
         </div>`;
       });
@@ -1049,7 +1059,7 @@ function renderMeetingList(events) {
 
     return `<div class="card"
       style="padding:16px 20px;margin-bottom:10px;
-             border-inline-start:4px solid ${evt.color || 'var(--primary)'}">
+              border-inline-start:4px solid ${safeMeetingColor(evt.color)}">
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <!-- Left: type + date -->
         <div style="text-align:center;min-width:48px">
@@ -1074,9 +1084,9 @@ function renderMeetingList(events) {
         </div>
         <!-- Actions -->
         <div style="display:flex;flex-direction:column;gap:6px">
-          <button class="btn-icon" title="ערוך" onclick="openMeetingModal('${evt.id}',null)">✏️</button>
-          <button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${evt.id}')">📋</button>
-          <button class="btn-icon" title="מחק"  onclick="deleteMeeting('${evt.id}')">🗑️</button>
+          <button class="btn-icon" title="ערוך" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">✏️</button>
+          <button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${safeMeetingId(evt.id)}')">📋</button>
+          <button class="btn-icon" title="מחק"  onclick="deleteMeeting('${safeMeetingId(evt.id)}')">🗑️</button>
         </div>
       </div>
     </div>`;
@@ -1150,8 +1160,8 @@ function renderMeetingByPeriod() {
         <td><span style="font-size:0.72rem">${_meetTypeIcon(evt.type)} ${_meetTypeLabel(evt.type)}</span></td>
         <td><span class="status-badge status-${_statusClass(evt.status)}">${_statusLabel(evt.status)}</span></td>
         <td>
-          <button class="btn-icon" onclick="openMeetingModal('${evt.id}',null)" title="ערוך">✏️</button>
-          <button class="btn-icon" onclick="deleteMeeting('${evt.id}')" title="מחק">🗑️</button>
+          <button class="btn-icon" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)" title="ערוך">✏️</button>
+          <button class="btn-icon" onclick="deleteMeeting('${safeMeetingId(evt.id)}')" title="מחק">🗑️</button>
         </td>
       </tr>`).join('');
 
