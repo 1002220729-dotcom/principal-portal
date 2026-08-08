@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "principal-api",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-12",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "principal-db",
+      "database_id": "9163c862-90be-4f57-9238-3b5338db463e",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS_KV",
+      "id": "8baeccb704df45d38cbdb29fc8f9b9d5"
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "principal-api-staging",
+      "compatibility_date": "2024-11-01",
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "principal-db-staging",
+          "database_id": "4538ca32-dda4-4fc0-a365-12b6e25331cb",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "SESSIONS_KV",
+          "id": "25cfddf274eb4cdc8fe24239b54144c7"
+        }
+      ]
+    }
+  }
+}
