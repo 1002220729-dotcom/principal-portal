@@ -1,0 +1,8 @@
+{
+  "name": "principal-portal-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check worker.js"
+  }
+}
