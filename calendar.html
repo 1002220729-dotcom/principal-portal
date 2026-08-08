@@ -596,6 +596,13 @@ body.readonly-mode #meetingModal textarea {
 <!-- Toast for standalone demo -->
 <div id="_meetingsToast"></div>
 
+<!-- Phase 8: shared authenticated-fetch helper, included for forward-
+     compatibility. This file has no direct Worker calls today —
+     calendar data is exchanged with index.html via postMessage. Any
+     future direct Worker call here must go through
+     PortalAuth.authFetch(). -->
+<script src="auth-shared.js"></script>
+
 <!-- ══════════════════════════════════════════════════════
      [MEETINGS JS] — PASTE INTO MANAGEMENT FILE'S <script>
      ══════════════════════════════════════════════════════ -->
@@ -607,9 +614,6 @@ body.readonly-mode #meetingModal textarea {
 // showToast(), formatDate(), appData, DOMPurify
 // ════════════════════════════════════════════════════════════
 const ISDEV = false;
-
-// Stub: DOMPurify — in real file, the CDN loads it
-const DOMPurify = { sanitize: (s) => String(s ?? '').replace(/</g,'&lt;').replace(/>/g,'&gt;') };
 
 // Stub: appData  — in real file this is the global app state object
 const appData = {
@@ -637,9 +641,27 @@ function newId() {
   return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-// Stub: esc (in real file uses DOMPurify or manual escaping)
+// Encode plain text for both HTML text and quoted-attribute contexts.
+// Do not use regex-based tag stripping here: it is not an HTML sanitizer.
 function esc(s) {
-  return DOMPurify.sanitize(String(s ?? ''));
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[ch]);
+}
+
+function safeMeetingId(value) {
+  const id = String(value ?? '');
+  return /^[A-Za-z0-9_-]{1,100}$/.test(id) ? id : '';
+}
+
+function safeMeetingTime(value) {
+  const time = String(value ?? '');
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : '';
+}
+
+function safeMeetingColor(value) {
+  const color = String(value ?? '');
+  return /^#[0-9A-Fa-f]{6}$/.test(color) ? color : 'var(--primary)';
 }
 
 // Stub: formatDate — in real file formatDate accepts a Date or ISO string
@@ -894,13 +916,13 @@ function renderMeetingMonthView() {
     dayEvts.slice(0, MAX_SHOW).forEach(evt => {
       const opacity = evt.status === 'cancelled' ? '0.45' : '1';
       evtsHtml += `<div
-        style="background:${evt.color || 'var(--primary)'};color:#fff;border-radius:4px;
+        style="background:${safeMeetingColor(evt.color)};color:#fff;border-radius:4px;
                padding:2px 5px;font-size:10px;font-weight:600;margin-bottom:2px;
                cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
                opacity:${opacity}"
-        title="${esc(evt.title)} ${evt.timeStart || ''}"
-        onclick="event.stopPropagation();openMeetingModal('${evt.id}',null)">
-        ${evt.timeStart ? evt.timeStart + ' ' : ''}${esc(evt.title)}
+        title="${esc(evt.title)} ${esc(safeMeetingTime(evt.timeStart))}"
+        onclick="event.stopPropagation();openMeetingModal('${safeMeetingId(evt.id)}',null)">
+        ${safeMeetingTime(evt.timeStart) ? esc(safeMeetingTime(evt.timeStart)) + ' ' : ''}${esc(evt.title)}
       </div>`;
     });
     if (dayEvts.length > MAX_SHOW) {
@@ -961,9 +983,9 @@ function renderMeetingAgendaView(grid) {
       dayEvts.forEach(evt => {
         const opacity = evt.status === 'cancelled' ? '0.5' : '1';
         evtsHtml += `<div class="meeting-agenda-evt" style="opacity:${opacity}"
-          onclick="openMeetingModal('${evt.id}',null)">
-          <span class="agenda-dot" style="background:${evt.color || 'var(--primary)'}"></span>
-          <span class="agenda-time">${evt.timeStart || ''}</span>
+          onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">
+          <span class="agenda-dot" style="background:${safeMeetingColor(evt.color)}"></span>
+          <span class="agenda-time">${esc(safeMeetingTime(evt.timeStart))}</span>
           <span class="agenda-title">${esc(evt.title)}</span>
         </div>`;
       });
@@ -1037,7 +1059,7 @@ function renderMeetingList(events) {
 
     return `<div class="card"
       style="padding:16px 20px;margin-bottom:10px;
-             border-inline-start:4px solid ${evt.color || 'var(--primary)'}">
+              border-inline-start:4px solid ${safeMeetingColor(evt.color)}">
       <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
         <!-- Left: type + date -->
         <div style="text-align:center;min-width:48px">
@@ -1062,9 +1084,9 @@ function renderMeetingList(events) {
         </div>
         <!-- Actions -->
         <div style="display:flex;flex-direction:column;gap:6px">
-          <button class="btn-icon" title="ערוך" onclick="openMeetingModal('${evt.id}',null)">✏️</button>
-          <button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${evt.id}')">📋</button>
-          <button class="btn-icon" title="מחק"  onclick="deleteMeeting('${evt.id}')">🗑️</button>
+          <button class="btn-icon" title="ערוך" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">✏️</button>
+          <button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${safeMeetingId(evt.id)}')">📋</button>
+          <button class="btn-icon" title="מחק"  onclick="deleteMeeting('${safeMeetingId(evt.id)}')">🗑️</button>
         </div>
       </div>
     </div>`;
@@ -1138,8 +1160,8 @@ function renderMeetingByPeriod() {
         <td><span style="font-size:0.72rem">${_meetTypeIcon(evt.type)} ${_meetTypeLabel(evt.type)}</span></td>
         <td><span class="status-badge status-${_statusClass(evt.status)}">${_statusLabel(evt.status)}</span></td>
         <td>
-          <button class="btn-icon" onclick="openMeetingModal('${evt.id}',null)" title="ערוך">✏️</button>
-          <button class="btn-icon" onclick="deleteMeeting('${evt.id}')" title="מחק">🗑️</button>
+          <button class="btn-icon" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)" title="ערוך">✏️</button>
+          <button class="btn-icon" onclick="deleteMeeting('${safeMeetingId(evt.id)}')" title="מחק">🗑️</button>
         </td>
       </tr>`).join('');
 
@@ -1319,7 +1341,7 @@ function syncFromGantt() {
   _waitingForGanttSync = true;
 
   try {
-    window.parent.postMessage({ type: 'request-gantt-data-for-meetings' }, '*');
+    window.parent.postMessage({ type: 'request-gantt-data-for-meetings' }, PORTAL_ORIGIN);
   } catch(e) {
     _waitingForGanttSync = false;
     if (btn) { btn.disabled = false; btn.textContent = '🔄 סנכרן מגאנט'; }
@@ -1451,11 +1473,16 @@ function processSyncFromGantt(ganttPayload) {
 // PORTAL COMMUNICATION
 // ================================================================
 const DOC_TYPE      = 'calendar';
-const PORTAL_ORIGIN = '*';
+// SECURITY: exact, hard-coded parent-portal origin — never use '*'.
+const PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
 const _inPortal     = window.parent !== window;
 
 // דגל הרשאת עריכה — נקבע ע"י הפורטל דרך 'set-readonly' / 'set-section-permissions'.
 // כל עוד לא התקבלה הודעה מהפורטל, ברירת המחדל היא עריכה מלאה (מצב standalone/דמו).
+// NOTE (Zero Trust): _isReadOnly is UX-only — it hides/disables edit controls
+// and shows a toast. It must NEVER be treated as a security boundary. The
+// backend Worker must independently verify the user's session/role before
+// honouring any save/update/delete request, regardless of this client flag.
 let _isReadOnly = false;
 
 function _applyReadOnly(readOnly) {
@@ -1486,8 +1513,6 @@ function saveToPortal() {
     return;
   }
 
-  const _evCount = (appData.meetings?.events||[]).length;
-  console.log('[calendar] saveToPortal | school:', _portalSchool, '| year:', _portalYear, '| events:', _evCount);
   window.parent.postMessage({
     type: 'save-request',
     docType: DOC_TYPE,
@@ -1511,13 +1536,14 @@ function _applyPortalData(payload) {
   if (payload.year)   _portalYear   = payload.year;
   // ← מסמן שנתונים הגיעו מהשרת — עכשיו בטוח לשמור
   _dataLoadedFromServer = true;
-  console.log('[calendar] _applyPortalData | school:', _portalSchool, '| year:', _portalYear, '| events:', (appData.meetings?.events||[]).length);
   renderMeetingsCalendar();
   showToast('\u2705 \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d9\u05d5\u05de\u05df \u05e0\u05d8\u05e2\u05e0\u05d5');
 }
 
 // Unified message listener: portal + gantt sync
 window.addEventListener('message', e => {
+  // SECURITY: silently reject messages not from the trusted parent origin.
+  if (e.origin !== PORTAL_ORIGIN) return;
   const msg = e.data;
   if (!msg || typeof msg !== 'object') return;
 

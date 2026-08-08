@@ -1,15 +1,43 @@
-/*
-  X-Frame-Options: SAMEORIGIN
-  X-Content-Type-Options: nosniff
-
-/index.html
-  Cache-Control: no-cache, no-store, must-revalidate
-
-/tknyt.html
-  Cache-Control: no-cache
-
-/gantt.html
-  Cache-Control: no-cache
+# ═══════════════════════════════════════════════════════════
+#  _headers — Cloudflare Pages custom response headers
+#
+#  IMPORTANT LIMITATION (read before assuming this "solves" XSS):
+#  Every portal file relies heavily on large inline <script> blocks
+#  (there is no build step separating JS into external files), so
+#  script-src below MUST include 'unsafe-inline' or the entire
+#  portal breaks immediately. That means this CSP does NOT protect
+#  against DOM-based/stored XSS via inline script — its real value
+#  here is narrower: it (a) stops a compromised/malicious external
+#  script host from being loaded at all (the supply-chain risk that
+#  was flagged), (b) sets frame-ancestors to stop this portal being
+#  framed by another site (clickjacking), and (c) restricts which
+#  external hosts data can be sent to (connect-src). Real XSS-from-
+#  inline-script protection requires moving the inline JS into
+#  external files with nonces/hashes — a separate, larger refactor,
+#  not something to treat as done by adding this file.
+#
+#  Cloudflare Pages applies more specific paths first, so the
+#  mtss.html-specific block is declared before the general /* block.
+# ═══════════════════════════════════════════════════════════
 
 /mtss.html
-  Cache-Control: no-cache
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests; block-all-mixed-content
+  Cache-Control: no-store
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Cross-Origin-Resource-Policy: same-origin
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://principal-api.1002220729.workers.dev https://principal-api-staging.1002220729.workers.dev https://www.hebcal.com https://accounts.google.com; frame-src https: https://accounts.google.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests; block-all-mixed-content
+  Cache-Control: no-store
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Cross-Origin-Resource-Policy: same-origin
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: geolocation=(), microphone=(), camera=()

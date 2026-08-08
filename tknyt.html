@@ -2400,13 +2400,20 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
+<!-- Phase 8: shared authenticated-fetch helper, included for forward-
+     compatibility. This file has no direct Worker calls today — plan
+     data is exchanged with index.html via postMessage, which already
+     attaches the Authorization header on the parent's side. If a
+     direct Worker call is ever added here, it must go through
+     PortalAuth.authFetch(), never a bare fetch(). -->
+<script src="auth-shared.js"></script>
 <script type="module">
 // =============================================================
 //  CENTRALIZED CONFIG
 // =============================================================
-const PORTAL_ORIGIN = '*'; // פורטל סטטי – same-origin
-// (PORTAL_ORIGIN הוגדר כ-'*' לצורך עבודה בפורטל מקומי)
+// SECURITY: exact, hard-coded parent-portal origin — never use '*'.
+const PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
 const IS_DEV        = false;
 
 // ג1 – טיימרים ברמת מודול (ולא על window)
@@ -3575,8 +3582,8 @@ function onSchoolNameInput(inp) {
 //  postMessage LISTENER
 // =============================================================
 window.addEventListener('message', (e) => {
-  // אבטחה: אפשר הודעות רק מהפורטל
-  if (PORTAL_ORIGIN !== '*' && e.origin !== PORTAL_ORIGIN) return;
+  // SECURITY: silently reject messages not from the exact trusted origin.
+  if (e.origin !== PORTAL_ORIGIN) return;
   if (isInIframe && e.source !== window.parent) return;
   if (!e.data || typeof e.data !== 'object') return;
   if (typeof e.data.type !== 'string') return;
@@ -3664,14 +3671,6 @@ window.addEventListener('message', (e) => {
     window.__portalYear   = e.data.year       || window.__portalYear || '';
     window.__portalSchool = e.data.schoolName || '';
     const _p = e.data.payload;
-    const _ssKeys = Object.keys(_p.statusSnapshot || {}).filter(k => k !== 'teacherEdu' && (_p.statusSnapshot[k] || '').length > 0);
-    console.log('[tknyt] load-data | school:', window.__portalSchool, '| year:', window.__portalYear,
-      '| arenas:', Object.values(_p.arenas||{}).reduce((s,a)=>s+(a.rows||[]).length,0),
-      '| quarters:', Object.values(_p.quarters||{}).reduce((s,q)=>s+(q.rows||[]).length,0),
-      '| hours:', (_p.hoursRows||[]).length, '| staff:', (_p.staffRows||[]).length,
-      '| defects:', (_p.defects||[]).length,
-      '| ss fields with data:', _ssKeys,
-      '| _loadAppliedOnce:', _loadAppliedOnce, '| isDirty:', isDirty);
     if (_domReady) {
       _applyLoadedData(e.data.payload);
     } else {

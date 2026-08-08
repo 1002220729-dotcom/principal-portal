@@ -808,9 +808,27 @@ body.readonly-mode .btn-modal-ok {
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
+<script src="auth-shared.js"></script>
 <script>
-const WORKER = 'https://principal-api.1002220729.workers.dev';
-const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// SECURITY: hostname-based Worker selection — see index.html for rationale.
+const WORKER = (location.hostname === 'principal-portal.pages.dev')
+  ? 'https://principal-api.1002220729.workers.dev'
+  : 'https://principal-api-staging.1002220729.workers.dev';
+
+// SECURITY: exact, hard-coded parent-portal origin — never use '*'.
+const PORTAL_ORIGIN = window.location.origin; // dynamic: same value in prod and staging since parent+iframes are same-origin by construction
+
+// esc(): sanitizes a value before it goes into HTML (via DOMPurify) and
+// also encodes single quotes for the single-quoted attribute contexts
+// used in this file (e.g. onclick="fn('${esc(x)}')").
+const esc = s => {
+  const str = String(s ?? '');
+  const out = window.DOMPurify
+    ? DOMPurify.sanitize(str, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+    : str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return out.replace(/'/g, '&#39;');
+};
 const fmtDate = d => d ? new Date(d).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
 const fmtCurrency = n => n != null ? `₪${Number(n).toLocaleString('he-IL')}` : '—';
 
@@ -835,6 +853,8 @@ let STATE = {
 
 // ─── postMessage listener ─────────────────────────
 window.addEventListener('message', e => {
+  // SECURITY: silently reject messages not from the trusted parent origin.
+  if (e.origin !== PORTAL_ORIGIN) return;
   if (!e.data || typeof e.data !== 'object') return;
 
   switch (e.data.type) {
@@ -848,6 +868,10 @@ window.addEventListener('message', e => {
       break;
     }
     case 'set-readonly':
+      // NOTE (Zero Trust): STATE.readonly is UX-only — it hides/disables
+      // edit controls via CSS. It must NEVER be treated as a security
+      // boundary; the backend Worker must independently verify the
+      // caller's session/role before honouring any write request.
       STATE.readonly = !!e.data.readonly;
       document.body.classList.toggle('readonly-mode', STATE.readonly);
       break;
@@ -858,7 +882,7 @@ window.addEventListener('message', e => {
 });
 
 // signal ready to parent shell
-window.parent.postMessage({ type: 'iframe-ready', docType: 'teachers' }, '*');
+window.parent.postMessage({ type: 'iframe-ready', docType: 'teachers' }, PORTAL_ORIGIN);
 
 // ─── REQUEST HEADERS ───────────────────────────────
 // No Bearer token: HR routes are gated by the portal's own
@@ -876,7 +900,7 @@ async function loadTeachers() {
   document.getElementById('teacherList').innerHTML     = '';
 
   try {
-    const res  = await fetch(
+    const res  = await PortalAuth.authFetch(
       `${WORKER}/api/teachers?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -969,7 +993,7 @@ async function loadEntries(teacherId) {
   document.getElementById('entriesContainer').innerHTML = '<div class="empty-state">טוען...</div>';
   STATE.entries = [];
   try {
-    const res = await fetch(
+    const res = await PortalAuth.authFetch(
       `${WORKER}/api/teacher-entries?teacherId=${teacherId}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -1010,7 +1034,7 @@ async function loadBonuses(teacherId) {
   document.getElementById('bonusesContainer').innerHTML = '<div class="empty-state">טוען...</div>';
   STATE.bonuses = [];
   try {
-    const res = await fetch(
+    const res = await PortalAuth.authFetch(
       `${WORKER}/api/teacher-bonuses?teacherId=${teacherId}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -1072,7 +1096,7 @@ function hideErr(id) { document.getElementById(id).style.display = 'none'; }
 async function loadStaffList() {
   if (!STATE.school || !STATE.year) { STATE.staffList = []; return; }
   try {
-    const res = await fetch(
+    const res = await PortalAuth.authFetch(
       `${WORKER}/api/staff-hr?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -1111,7 +1135,7 @@ async function submitAddTeacher() {
   if (!staffId) { showErr('atErr','יש לבחור איש/אשת צוות מהרשימה'); return; }
   if (!STATE.school || !STATE.year) { showErr('atErr','שגיאה: בית ספר / שנה לא מוגדרים'); return; }
   try {
-    const res = await fetch(`${WORKER}/api/teachers`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teachers`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ staffId, school: STATE.school, year: STATE.year, notes }),
@@ -1141,7 +1165,7 @@ async function submitEditTeacher() {
   const notes   = document.getElementById('etNotes').value.trim();
   if (!STATE.selectedId) return;
   try {
-    const res = await fetch(`${WORKER}/api/teachers/${STATE.selectedId}`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teachers/${STATE.selectedId}`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({ subject, notes }),
@@ -1163,7 +1187,7 @@ async function archiveSelectedTeacher() {
   const t = STATE.teachers.find(x => x.id === STATE.selectedId);
   if (!confirm(`לארכב את ${t?.name || 'המורה'}?`)) return;
   try {
-    const res = await fetch(`${WORKER}/api/teachers/${STATE.selectedId}/archive`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teachers/${STATE.selectedId}/archive`, {
       method: 'PUT', headers: authHeaders(), body: '{}',
     });
     const data = await res.json();
@@ -1193,7 +1217,7 @@ async function submitAddEntry() {
   if (!entryType) { showErr('aeErr','יש לבחור סוג רשומה'); return; }
   if (!entryDate) { showErr('aeErr','יש להזין תאריך'); return; }
   try {
-    const res = await fetch(`${WORKER}/api/teacher-entries`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-entries`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ teacherId: STATE.selectedId, entryType, content, entryDate }),
@@ -1224,7 +1248,7 @@ async function submitEditEntry() {
   const entryDate = document.getElementById('eeDate').value;
   const content   = document.getElementById('eeContent').value.trim();
   try {
-    const res = await fetch(`${WORKER}/api/teacher-entries/${STATE._editEntryId}`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-entries/${STATE._editEntryId}`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({ entryType, content, entryDate }),
@@ -1242,7 +1266,7 @@ async function archiveEntry(id) {
   if (STATE.readonly) return;
   if (!confirm('לארכב רשומה זו?')) return;
   try {
-    const res = await fetch(`${WORKER}/api/teacher-entries/${id}/archive`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-entries/${id}/archive`, {
       method: 'PUT', headers: authHeaders(), body: '{}',
     });
     const data = await res.json();
@@ -1270,7 +1294,7 @@ async function submitAddBonus() {
   const description = document.getElementById('abDesc').value.trim();
   if (!bonusDate) { showErr('abErr','יש להזין תאריך'); return; }
   try {
-    const res = await fetch(`${WORKER}/api/teacher-bonuses`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-bonuses`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ teacherId: STATE.selectedId, bonusType, description, amount, bonusDate }),
@@ -1303,7 +1327,7 @@ async function submitEditBonus() {
   const amount      = parseFloat(document.getElementById('ebAmount').value) || 0;
   const description = document.getElementById('ebDesc').value.trim();
   try {
-    const res = await fetch(`${WORKER}/api/teacher-bonuses/${STATE._editBonusId}`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-bonuses/${STATE._editBonusId}`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({ bonusType, description, amount, bonusDate }),
@@ -1321,7 +1345,7 @@ async function archiveBonus(id) {
   if (STATE.readonly) return;
   if (!confirm('לארכב בונוס זה?')) return;
   try {
-    const res = await fetch(`${WORKER}/api/teacher-bonuses/${id}/archive`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-bonuses/${id}/archive`, {
       method: 'PUT', headers: authHeaders(), body: '{}',
     });
     const data = await res.json();
@@ -1339,7 +1363,7 @@ async function loadEvals(teacherId) {
   document.getElementById('evalContainer').innerHTML = '<div class="empty-state">טוען...</div>';
   STATE.evals = [];
   try {
-    const res = await fetch(
+    const res = await PortalAuth.authFetch(
       `${WORKER}/api/teacher-evals?teacherId=${teacherId}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -1354,7 +1378,7 @@ async function loadAllEvalsForCalendar() {
   if (!STATE.school || !STATE.year) return;
   STATE.allEvals = [];
   try {
-    const res = await fetch(
+    const res = await PortalAuth.authFetch(
       `${WORKER}/api/teacher-evals?school=${encodeURIComponent(STATE.school)}&year=${encodeURIComponent(STATE.year)}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -1423,7 +1447,7 @@ async function submitAddEval() {
   if (!evalType)    { showErr('evErr','יש לבחור סוג הערכה'); return; }
   if (!plannedDate) { showErr('evErr','יש להזין תאריך מתוכנן'); return; }
   try {
-    const res = await fetch(`${WORKER}/api/teacher-evals`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-evals`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({
@@ -1467,7 +1491,7 @@ async function submitEditEval() {
   const score      = document.getElementById('eeEvScore').value.trim();
   const notes      = document.getElementById('eeEvNotes').value.trim();
   try {
-    const res = await fetch(`${WORKER}/api/teacher-evals/${STATE._editEvalId}`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-evals/${STATE._editEvalId}`, {
       method: 'PUT',
       headers: authHeaders(),
       body: JSON.stringify({ evalType, plannedDate, evaluator, status, actualDate, score, notes }),
@@ -1486,7 +1510,7 @@ async function archiveEval(id) {
   if (STATE.readonly) return;
   if (!confirm('לארכב הערכה זו?')) return;
   try {
-    const res = await fetch(`${WORKER}/api/teacher-evals/${id}/archive`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-evals/${id}/archive`, {
       method: 'PUT', headers: authHeaders(), body: '{}',
     });
     const data = await res.json();
@@ -1662,12 +1686,12 @@ async function submitStaffForm() {
   try {
     let res, data;
     if (STATE._editStaffId) {
-      res = await fetch(`${WORKER}/api/staff-hr/${STATE._editStaffId}`, {
+      res = await PortalAuth.authFetch(`${WORKER}/api/staff-hr/${STATE._editStaffId}`, {
         method: 'PUT', headers: authHeaders(),
         body: JSON.stringify({ name, roletitle, subject, email }),
       });
     } else {
-      res = await fetch(`${WORKER}/api/staff-hr`, {
+      res = await PortalAuth.authFetch(`${WORKER}/api/staff-hr`, {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ name, school: STATE.school, year: STATE.year, roletitle, subject, email }),
       });
@@ -1684,7 +1708,7 @@ async function deleteStaff(id) {
   const s = STATE.staffList.find(x => x.id === id);
   if (!confirm(`למחוק את ${s?.name || 'איש הצוות'} מרשימת הצוות?`)) return;
   try {
-    const res = await fetch(`${WORKER}/api/staff-hr/${id}`, {
+    const res = await PortalAuth.authFetch(`${WORKER}/api/staff-hr/${id}`, {
       method: 'DELETE', headers: authHeaders(),
     });
     const data = await res.json();
