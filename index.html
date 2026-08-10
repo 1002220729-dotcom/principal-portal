@@ -842,7 +842,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
               <input class="sa-add-input" id="saNewRole" placeholder="תפקיד">
             </div>
             <div class="sa-row">
-              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 8 תווים)" type="password" autocomplete="new-password">
+              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 12 תווים)" type="password" autocomplete="new-password">
               <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:#475569;white-space:nowrap;">
                 <input type="checkbox" id="saNewMustChange" checked> דרוש החלפה בכניסה ראשונה
               </label>
@@ -890,7 +890,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div class="chpwd-title" id="chpwdTitle">החלפת סיסמא</div>
     <div class="chpwd-sub" id="chpwdSub">הזן/י את הסיסמא הנוכחית והחדשה</div>
     <input type="password" id="chpwdCurrent" class="chpwd-input" placeholder="סיסמא נוכחית" autocomplete="current-password">
-    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
+    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password">
     <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password">
     <div id="chpwdError" class="chpwd-err"></div>
     <button class="chpwd-btn" onclick="submitPasswordChange()">שמור סיסמא חדשה</button>
@@ -904,7 +904,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div style="font-size:2rem;margin-bottom:10px;">🔐</div>
     <div class="chpwd-title">איפוס סיסמא</div>
     <div class="chpwd-sub" id="adminResetPwdSub">הגדר סיסמא חדשה למשתמש</div>
-    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
+    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password">
     <div id="adminResetPwdError" class="chpwd-err"></div>
     <button class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="document.getElementById('adminResetPwdModal').style.display='none'">ביטול</button>
