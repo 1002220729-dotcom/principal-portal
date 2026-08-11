@@ -89,7 +89,10 @@ async function sha256Hex(str) {
 // the iteration count raised for new/changed passwords and the
 // upgrade-on-login path below. Revisit if a WASM Argon2id build
 // becomes available for the Workers runtime.
-const CURRENT_PBKDF2_ITERATIONS = 210000;
+// Cloudflare Workers currently caps a single WebCrypto PBKDF2 operation at
+// 100,000 iterations. Going above that throws before the D1 write, which makes
+// account creation and password resets fail with a generic 500 response.
+const CURRENT_PBKDF2_ITERATIONS = 100000;
 const LEGACY_PBKDF2_ITERATIONS = 100000; // fallback for rows predating the iterations column
 
 async function hashPassword(password, salt, iterations) {
@@ -166,7 +169,15 @@ function validEmail(v) {
 function validUsername(v) {
   const t = reqStr(v, 64);
   if (!t) return null;
-  return /^[a-zA-Z0-9._-]+$/.test(t) ? t.toLowerCase() : null;
+  const normalized = t.normalize('NFKC').toLowerCase();
+  return /^[\p{L}\p{N}._-]+$/u.test(normalized) ? normalized : null;
+}
+function validPathUsername(v) {
+  try {
+    return validUsername(decodeURIComponent(String(v || '')));
+  } catch {
+    return null;
+  }
 }
 function validId(v) {
   if (typeof v === 'string' && !/^[1-9]\d*$/.test(v)) return null;
@@ -716,7 +727,7 @@ export default {
 
       if (method === 'PUT' && path.startsWith('api/admin/staff-auth/') && path.endsWith('/reset-password')) {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
-        const username = validUsername(seg[seg.length - 2]);
+        const username = validPathUsername(seg[seg.length - 2]);
         const { newPassword } = await body();
         if (!username || typeof newPassword !== 'string' || !newPassword || newPassword.length > MAX_PASSWORD_LENGTH) {
           return err('username ו-newPassword נדרשים', 400, cors);
@@ -743,7 +754,7 @@ export default {
 
       if (method === 'PUT' && path.startsWith('api/admin/staff-auth/') && path.endsWith('/unlock')) {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
-        const username = validUsername(seg[seg.length - 2]);
+        const username = validPathUsername(seg[seg.length - 2]);
         if (!username) return err('username נדרש', 400, cors);
         const existing = await env.DB.prepare('SELECT username, school, year FROM staff_auth WHERE username = ?').bind(username).first();
         if (!existing) return err('משתמש לא נמצא', 404, cors);
@@ -757,7 +768,7 @@ export default {
 
       if (method === 'DELETE' && path.startsWith('api/admin/staff-auth/') && !path.endsWith('/unlock') && !path.endsWith('/reset-password')) {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
-        const username = validUsername(decodeURIComponent(lastSeg));
+        const username = validPathUsername(lastSeg);
         if (!username) return err('username נדרש', 400, cors);
         const existing = await env.DB.prepare('SELECT username, school, year FROM staff_auth WHERE username = ?').bind(username).first();
         if (!existing) return json({ ok: false, error: `משתמש "${username}" לא נמצא` }, 404, cors);
