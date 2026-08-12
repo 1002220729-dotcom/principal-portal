@@ -123,6 +123,7 @@ body{
   border-radius:9px;font-family:var(--font);font-size:0.93rem;font-weight:700;
   cursor:pointer;margin-bottom:8px;
 }
+.chpwd-btn:disabled{opacity:.65;cursor:wait;}
 .chpwd-err{color:#dc2626;font-size:0.82rem;margin-top:4px;display:none;}
 
 /* Staff Auth Admin Panel */
@@ -904,9 +905,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div style="font-size:2rem;margin-bottom:10px;">🔐</div>
     <div class="chpwd-title">איפוס סיסמא</div>
     <div class="chpwd-sub" id="adminResetPwdSub">הגדר סיסמא חדשה למשתמש</div>
-    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
-    <div id="adminResetPwdError" class="chpwd-err"></div>
-    <button class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
+    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password" minlength="12" aria-describedby="adminResetPwdError">
+    <div id="adminResetPwdError" class="chpwd-err" role="alert" aria-live="polite"></div>
+    <button type="button" id="adminResetPwdSubmit" class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="document.getElementById('adminResetPwdModal').style.display='none'">ביטול</button>
   </div>
 </div>
@@ -1860,6 +1861,16 @@ function bindUI() {
       smBadgeClick();
     });
   }
+
+  const adminResetPwdInput = document.getElementById('adminResetPwdNew');
+  if (adminResetPwdInput) {
+    adminResetPwdInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitAdminResetPassword();
+      }
+    });
+  }
 }
 
 // ── Expose all inline-handler functions globally (fixes Babel/module scope) ──
@@ -2444,21 +2455,48 @@ async function addStaffAuth() {
   }
 }
 
+function setAdminResetPwdError(message) {
+  const errEl = document.getElementById('adminResetPwdError');
+  if (!errEl) return;
+  errEl.textContent = message || '';
+  // .chpwd-err is display:none in the stylesheet, so assigning an empty
+  // inline value leaves the error hidden. Use an explicit display value.
+  errEl.style.display = message ? 'block' : 'none';
+}
+
+function setAdminResetPwdBusy(isBusy) {
+  const button = document.getElementById('adminResetPwdSubmit');
+  if (!button) return;
+  button.disabled = isBusy;
+  button.textContent = isBusy ? 'שומר…' : 'שמור סיסמא';
+  button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+}
+
 function openAdminResetPwd(username) {
   _saResetUsername = username;
   document.getElementById('adminResetPwdSub').textContent = `איפוס סיסמא עבור: ${username}`;
-  document.getElementById('adminResetPwdNew').value = '';
-  document.getElementById('adminResetPwdError').style.display = 'none';
+  const input = document.getElementById('adminResetPwdNew');
+  input.value = '';
+  setAdminResetPwdError('');
+  setAdminResetPwdBusy(false);
   document.getElementById('adminResetPwdModal').style.display = 'flex';
+  setTimeout(() => input.focus(), 0);
 }
 
 async function submitAdminResetPassword() {
-  const newPwd = document.getElementById('adminResetPwdNew')?.value;
-  const errEl  = document.getElementById('adminResetPwdError');
+  const input  = document.getElementById('adminResetPwdNew');
+  const newPwd = input?.value;
   if (!newPwd || newPwd.length < 12) {
-    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 12 תווים'; errEl.style.display = '';
+    setAdminResetPwdError('הסיסמא חייבת להכיל לפחות 12 תווים');
+    input?.focus();
     return;
   }
+  if (!_saResetUsername) {
+    setAdminResetPwdError('לא נבחר משתמש לאיפוס. סגור את החלון ונסה שוב.');
+    return;
+  }
+  setAdminResetPwdError('');
+  setAdminResetPwdBusy(true);
   try {
     const res = await authFetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(_saResetUsername)}/reset-password`, {
       method: 'PUT',
@@ -2466,12 +2504,17 @@ async function submitAdminResetPassword() {
       body: JSON.stringify({ newPassword: newPwd }),
     });
     const data = await res.json();
-    if (!data.ok) { errEl.textContent = data.error||'שגיאה'; errEl.style.display=''; return; }
+    if (!res.ok || !data.ok) {
+      setAdminResetPwdError(data.error || 'איפוס הסיסמא נכשל');
+      return;
+    }
     document.getElementById('adminResetPwdModal').style.display = 'none';
     toast(`✅ סיסמא אופסה עבור ${_saResetUsername}`, 'ok');
     loadStaffAuth();
   } catch(e) {
-    errEl.textContent = 'שגיאת רשת: ' + e.message; errEl.style.display = '';
+    setAdminResetPwdError('שגיאת רשת: ' + e.message);
+  } finally {
+    setAdminResetPwdBusy(false);
   }
 }
 
