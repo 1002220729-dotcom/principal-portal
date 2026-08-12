@@ -842,7 +842,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
               <input class="sa-add-input" id="saNewRole" placeholder="תפקיד">
             </div>
             <div class="sa-row">
-              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 12 תווים)" type="password" autocomplete="new-password">
+              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 8 תווים)" type="password" autocomplete="new-password">
               <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:#475569;white-space:nowrap;">
                 <input type="checkbox" id="saNewMustChange" checked> דרוש החלפה בכניסה ראשונה
               </label>
@@ -890,7 +890,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div class="chpwd-title" id="chpwdTitle">החלפת סיסמא</div>
     <div class="chpwd-sub" id="chpwdSub">הזן/י את הסיסמא הנוכחית והחדשה</div>
     <input type="password" id="chpwdCurrent" class="chpwd-input" placeholder="סיסמא נוכחית" autocomplete="current-password">
-    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password">
+    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
     <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password">
     <div id="chpwdError" class="chpwd-err"></div>
     <button class="chpwd-btn" onclick="submitPasswordChange()">שמור סיסמא חדשה</button>
@@ -904,7 +904,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div style="font-size:2rem;margin-bottom:10px;">🔐</div>
     <div class="chpwd-title">איפוס סיסמא</div>
     <div class="chpwd-sub" id="adminResetPwdSub">הגדר סיסמא חדשה למשתמש</div>
-    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password">
+    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
     <div id="adminResetPwdError" class="chpwd-err"></div>
     <button class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="document.getElementById('adminResetPwdModal').style.display='none'">ביטול</button>
@@ -2217,10 +2217,14 @@ async function toggleSaEditPerms(username) {
     );
     const list = await res.json();
     if (Array.isArray(list)) {
-      const emailKey = (
-        document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`)?.dataset.saEmailVal || username
+      const contactEmail = (
+        document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`)?.dataset.saEmailVal || ''
       ).toLowerCase();
-      const match = list.find(p => (p.email||'').toLowerCase() === emailKey);
+      // Password accounts are keyed by username. The email fallback only
+      // imports permissions saved by older releases; the next save migrates
+      // them to the stable username key used during password login.
+      const match = list.find(p => (p.email || '').toLowerCase() === username.toLowerCase()) ||
+        (contactEmail && list.find(p => (p.email || '').toLowerCase() === contactEmail));
       if (match) perms = match.permissions || {};
     }
   } catch(_) {}
@@ -2265,14 +2269,12 @@ async function saveSaEditPerms(username) {
   const school  = PS.school || session?.school || '';
   const year    = PS.year   || session?.year   || '';
   const perms   = _saEditPerms[username] || {};
-  // Derive email from the rendered table row (data attribute)
-  const emailEl = document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`);
-  const email   = emailEl ? emailEl.dataset.saEmailVal || username : username;
+  const permissionKey = username;
 
   try {
     const res = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, school, year, permissions: perms }),
+      body: JSON.stringify({ email: permissionKey, school, year, permissions: perms }),
     });
     if (res.ok) {
       toast(`✅ הרשאות ${username} נשמרו`, 'ok');
@@ -2413,16 +2415,14 @@ async function addStaffAuth() {
       return;
     }
 
-    // 2. Save permissions to staffPermissions using username as the email key
-    //    (so the permission system works uniformly for both login types)
-    // תיקון: חייב להיות תואם בדיוק לברירת המחדל בשרת (email || `${username}@local`),
-    // אחרת חיפוש ההרשאות בכניסה לא ימצא את השורה הזו לעולם.
-    const permEmail = email || `${username}@local`; // prefer real email; fall back to server's default
+    // 2. Password sessions load permissions by username. Email remains optional
+    //    contact metadata and must not become the authorization key.
+    const permissionKey = username;
     const permRes = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: permEmail,
+        email: permissionKey,
         name: name || username,
         roleTitle: roleTitle || '',
         school, year,
@@ -2542,9 +2542,7 @@ async function deleteStaffAuth(username) {
   const school  = PS.school || session?.school || '';
   const year    = PS.year   || session?.year   || '';
 
-  // Resolve email from the rendered table row before deleting
-  const emailEl = document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`);
-  const email   = emailEl ? (emailEl.dataset.saEmailVal || username) : username;
+  const permissionKey = username;
 
   const res = await authFetch(
     `${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`,
@@ -2555,7 +2553,7 @@ async function deleteStaffAuth(username) {
     // Also remove from staffpermissions so the user disappears from the permissions table
     try {
       await authFetch(
-        `${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+        `${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(permissionKey)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
         { method: 'DELETE' }
       );
     } catch(_) {}
