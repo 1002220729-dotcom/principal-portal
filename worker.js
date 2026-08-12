@@ -172,6 +172,12 @@ function validUsername(v) {
   const normalized = t.normalize('NFKC').toLowerCase();
   return /^[\p{L}\p{N}._-]+$/u.test(normalized) ? normalized : null;
 }
+// staff_permissions predates password accounts and calls its identity column
+// `email`. Google accounts still use an email there, while password accounts
+// must use their login username so loadPermissions() resolves the same key.
+function validPermissionSubject(v) {
+  return validEmail(v) || validUsername(v);
+}
 function validPathUsername(v) {
   try {
     return validUsername(decodeURIComponent(String(v || '')));
@@ -841,7 +847,7 @@ export default {
 
       if (method === 'GET' && path === 'api/staff') {
         const session = await requireSession(request, env);
-        const email = validEmail(q('email'));
+        const email = validPermissionSubject(q('email'));
         const school = validSchool(q('school'));
         const year = validYear(q('year'));
         if (!email || !school || !year) return err('email, school, year required', 400, cors);
@@ -870,7 +876,7 @@ export default {
       if (method === 'POST' && path === 'api/staff-permissions') {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
         const { email, name, roleTitle, school, year, permissions } = await body();
-        const cleanEmail = validEmail(email);
+        const cleanEmail = validPermissionSubject(email);
         const cleanSchool = validSchool(school);
         const cleanYear = validYear(year);
         if (!cleanEmail || !cleanSchool || !cleanYear) return err('email, school, year required', 400, cors);
@@ -900,7 +906,7 @@ export default {
 
       if (method === 'DELETE' && path === 'api/staff') {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
-        const email = validEmail(q('email'));
+        const email = validPermissionSubject(q('email'));
         const school = validSchool(q('school'));
         const year = validYear(q('year'));
         if (!email || !school || !year) return err('email, school, year required', 400, cors);
