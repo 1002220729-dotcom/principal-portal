@@ -597,6 +597,14 @@
   }
   .teacher-legend-reset:hover { color: var(--accent); }
   .teacher-legend-empty { color: var(--text-muted); font-size: 0.8rem; }
+  .teacher-legend-name {
+    border: none; background: none; color: var(--primary); cursor: pointer;
+    padding: 0; font: inherit; font-weight: 600;
+  }
+  .teacher-legend-name:hover,
+  .teacher-legend-name:focus-visible,
+  .sched-teacher-name-btn:hover,
+  .sched-teacher-name-btn:focus-visible { text-decoration: underline; }
   /* ===== PATHWAY VIEW (מתווה עבודה) ===== */
   .pathway-goal-card {
     background: var(--card);
@@ -696,6 +704,29 @@
   .sched-cell input.hrs-input { width:52px; }
   .sched-cell select { border:1px solid transparent; border-radius:3px; padding:2px 4px; font-size:0.75rem; background:transparent; width:100%; }
   .sched-cell select:focus { border-color:var(--primary-light); background:#fff; outline:none; }
+  .sched-teacher-control { display:flex; align-items:stretch; gap:3px; width:100%; min-width:0; }
+  .sched-teacher-name-btn {
+    flex:1 1 auto; min-width:0; border:1px solid transparent; border-radius:3px;
+    padding:2px 4px; background:transparent; color:var(--text); cursor:pointer;
+    font:inherit; font-size:0.75rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .sched-teacher-name-btn[hidden] { display:none !important; }
+  .sched-cell select.sched-teacher-select { flex:1 1 auto; min-width:0; }
+  .sched-cell select.sched-teacher-select.assigned {
+    flex:0 0 28px; width:28px; min-width:28px; padding-inline:0;
+    color:transparent; cursor:pointer;
+  }
+  .sched-cell select.sched-teacher-select.assigned option { color:var(--text); }
+  .teacher-summary-modal { max-width:640px; }
+  .teacher-summary-total {
+    margin-bottom:12px; padding:10px 12px; border-radius:6px;
+    background:var(--primary-soft); color:var(--primary); font-weight:700;
+  }
+  .teacher-summary-empty { text-align:center; color:var(--text-muted); padding:24px 10px !important; }
+  @media (max-width: 520px) {
+    .teacher-summary-modal { max-height:92vh; }
+    .sched-table td { min-width:120px; }
+  }
   .sched-subject-label { font-weight:700; color:var(--primary); font-size:0.6875rem; padding:2px 0; }
 
   .sched-table tfoot td, .sched-table tfoot th { border-top:2px solid var(--primary); }
@@ -716,7 +747,7 @@
   .section.readonly-mode input,
   .section.readonly-mode select,
   .section.readonly-mode textarea,
-  .section.readonly-mode button:not(.export-btn) {
+  .section.readonly-mode button:not(.export-btn):not(.teacher-summary-trigger) {
     pointer-events: none;
     opacity: 0.6;
   }
@@ -1702,6 +1733,32 @@
       </div>
     </div>
 
+    <!-- חלונית סיכום שיבוצי מורה -->
+    <div id="teacherScheduleSummaryOverlay" class="basket-modal-overlay" style="display:none;"
+      onclick="if(event.target===this) closeTeacherScheduleSummary()">
+      <div class="basket-modal teacher-summary-modal" role="dialog" aria-modal="true"
+        aria-labelledby="teacherScheduleSummaryTitle">
+        <div class="basket-modal-header">
+          <h3 id="teacherScheduleSummaryTitle">שיבוצי מורה</h3>
+          <button id="teacherScheduleSummaryClose" type="button" class="btn-icon"
+            aria-label="סגירת סיכום השיבוצים" onclick="closeTeacherScheduleSummary()">✖</button>
+        </div>
+        <div class="basket-modal-body">
+          <div id="teacherScheduleSummaryTotal" class="teacher-summary-total"></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>מקצוע</th><th>כיתה</th><th>שעות שבועיות</th></tr></thead>
+              <tbody id="teacherScheduleSummaryBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="basket-modal-footer">
+          <button type="button" class="btn btn-save" style="background:var(--primary);color:#fff;"
+            onclick="closeTeacherScheduleSummary()">סגור</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ========== SECTION: שיבוץ מקצועות ========== -->
     <div id="s_schedule" class="section">
       <div class="section-title"><span class="icon">📚</span> שיבוץ מקצועות לכיתות</div>
@@ -1745,6 +1802,7 @@
         <p class="text-muted" style="margin-bottom:10px;">
           לכל מורה מוקצה אוטומטית צבע קבוע. ניתן ללחוץ על העיגול ולבחור צבע אחר לפי טעמכם — הבחירה תישמר.
           התאים בטבלת השיבוץ למטה יצבעו בצבע המורה המשובץ בהם, כך שקל לראות מה שובץ ומה עדיין ריק.
+          לחיצה על שם מורה תציג את כל המקצועות והכיתות שאליהם הוא משובץ.
         </p>
         <div id="teacherColorLegend" class="teacher-legend">
           <span class="teacher-legend-empty">הוסיפו מורים בסדין השעות כדי לראות כאן מקרא צבעים</span>
@@ -1753,7 +1811,7 @@
 
       <div class="card">
         <div class="card-title"><span class="icon">📋</span> טבלת שיבוץ</div>
-        <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ. תא עם מורה משובץ יצבע בצבע המורה.</p>
+        <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ. תא עם מורה משובץ יצבע בצבע המורה. לחצו על שם המורה להצגת כל שיבוציו; החץ שלצד השם משמש לשינוי המורה.</p>
         <div id="scheduleGridWrap" class="table-wrap">
           <div style="color:var(--text-muted);text-align:center;padding:32px;">הגדר כיתות ומקצועות ולחץ "בנה טבלת שיבוץ"</div>
         </div>
@@ -5886,6 +5944,85 @@ function applyScheduleCellColors() {
     setScheduleCellColor(td, cell.teacher || '');
   });
 }
+
+let _teacherScheduleSummaryReturnFocus = null;
+
+function getTeacherScheduleAssignments(teacherName) {
+  const name = String(teacherName || '').trim();
+  if (!name) return [];
+  const classes = appData.scheduleConfig?.classes || [];
+  const subjects = appData.scheduleConfig?.subjects || [];
+  const assignments = [];
+
+  subjects.forEach(subject => {
+    classes.forEach(className => {
+      const cell = appData.scheduleCells?.[`${subject}__${className}`] || {};
+      if (String(cell.teacher || '').trim() === name) {
+        assignments.push({ subject, className, hours: cell.hrs ?? '' });
+      }
+    });
+  });
+  return assignments;
+}
+
+function openTeacherScheduleSummary(teacherName) {
+  const name = String(teacherName || '').trim();
+  if (!name) return;
+  const overlay = document.getElementById('teacherScheduleSummaryOverlay');
+  const title = document.getElementById('teacherScheduleSummaryTitle');
+  const totalBox = document.getElementById('teacherScheduleSummaryTotal');
+  const body = document.getElementById('teacherScheduleSummaryBody');
+  if (!overlay || !title || !totalBox || !body) return;
+
+  const assignments = getTeacherScheduleAssignments(name);
+  const totalHours = assignments.reduce((sum, row) => {
+    const hours = Number.parseFloat(row.hours);
+    return sum + (Number.isFinite(hours) ? hours : 0);
+  }, 0);
+
+  title.textContent = `שיבוצים – ${name}`;
+  totalBox.textContent = assignments.length
+    ? `${assignments.length} שיבוצים · ${totalHours.toLocaleString('he-IL', { maximumFractionDigits: 2 })} שעות שבועיות`
+    : 'לא נמצאו שיבוצים למורה זה';
+  body.innerHTML = assignments.length
+    ? assignments.map(row => `<tr>
+        <td>${esc(row.subject)}</td>
+        <td>${esc(row.className)}</td>
+        <td>${row.hours === '' || row.hours === null || row.hours === undefined ? '—' : esc(row.hours)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="3" class="teacher-summary-empty">המורה אינו משובץ כעת למקצוע או לכיתה.</td></tr>';
+
+  _teacherScheduleSummaryReturnFocus = document.activeElement;
+  overlay.style.display = 'flex';
+  document.getElementById('teacherScheduleSummaryClose')?.focus();
+}
+
+function closeTeacherScheduleSummary() {
+  const overlay = document.getElementById('teacherScheduleSummaryOverlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  overlay.style.display = 'none';
+  if (_teacherScheduleSummaryReturnFocus?.focus) _teacherScheduleSummaryReturnFocus.focus();
+  _teacherScheduleSummaryReturnFocus = null;
+}
+
+function syncScheduleTeacherControl(select) {
+  if (!select) return;
+  const control = select.closest('.sched-teacher-control');
+  const nameButton = control?.querySelector('.sched-teacher-name-btn');
+  const teacherName = String(select.value || '').trim();
+  if (nameButton) {
+    nameButton.hidden = !teacherName;
+    nameButton.textContent = teacherName;
+    nameButton.dataset.teacher = teacherName;
+    nameButton.title = teacherName ? `הצגת כל השיבוצים של ${teacherName}` : '';
+  }
+  select.classList.toggle('assigned', Boolean(teacherName));
+  select.setAttribute('aria-label', teacherName
+    ? `שינוי המורה המשובץ: ${teacherName}`
+    : 'בחירת מורה לשיבוץ');
+  select.title = teacherName ? 'שינוי המורה המשובץ' : 'בחירת מורה לשיבוץ';
+}
+
 // בונה את מקרא הצבעים מעל טבלת השיבוץ, עם עיגול צבע לכל מורה שניתן ללחוץ
 // עליו ולבחור צבע ידני, וכפתור איפוס חזרה לצבע האוטומטי
 function renderTeacherColorLegend() {
@@ -5900,7 +6037,8 @@ function renderTeacherColorLegend() {
     <span class="teacher-legend-item">
       <input type="color" value="${esc(getTeacherColor(n))}" data-teacher="${esc(n)}"
         title="בחר/י צבע עבור ${esc(n)}" onchange="onTeacherColorPick(this.dataset.teacher, this.value)">
-      <span>${esc(n)}</span>
+      <button type="button" class="teacher-legend-name teacher-summary-trigger" data-teacher="${esc(n)}"
+        title="הצגת כל השיבוצים של ${esc(n)}" onclick="openTeacherScheduleSummary(this.dataset.teacher)">${esc(n)}</button>
       <button type="button" class="teacher-legend-reset" data-teacher="${esc(n)}"
         title="איפוס לצבע אוטומטי" onclick="resetTeacherColor(this.dataset.teacher)">↺</button>
     </span>`).join('');
@@ -5956,13 +6094,21 @@ function buildScheduleGrid() {
             value="${esc(cell.hrs)}"
             data-key="${esc(key)}" data-field="hrs"
             oninput="onScheduleCellChange(this)" title="שעות שבועיות">
-          <select data-key="${esc(key)}" data-field="teacher"
-            onchange="onScheduleCellChange(this)">
-            <option value="">— מורה —</option>
-            ${teacherOpts}
-            ${!teacherOpts ? '' : ''}
-            <option value="${esc(cell.teacher)}" ${cell.teacher ? 'selected' : ''}>${cell.teacher ? esc(cell.teacher) : ''}</option>
-          </select>
+          <div class="sched-teacher-control">
+            <button type="button" class="sched-teacher-name-btn teacher-summary-trigger"
+              data-teacher="${esc(cell.teacher)}" ${cell.teacher ? '' : 'hidden'}
+              title="הצגת כל השיבוצים של ${esc(cell.teacher)}"
+              onclick="openTeacherScheduleSummary(this.dataset.teacher)">${cell.teacher ? esc(cell.teacher) : ''}</button>
+            <select class="sched-teacher-select${cell.teacher ? ' assigned' : ''}"
+              data-key="${esc(key)}" data-field="teacher"
+              aria-label="${cell.teacher ? `שינוי המורה המשובץ: ${esc(cell.teacher)}` : 'בחירת מורה לשיבוץ'}"
+              onchange="onScheduleCellChange(this)">
+              <option value="">— מורה —</option>
+              ${teacherOpts}
+              ${!teacherOpts ? '' : ''}
+              <option value="${esc(cell.teacher)}" ${cell.teacher ? 'selected' : ''}>${cell.teacher ? esc(cell.teacher) : ''}</option>
+            </select>
+          </div>
         </div>
       </td>`;
     });
@@ -6042,6 +6188,7 @@ function renderScheduleGrid() {
       teacherOpts.map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('') +
       (current && !teacherOpts.includes(current)
         ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : '');
+    syncScheduleTeacherControl(sel);
   });
 
   wrap.querySelectorAll('input[data-key]').forEach(inp => {
@@ -6078,6 +6225,7 @@ function onScheduleCellChange(el) {
   if (field === 'teacher') {
     const td = el.closest('td[data-sched-td]');
     setScheduleCellColor(td, el.value);
+    syncScheduleTeacherControl(el);
   }
   // גם שינוי שעות וגם שינוי מורה משפיעים על סנכרון סדין השעות (computeScheduleTotals מרענן אותו)
   if (field === 'hrs' || field === 'teacher') computeScheduleTotals();
@@ -8022,6 +8170,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeTeacherScheduleSummary();
+  });
+
   if (_pendingPayload) {
     _applyLoadedData(_pendingPayload);
     _pendingPayload = null;
@@ -8534,6 +8686,7 @@ Object.assign(window, {
   addAbsenceRow, removeAbsenceRow,
   onAbsenceReasonChange, onAbsenceSubChange,
   buildScheduleGrid, onScheduleCellChange,
+  openTeacherScheduleSummary, closeTeacherScheduleSummary,
   onNormHoursChange, computeScheduleTotals, onScheduleConfigFieldChange,
   onHomeroomChange,
   onTeacherColorPick, resetTeacherColor,
