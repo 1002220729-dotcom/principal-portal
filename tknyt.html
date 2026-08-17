@@ -494,6 +494,9 @@
     background:var(--primary-soft); color:var(--primary); white-space:nowrap;
   }
   .basket-alloc-badge.empty { background:#f4f6f9; color:var(--text-muted); font-weight:500; }
+  .basket-row-actions { display:flex; align-items:center; justify-content:center; gap:3px; white-space:nowrap; }
+  .basket-order-btn { font-size:0.8125rem; line-height:1; }
+  .basket-order-btn:disabled { opacity:0.25; cursor:not-allowed; }
   .hr-sync-val { font-size:0.75rem; font-weight:600; white-space:nowrap; }
   .hr-sync-val.diff-ok    { color:#0f9d58; }
   .hr-sync-val.diff-under { color:#e08c00; }
@@ -1638,6 +1641,7 @@
         <p class="text-muted" style="margin-bottom:12px;">
           הגדירו כאן את סוגי סלי השעות שהוקצו לבית הספר (למשל: תקן בסיס, שעות אמירים, סל שילוב והכלה, סל טיפוח, סל עדיפות וכד' — לפי דו"ח תקנט).
           סמנו סל אחד כ"סל בסיס" — שיבוץ מקצועות רגיל (סעיף הבא) ינוכה אוטומטית ממנו.
+          את סדר הסלים ניתן לשנות באמצעות החצים שבצד כל שורה.
         </p>
         <div class="table-wrap">
           <table class="data-table" id="basketsTable">
@@ -1649,7 +1653,7 @@
                 <th>שעות שהוקצו למורים</th>
                 <th>שעות פנויות</th>
                 <th>הערות</th>
-                <th></th>
+                <th>סדר ופעולות</th>
               </tr>
             </thead>
             <tbody id="basketsBody"></tbody>
@@ -5222,6 +5226,9 @@ function appendBasketRow(b) {
   b.id = b.id || newId();
   const tbody = document.getElementById('basketsBody');
   if (!tbody) return;
+  const basketIndex = (appData.hourBaskets || []).findIndex(item => item.id === b.id);
+  const isFirstBasket = basketIndex <= 0;
+  const isLastBasket = basketIndex === (appData.hourBaskets || []).length - 1;
   const tr = document.createElement('tr');
   tr.dataset.bid = b.id;
   tr.innerHTML = `
@@ -5234,9 +5241,46 @@ function appendBasketRow(b) {
     <td><span class="basket-used-val" id="bkUsed__${b.id}">0</span></td>
     <td><span class="basket-free-val" id="bkFree__${b.id}">0</span></td>
     <td><input class="bk_notes" value="${esc(b.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
-    <td><button class="btn-icon" onclick="removeBasketRow('${b.id}')">🗑</button></td>
+    <td>
+      <div class="basket-row-actions">
+        <button type="button" class="btn-icon basket-order-btn" data-direction="-1"
+          title="העבר את הסל למעלה" aria-label="העבר את ${esc(b.name || 'הסל')} למעלה"
+          onclick="moveBasketRow('${b.id}', -1)" ${isFirstBasket ? 'disabled' : ''}>▲</button>
+        <button type="button" class="btn-icon basket-order-btn" data-direction="1"
+          title="העבר את הסל למטה" aria-label="העבר את ${esc(b.name || 'הסל')} למטה"
+          onclick="moveBasketRow('${b.id}', 1)" ${isLastBasket ? 'disabled' : ''}>▼</button>
+        <button type="button" class="btn-icon" title="מחיקת סל" aria-label="מחיקת ${esc(b.name || 'הסל')}"
+          onclick="removeBasketRow('${b.id}')">🗑</button>
+      </div>
+    </td>
   `;
   tbody.appendChild(tr);
+}
+
+function moveArrayItem(items, fromIndex, toIndex) {
+  if (!Array.isArray(items) || fromIndex < 0 || toIndex < 0 ||
+      fromIndex >= items.length || toIndex >= items.length || fromIndex === toIndex) return false;
+  const [item] = items.splice(fromIndex, 1);
+  items.splice(toIndex, 0, item);
+  return true;
+}
+
+function moveBasketRow(bid, direction) {
+  collectBasketsFromDOM();
+  const baskets = appData.hourBaskets || [];
+  const fromIndex = baskets.findIndex(b => b.id === bid);
+  const step = Number(direction) < 0 ? -1 : 1;
+  const toIndex = fromIndex + step;
+  if (!moveArrayItem(baskets, fromIndex, toIndex)) return;
+
+  renderBasketsTable();
+  markDirty();
+
+  requestAnimationFrame(() => {
+    const movedRow = Array.from(document.querySelectorAll('#basketsBody tr[data-bid]'))
+      .find(tr => tr.dataset.bid === bid);
+    movedRow?.querySelector(`.basket-order-btn[data-direction="${step}"]`)?.focus();
+  });
 }
 
 function addBasketRow() {
@@ -8673,7 +8717,7 @@ Object.assign(window, {
   addRoleHolderRow, removeRoleHolderRow,
   addHoursRow, removeHoursRow,
   calcRowTotal, updateHoursSummary,
-  addBasketRow, removeBasketRow, addCommonBaskets,
+  addBasketRow, removeBasketRow, moveBasketRow, addCommonBaskets,
   onBasketFieldChange, onBaseBasketToggle,
   openTeacherBasketModal, closeTeacherBasketModal,
   addTeacherBasketAllocRow, removeTeacherBasketAllocRow,
