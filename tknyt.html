@@ -1640,7 +1640,7 @@
         <div class="card-title"><span class="icon">🗂️</span> סוגי סלי שעות (לפי תקנט)</div>
         <p class="text-muted" style="margin-bottom:12px;">
           הגדירו כאן את סוגי סלי השעות שהוקצו לבית הספר (למשל: תקן בסיס, שעות אמירים, סל שילוב והכלה, סל טיפוח, סל עדיפות וכד' — לפי דו"ח תקנט).
-          סמנו סל אחד כ"סל בסיס" — שיבוץ מקצועות רגיל (סעיף הבא) ינוכה אוטומטית ממנו.
+          סמנו סל אחד או יותר כמיועד להוראה פרונטלית בכיתות — שיבוץ המקצועות הרגיל (בסעיף הבא) ייספר מול סך השעות שהוקצו למורה בכל הסלים שסומנו.
           את סדר הסלים ניתן לשנות באמצעות החצים שבצד כל שורה.
         </p>
         <div class="table-wrap">
@@ -1648,7 +1648,7 @@
             <thead>
               <tr>
                 <th style="min-width:160px">שם הסל</th>
-                <th style="min-width:70px">סל בסיס</th>
+                <th style="min-width:110px">להוראה פרונטלית</th>
                 <th>סה"כ שעות בסל</th>
                 <th>שעות שהוקצו למורים</th>
                 <th>שעות פנויות</th>
@@ -1668,19 +1668,29 @@
       <!-- סיכום סל שעות -->
       <div class="card">
         <div class="card-title"><span class="icon">📊</span> סל שעות כולל</div>
-        <p class="text-muted" style="margin-bottom:12px;">מחושב אוטומטית מסיכום כל סלי השעות שהוגדרו למעלה, מול השעות שבפועל שובצו למורים בטבלה שמתחת.</p>
+        <p class="text-muted" style="margin-bottom:12px;">
+          השעות המנוצלות מהסלים כוללות שעות פרונטליות ושעות תפקיד שמקורן בסל בלבד. שעות שהייה ופרטני אינן מנוכות מסלי השעות ומסוכמות בנפרד.
+        </p>
         <div class="form-grid">
           <div class="form-group">
             <label>סה"כ שעות בסל (כל הסלים)</label>
             <input type="number" id="hrs_total" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;">
           </div>
           <div class="form-group">
-            <label>שעות מנוצלות (מחושב אוטומטית)</label>
+            <label>שעות סל מנוצלות (מחושב אוטומטית)</label>
             <input type="number" id="hrs_used" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;">
           </div>
           <div class="form-group">
             <label>שעות פנויות</label>
             <input type="number" id="hrs_free" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;color:var(--success);">
+          </div>
+          <div class="form-group">
+            <label>סה"כ שעות שהייה בבית הספר</label>
+            <input type="number" id="hrs_stay_total" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;color:var(--info);">
+          </div>
+          <div class="form-group">
+            <label>סה"כ שעות פרטניות בבית הספר</label>
+            <input type="number" id="hrs_private_total" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;color:var(--info);">
           </div>
         </div>
         <div id="hrs_summary_bar" style="margin-top:14px;"></div>
@@ -1698,6 +1708,7 @@
                 <th>שעות שהייה</th>
                 <th>שעות פרטני</th>
                 <th>שעות תפקיד / רוחב</th>
+                <th style="min-width:120px">מקור שעות התפקיד</th>
                 <th style="min-width:130px">סלי שעות</th>
                 <th>שעות קביעות</th>
                 <th>סה"כ שעות</th>
@@ -1722,7 +1733,9 @@
           <button class="btn-icon" onclick="closeTeacherBasketModal()">✖</button>
         </div>
         <div class="basket-modal-body">
-          <p class="text-muted" style="margin-bottom:10px;">ניתן לחלק את שעות המורה בין כמה סלי שעות שונים.</p>
+          <p class="text-muted" style="margin-bottom:10px;">
+            ניתן לחלק את שעות המורה בין כמה סלי שעות. יש לכלול כאן רק שעות שמקורן בסלים, ולא שעות שהייה, פרטני או שעות תפקיד שסומנו כמגיעות מהן.
+          </p>
           <table class="data-table" id="basketAllocTable">
             <thead><tr><th>סל שעות</th><th>שעות</th><th></th></tr></thead>
             <tbody id="basketAllocBody"></tbody>
@@ -1824,9 +1837,9 @@
       <div class="card">
         <div class="card-title"><span class="icon">🔄</span> סנכרון מול סדין השעות</div>
         <p class="text-muted" style="margin-bottom:12px;">
-          שיבוץ מקצועות רגיל מנוכה אוטומטית משעות ה<strong>תקן הבסיסי (הפרונטליות)</strong> של כל מורה בסדין השעות בלבד —
-          סלי שעות אחרים (אמירים, שילוב וכד') אינם מושפעים מטבלה זו. שעות <strong>תפקיד / רוחב</strong> אינן נספרות
-          כאן בשום מקרה — גם אם הן מנוכות מסל התקן הבסיסי — כי לא ניתן לשבץ אותן למקצועות הוראה בכיתה.
+          שיבוץ מקצועות רגיל נספר אוטומטית מול סך השעות שהוקצו לכל מורה בכל <strong>הסלים שסומנו להוראה פרונטלית בכיתות</strong> —
+          סלים שלא סומנו אינם מושפעים מטבלה זו. שעות <strong>תפקיד / רוחב</strong> אינן נספרות כאן בשום מקרה,
+          כי לא ניתן לשבץ אותן למקצועות הוראה בכיתה.
           הנתונים מתעדכנים אוטומטית ומוצגים גם בסדין השעות.
         </p>
         <div class="table-wrap">
@@ -1834,7 +1847,7 @@
             <thead>
               <tr>
                 <th>מורה</th>
-                <th>שעות תקן בסיס (פרונטלי)</th>
+                <th>שעות להוראה פרונטלית</th>
                 <th>שובצו במקצועות</th>
                 <th>סטטוס שיבוץ</th>
               </tr>
@@ -2791,17 +2804,13 @@ function migrateContentIfNeeded(payload) {
     b.isBase = !!b.isBase;
     b.notes  = b.notes || '';
   });
-  // ודא שיש תמיד סל בסיס אחד (הראשון), אם קיימים סלים ואף אחד לא סומן
+  // תאימות לאחור: אם קיימים סלים ואף אחד לא סומן, הסל הראשון יהיה זמין לשיבוץ בכיתות
   if (payload.hourBaskets.length > 0 && !payload.hourBaskets.some(b => b.isBase)) {
     payload.hourBaskets[0].isBase = true;
   }
-  // ודא שרק סל אחד מסומן כסל בסיס
-  let _baseSeen = false;
-  payload.hourBaskets.forEach(b => {
-    if (b.isBase) { if (_baseSeen) b.isBase = false; else _baseSeen = true; }
-  });
   // ── פירוט סלים למורים קיימים (basketAllocations): מריצים רק אחרי שסלי השעות מוכנים ──
   payload.hoursRows.forEach(r => {
+    r.roleSource = normalizeRoleSource(r.roleSource);
     if (!Array.isArray(r.basketAllocations)) r.basketAllocations = [];
     // גיבוי: אם למורה היה שדה "מקור שעות" ישן (source) ואין עדיין פירוט סלים —
     // נסה למצוא סל בשם תואם ולשייך אליו את סה"כ שעותיה
@@ -4946,7 +4955,15 @@ function appendHoursRow(r) {
     <td><input class="hr_frontal"  value="${esc(r.frontal  || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
     <td><input class="hr_stay"     value="${esc(r.stay     || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
     <td><input class="hr_private"  value="${esc(r.private  || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
-    <td><input class="hr_role"     value="${esc(r.role     || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
+    <td><input class="hr_role"     value="${esc(r.role     || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="onRoleHoursChange(this)"></td>
+    <td>
+      <select class="hr_role_source" style="min-width:115px" onchange="onRoleSourceChange(this)"
+        title="בחרו מהיכן נלקחות שעות התפקיד של המורה">
+        <option value="basket" ${normalizeRoleSource(r.roleSource) === 'basket' ? 'selected' : ''}>מסל שעות</option>
+        <option value="stay" ${normalizeRoleSource(r.roleSource) === 'stay' ? 'selected' : ''}>משעות שהייה</option>
+        <option value="private" ${normalizeRoleSource(r.roleSource) === 'private' ? 'selected' : ''}>משעות פרטני</option>
+      </select>
+    </td>
     <td>
       <div class="basket-alloc-cell">
         <span class="basket-alloc-badge" id="basketBadge__${r.id}"></span>
@@ -4972,9 +4989,35 @@ function calcRowTotal(inp) {
   if (totalEl) totalEl.value = total || '';
 }
 
+function normalizeRoleSource(value) {
+  return value === 'stay' || value === 'private' || value === 'basket' ? value : 'basket';
+}
+
+function onRoleHoursChange(inp) {
+  calcRowTotal(inp);
+  const tr = inp.closest('tr');
+  const row = (appData.hoursRows || []).find(r => r.id === tr?.dataset.rid);
+  if (row) {
+    row.role = inp.value;
+    row.total = tr?.querySelector('.hr_total')?.value || '';
+  }
+  updateHoursSummary();
+  refreshHoursScheduleSync();
+  markDirty();
+}
+
+function onRoleSourceChange(sel) {
+  const tr = sel.closest('tr');
+  const row = (appData.hoursRows || []).find(r => r.id === tr?.dataset.rid);
+  if (row) row.roleSource = normalizeRoleSource(sel.value);
+  updateHoursSummary();
+  refreshHoursScheduleSync();
+  markDirty();
+}
+
 function addHoursRow() {
   if (!appData.hoursRows) appData.hoursRows = [];
-  const r = { id: newId(), name: '', frontal: '', stay: '', private: '', role: '', source: '', tenure: '', total: '', notes: '' };
+  const r = { id: newId(), name: '', frontal: '', stay: '', private: '', role: '', roleSource: 'basket', source: '', tenure: '', total: '', notes: '', basketAllocations: [] };
   appData.hoursRows.push(r);
   appendHoursRow(r);
   markDirty();
@@ -5002,6 +5045,7 @@ function collectHoursFromDOM() {
       stay:    tr.querySelector('.hr_stay')?.value    || '',
       private: tr.querySelector('.hr_private')?.value || '',
       role:    tr.querySelector('.hr_role')?.value    || '',
+      roleSource: normalizeRoleSource(tr.querySelector('.hr_role_source')?.value),
       tenure:  tr.querySelector('.hr_tenure')?.value  || '',
       total:   tr.querySelector('.hr_total')?.value   || '',
       notes:   tr.querySelector('.hr_notes')?.value   || '',
@@ -5155,22 +5199,45 @@ function getBasketsTotalFromDOM() {
   return total;
 }
 
+function calculateHoursSummary(rows, basketTotal) {
+  const summary = {
+    total: parseFloat(basketTotal) || 0,
+    used: 0,
+    stayTotal: 0,
+    privateTotal: 0,
+  };
+  (rows || []).forEach(row => {
+    const frontal = parseFloat(row.frontal) || 0;
+    const stay = parseFloat(row.stay) || 0;
+    const privateHours = parseFloat(row.private) || 0;
+    const role = parseFloat(row.role) || 0;
+    const roleSource = normalizeRoleSource(row.roleSource);
+    summary.used += frontal + (roleSource === 'basket' ? role : 0);
+    summary.stayTotal += stay + (roleSource === 'stay' ? role : 0);
+    summary.privateTotal += privateHours + (roleSource === 'private' ? role : 0);
+  });
+  summary.free = summary.total - summary.used;
+  return summary;
+}
+
 function updateHoursSummary() {
   const total = getBasketsTotalFromDOM();
-
-  // sum used hours from table (כלל השעות שבפועל שובצו למורים, בכל הקטגוריות)
-  let used = 0;
-  document.querySelectorAll('#hoursBody tr[data-rid]').forEach(tr => {
-    const get = cls => parseFloat(tr.querySelector(cls)?.value || 0) || 0;
-    used += get('.hr_frontal') + get('.hr_stay') + get('.hr_private') + get('.hr_role');
-  });
-
-  const free = total - used;
+  const rows = Array.from(document.querySelectorAll('#hoursBody tr[data-rid]')).map(tr => ({
+    frontal: tr.querySelector('.hr_frontal')?.value || '',
+    stay: tr.querySelector('.hr_stay')?.value || '',
+    private: tr.querySelector('.hr_private')?.value || '',
+    role: tr.querySelector('.hr_role')?.value || '',
+    roleSource: tr.querySelector('.hr_role_source')?.value || 'basket',
+  }));
+  const summary = calculateHoursSummary(rows, total);
+  const { used, stayTotal, privateTotal, free } = summary;
 
   const setR = (id, v) => { const el = document.getElementById(id); if (el) el.value = v >= 0 ? v : 0; };
   setR('hrs_total', total);
   setR('hrs_used',  used);
   setR('hrs_free',  Math.max(0, free));
+  setR('hrs_stay_total', stayTotal);
+  setR('hrs_private_total', privateTotal);
 
   const freeEl = document.getElementById('hrs_free');
   if (freeEl) freeEl.style.color = free < 0 ? 'var(--accent)' : 'var(--success)';
@@ -5234,8 +5301,9 @@ function appendBasketRow(b) {
   tr.innerHTML = `
     <td><input class="bk_name" value="${esc(b.name || '')}" placeholder="לדוגמה: תקן בסיס" oninput="markDirty(); onBasketFieldChange()"></td>
     <td style="text-align:center;">
-      <input type="radio" name="baseBasketRadio" class="bk_isBase" ${b.isBase ? 'checked' : ''}
-        onchange="onBaseBasketToggle(this)" title="סמן כסל הבסיס — שיבוץ מקצועות רגיל ינוכה ממנו אוטומטית">
+      <input type="checkbox" class="bk_isBase" ${b.isBase ? 'checked' : ''}
+        onchange="onBaseBasketToggle(this)" title="כל השעות שהוקצו למורה מסל זה ייספרו כזמינות לשיבוץ בכיתות"
+        aria-label="${esc(b.name || 'הסל')} מיועד להוראה פרונטלית בכיתות">
     </td>
     <td><input class="bk_hours" type="number" min="0" value="${esc(b.hours ?? '')}" placeholder="0" style="min-width:70px" oninput="markDirty(); onBasketFieldChange()"></td>
     <td><span class="basket-used-val" id="bkUsed__${b.id}">0</span></td>
@@ -5318,7 +5386,13 @@ function removeBasketRow(bid) {
   (appData.hoursRows || []).forEach(r => {
     r.basketAllocations = (r.basketAllocations || []).filter(a => a.basketId !== bid);
   });
-  if (removed?.isBase && appData.hourBaskets.length) appData.hourBaskets[0].isBase = true;
+  if (removed?.isBase && appData.hourBaskets.length && !appData.hourBaskets.some(b => b.isBase)) {
+    appData.hourBaskets[0].isBase = true;
+    const firstBasketCheckbox = document.querySelector(
+      `#basketsBody tr[data-bid="${appData.hourBaskets[0].id}"] .bk_isBase`
+    );
+    if (firstBasketCheckbox) firstBasketCheckbox.checked = true;
+  }
   const tr = document.querySelector(`#basketsBody tr[data-bid="${bid}"]`);
   if (tr) tr.remove();
   renderHoursTable(); // רענון הבאדג'ים בטבלת המורים אחרי הסרת השיוכים
@@ -5329,7 +5403,14 @@ function removeBasketRow(bid) {
 function onBaseBasketToggle(el) {
   const tr = el.closest('tr');
   const bid = tr?.dataset.bid;
-  (appData.hourBaskets || []).forEach(b => { b.isBase = (b.id === bid); });
+  const basket = (appData.hourBaskets || []).find(b => b.id === bid);
+  if (basket) basket.isBase = !!el.checked;
+  if (!el.checked && !(appData.hourBaskets || []).some(b => b.isBase)) {
+    el.checked = true;
+    if (basket) basket.isBase = true;
+    showToast('יש להשאיר לפחות סל אחד שמיועד להוראה פרונטלית בכיתות', 'error');
+    return;
+  }
   updateBasketsSummary();
   refreshHoursScheduleSync();
   markDirty();
@@ -5426,7 +5507,7 @@ function renderBasketAllocModalRows() {
   const tbody = document.getElementById('basketAllocBody');
   if (!tbody) return;
   const basketOpts = (appData.hourBaskets || []).map(b =>
-    `<option value="${b.id}">${esc(b.name || '(ללא שם)')}${b.isBase ? ' — סל בסיס' : ''}</option>`
+    `<option value="${b.id}">${esc(b.name || '(ללא שם)')}${b.isBase ? ' — זמין לשיבוץ בכיתות' : ''}</option>`
   ).join('');
   if (!_basketModalDraft.length) {
     tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:12px;">לא הוגדרו עדיין סלים למורה זו</td></tr>`;
@@ -5513,21 +5594,24 @@ function computeTeacherScheduleTotals() {
   return map;
 }
 
-// שעות התקן הבסיסי (הפרונטליות) שהוקצו למורה מסוימת: קודם כל לפי שיוך מפורש
-// לסל הבסיס (במודאל "סלי שעות"), ואם אין — נופלים חזרה לשדה "שעות פרונטליות"
-// הכללי שלה בטבלה הראשית, כדי שהתכונה תעבוד גם בלי מילוי הסלים.
-// חשוב: שעות "תפקיד / רוחב" (row.role) אף פעם לא נספרות כאן, גם אם הן חלק
-// מהשעות שהוקצו למורה מסל התקן הבסיסי — כי אי אפשר לשבץ אותן למקצועות הוראה
-// בכיתה, ולכן הן חייבות להישאר מחוץ לתקן שמוצג במסך "שיבוץ מקצועות".
-function getTeacherBaseBasketHours(row) {
+// שעות ההוראה הפרונטלית שהוקצו למורה: סוכמים את השיוכים מכל הסלים שסומנו
+// כזמינים לשיבוץ בכיתות. אם אין למורה שיוך מפורש לסלים אלה, נופלים חזרה
+// לשדה "שעות פרונטליות" הכללי שלה, כדי לתמוך גם בנתונים קיימים.
+// שעות "תפקיד / רוחב" (row.role) מופחתות פעם אחת בלבד כאשר מקורן בסל שעות,
+// כי אז הן כלולות בהקצאת הסלים אך אי אפשר לשבץ אותן למקצועות הוראה בכיתה.
+function getTeacherFrontalBasketHours(row) {
   const roleHours = parseFloat(row.role) || 0;
-  const baseBasket = (appData.hourBaskets || []).find(b => b.isBase);
-  if (baseBasket) {
-    const alloc = (row.basketAllocations || []).find(a => a.basketId === baseBasket.id);
-    if (alloc && alloc.hours !== '' && alloc.hours !== undefined && alloc.hours !== null) {
-      const allocHours = parseFloat(alloc.hours) || 0;
-      return Math.max(0, allocHours - roleHours);
-    }
+  const basketRoleHours = normalizeRoleSource(row.roleSource) === 'basket' ? roleHours : 0;
+  const frontalBasketIds = new Set(
+    (appData.hourBaskets || []).filter(b => b.isBase).map(b => b.id)
+  );
+  const frontalAllocations = (row.basketAllocations || []).filter(a =>
+    frontalBasketIds.has(a.basketId) &&
+    a.hours !== '' && a.hours !== undefined && a.hours !== null
+  );
+  if (frontalAllocations.length) {
+    const allocatedHours = frontalAllocations.reduce((sum, alloc) => sum + (parseFloat(alloc.hours) || 0), 0);
+    return Math.max(0, allocatedHours - basketRoleHours);
   }
   return parseFloat(row.frontal) || 0;
 }
@@ -5542,7 +5626,7 @@ function refreshHoursScheduleSync() {
     const name = tr.querySelector('.hr_name')?.value || row.name || '';
     if (!name) { el.textContent = '—'; el.className = 'hr-sync-val diff-empty'; return; }
     const scheduled = scheduledMap[name] || 0;
-    const budget    = getTeacherBaseBasketHours(row);
+    const budget    = getTeacherFrontalBasketHours(row);
     if (!budget && !scheduled) {
       el.textContent = 'אין נתונים'; el.className = 'hr-sync-val diff-empty'; return;
     }
@@ -5569,7 +5653,7 @@ function renderScheduleSyncTable(scheduledMapArg) {
   }
   tbody.innerHTML = rows.map(r => {
     const scheduled = scheduledMap[r.name] || 0;
-    const budget    = getTeacherBaseBasketHours(r);
+    const budget    = getTeacherFrontalBasketHours(r);
     const remaining = budget - scheduled;
     let cls, txt;
     if (!budget && !scheduled) { cls = 'diff-empty'; txt = 'אין נתונים'; }
@@ -8716,7 +8800,7 @@ Object.assign(window, {
   renderPathwayView, updateBackgroundDataFields,
   addRoleHolderRow, removeRoleHolderRow,
   addHoursRow, removeHoursRow,
-  calcRowTotal, updateHoursSummary,
+  calcRowTotal, onRoleHoursChange, onRoleSourceChange, updateHoursSummary,
   addBasketRow, removeBasketRow, moveBasketRow, addCommonBaskets,
   onBasketFieldChange, onBaseBasketToggle,
   openTeacherBasketModal, closeTeacherBasketModal,
