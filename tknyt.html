@@ -205,6 +205,10 @@
     overflow: auto !important;
     min-width: 80px;
     max-width: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.45;
   }
   .form-group textarea { min-height: 70px; }
   .form-full { grid-column: 1 / -1; }
@@ -371,7 +375,7 @@
     background: #fff;
     outline: none;
   }
-  table.data-table textarea { min-height: 40px; }
+  table.data-table textarea { min-height: 40px; vertical-align: top; }
   .btn-icon {
     background: none;
     border: none;
@@ -4935,13 +4939,24 @@ function appendRoleHolderRow(r) {
   const tr = document.createElement('tr');
   tr.dataset.rid = r.id;
   tr.innerHTML = `
-    <td><input class="rh_role"    value="${esc(r.role    || '')}" placeholder="תפקיד"         oninput="markDirty()"></td>
-    <td><input class="rh_name"    value="${esc(r.name    || '')}" placeholder="שם מלא"         oninput="markDirty()"></td>
-    <td><input class="rh_domain"  value="${esc(r.domain  || '')}" placeholder="תחום"           oninput="markDirty()"></td>
-    <td><input class="rh_contact" value="${esc(r.contact || '')}" placeholder="טלפון / דוא&quot;ל" oninput="markDirty()"></td>
-    <td><input class="rh_notes"   value="${esc(r.notes   || '')}" placeholder="הערות"          oninput="markDirty()"></td>
+    <td><textarea rows="1" class="rh_role"    placeholder="תפקיד"         oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_name"    placeholder="שם מלא"         oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_domain"  placeholder="תחום"           oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_contact" placeholder="טלפון / דוא&quot;ל" oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_notes"   placeholder="הערות"          oninput="markDirty()"></textarea></td>
     <td><button class="btn-icon" onclick="removeRoleHolderRow('${r.id}')">🗑</button></td>
   `;
+  const values = {
+    rh_role: r.role || '',
+    rh_name: r.name || '',
+    rh_domain: r.domain || '',
+    rh_contact: r.contact || '',
+    rh_notes: r.notes || '',
+  };
+  Object.entries(values).forEach(([className, value]) => {
+    const field = tr.querySelector(`.${className}`);
+    if (field) field.value = String(value);
+  });
   document.getElementById('roleHoldersBody').appendChild(tr);
 }
 
