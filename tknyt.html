@@ -376,6 +376,19 @@
     outline: none;
   }
   table.data-table textarea { min-height: 40px; vertical-align: top; }
+  .ordered-row-actions { display:flex; align-items:center; justify-content:center; gap:3px; white-space:nowrap; }
+  .row-drag-handle {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:28px; min-height:28px; padding:3px 6px;
+    color:#98a2b0; cursor:grab; user-select:none;
+    border-radius:4px; font-size:1.15rem; line-height:1;
+  }
+  .row-drag-handle:hover, .row-drag-handle:focus-visible { color:var(--primary-light); background:var(--primary-soft); outline:none; }
+  .row-drag-handle:active { cursor:grabbing; }
+  .draggable-table-row { transition:opacity 0.12s, box-shadow 0.12s; }
+  .draggable-table-row.dragging { opacity:0.42; }
+  .draggable-table-row.drag-over-before { box-shadow:inset 0 3px 0 var(--primary-light); }
+  .draggable-table-row.drag-over-after { box-shadow:inset 0 -3px 0 var(--primary-light); }
   .btn-icon {
     background: none;
     border: none;
@@ -539,9 +552,6 @@
     background:var(--primary-soft); color:var(--primary); white-space:nowrap;
   }
   .basket-alloc-badge.empty { background:#f4f6f9; color:var(--text-muted); font-weight:500; }
-  .basket-row-actions { display:flex; align-items:center; justify-content:center; gap:3px; white-space:nowrap; }
-  .basket-order-btn { font-size:0.8125rem; line-height:1; }
-  .basket-order-btn:disabled { opacity:0.25; cursor:not-allowed; }
   .hr-sync-val { font-size:0.75rem; font-weight:600; white-space:nowrap; }
   .hr-sync-val.diff-ok    { color:#0f9d58; }
   .hr-sync-val.diff-under { color:#e08c00; }
@@ -1115,7 +1125,9 @@
         <div class="card-title"><span class="icon">🧮</span> פירוט תלמידים לפי כיתות</div>
         <p class="text-muted" style="margin-bottom:12px;">
           הוסיפו שורה לכל כיתה בבית הספר עם מספר התלמידים בה. הסכום יחושב אוטומטית וישלח לשדה "מספר תלמידים" שבמידע הכללי.
-          כיתה עם 20 תלמידים ומעלה תיספר כ"כיתה תיקנית". גם שדות "מספר תלמידים" בתיבת החנ"מ למטה נכללים בסכום הכולל.
+          בכיתות רגילות החישוב נעשה לפי שכבה: 20 תלמידים לכיתה תיקנית אחת, 40 לשתיים, 69 לשלוש,
+          ולאחר מכן כל 34 תלמידים נוספים פותחים כיתה תיקנית נוספת — עד מספר הכיתות שהוזנו בפועל.
+          גם שדות "מספר תלמידים" בתיבת החנ"מ למטה נכללים בסכום הכולל ומחושבים לפי כללי החנ"מ הנפרדים.
         </p>
         <div class="table-wrap">
           <table class="data-table" id="classCountTable">
@@ -3079,9 +3091,131 @@ function toggleHanamSection() {
 // =============================================================
 //  CLASS COUNT TABLE (מספר תלמידים לפי כיתות) + TOTALS CALCULATION
 // =============================================================
-const STANDARD_CLASS_MIN = 20;   // כיתה רגילה נספרת כתיקנית מ-20 תלמידים
+const STANDARD_FIRST_CLASS_MIN = 20;  // כיתה תיקנית ראשונה בשכבה
+const STANDARD_TWO_CLASSES_MIN = 40;  // שתי כיתות תיקניות בשכבה
+const STANDARD_THIRD_CLASS_MIN = 69;  // כיתה תיקנית שלישית בשכבה
+const STANDARD_ADDITIONAL_CLASS_STEP = 34; // מהכיתה הרביעית ואילך
 const HANAM_LL_KVCH_MIN  = 7;    // ל"ל / כו"ח נספרת כתיקנית מ-7 תלמידים
 const HANAM_TIK_MIN      = 5;    // תקשורת נספרת כתיקנית מ-5 תלמידים
+
+let activeOrderedRowDrag = null;
+
+function getOrderedRowConfig(collectionKey) {
+  const configs = {
+    classRows: {
+      rows: () => appData.classRows || [],
+      collect: collectClassRowsFromDOM,
+      render: renderClassCountRows,
+      bodySelector: '#classCountBody',
+      rowIdAttribute: 'rid',
+      afterRender: recalcTotals,
+    },
+    staffRows: {
+      rows: () => appData.staffRows || [],
+      collect: collectStaffFromDOM,
+      render: renderStaffTable,
+      bodySelector: '#staffBody',
+      rowIdAttribute: 'rid',
+    },
+    roleHolderRows: {
+      rows: () => appData.roleHolderRows || [],
+      collect: collectRoleHoldersFromDOM,
+      render: renderRoleHoldersTable,
+      bodySelector: '#roleHoldersBody',
+      rowIdAttribute: 'rid',
+    },
+    hourBaskets: {
+      rows: () => appData.hourBaskets || [],
+      collect: collectBasketsFromDOM,
+      render: renderBasketsTable,
+      bodySelector: '#basketsBody',
+      rowIdAttribute: 'bid',
+    },
+  };
+  return configs[collectionKey] || null;
+}
+
+function reorderRowsByDrop(rows, draggedId, targetId, position) {
+  if (!Array.isArray(rows) || draggedId === targetId) return false;
+  const fromIndex = rows.findIndex(row => row.id === draggedId);
+  const targetIndex = rows.findIndex(row => row.id === targetId);
+  if (fromIndex < 0 || targetIndex < 0) return false;
+
+  let insertIndex = targetIndex + (position === 'after' ? 1 : 0);
+  const [movedRow] = rows.splice(fromIndex, 1);
+  if (fromIndex < insertIndex) insertIndex -= 1;
+  rows.splice(insertIndex, 0, movedRow);
+  return insertIndex !== fromIndex;
+}
+
+function clearOrderedRowDragIndicators() {
+  document.querySelectorAll('.draggable-table-row.dragging, .draggable-table-row.drag-over-before, .draggable-table-row.drag-over-after')
+    .forEach(row => row.classList.remove('dragging', 'drag-over-before', 'drag-over-after'));
+}
+
+function startOrderedRowDrag(event, collectionKey, rid) {
+  const config = getOrderedRowConfig(collectionKey);
+  if (!config) return;
+  config.collect();
+  activeOrderedRowDrag = { collectionKey, rid };
+  event.currentTarget.closest('tr')?.classList.add('dragging');
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', rid);
+  }
+}
+
+function showOrderedRowDropPosition(event, collectionKey) {
+  if (!activeOrderedRowDrag || activeOrderedRowDrag.collectionKey !== collectionKey) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  const row = event.currentTarget;
+  document.querySelectorAll('.draggable-table-row.drag-over-before, .draggable-table-row.drag-over-after')
+    .forEach(otherRow => {
+      if (otherRow !== row) otherRow.classList.remove('drag-over-before', 'drag-over-after');
+    });
+  const position = event.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2 ? 'before' : 'after';
+  row.dataset.dropPosition = position;
+  row.classList.toggle('drag-over-before', position === 'before');
+  row.classList.toggle('drag-over-after', position === 'after');
+}
+
+function dropOrderedTableRow(event, collectionKey, targetId) {
+  event.preventDefault();
+  const drag = activeOrderedRowDrag;
+  const config = getOrderedRowConfig(collectionKey);
+  const position = event.currentTarget.dataset.dropPosition || 'before';
+  clearOrderedRowDragIndicators();
+  activeOrderedRowDrag = null;
+  if (!drag || drag.collectionKey !== collectionKey || !config) return;
+  if (!reorderRowsByDrop(config.rows(), drag.rid, targetId, position)) return;
+
+  config.render();
+  config.afterRender?.();
+  markDirty();
+
+  requestAnimationFrame(() => {
+    const movedRow = document.querySelector(
+      `${config.bodySelector} tr[data-${config.rowIdAttribute}="${drag.rid}"]`
+    );
+    movedRow?.querySelector('.row-drag-handle')?.focus();
+  });
+}
+
+function endOrderedRowDrag() {
+  clearOrderedRowDragIndicators();
+  activeOrderedRowDrag = null;
+}
+
+function setupOrderedRowDrag(tr, collectionKey, rid) {
+  tr.classList.add('draggable-table-row');
+  tr.addEventListener('dragover', event => showOrderedRowDropPosition(event, collectionKey));
+  tr.addEventListener('dragleave', () => tr.classList.remove('drag-over-before', 'drag-over-after'));
+  tr.addEventListener('drop', event => dropOrderedTableRow(event, collectionKey, rid));
+  const handle = tr.querySelector('.row-drag-handle');
+  handle?.addEventListener('dragstart', event => startOrderedRowDrag(event, collectionKey, rid));
+  handle?.addEventListener('dragend', endOrderedRowDrag);
+}
 
 function appendClassCountRow(r) {
   r.id = r.id || newId();
@@ -3090,8 +3224,12 @@ function appendClassCountRow(r) {
   tr.innerHTML = `
     <td><input class="cc_name" value="${esc(r.name||'')}" placeholder="לדוגמה: א'1" oninput="markDirty();recalcTotals();"></td>
     <td><input class="cc_students" type="number" min="0" value="${esc(r.students||'')}" placeholder="0" style="max-width:120px;" oninput="markDirty();recalcTotals();"></td>
-    <td><button class="btn-icon" onclick="removeClassCountRow('${r.id}')">🗑</button></td>
+    <td><div class="ordered-row-actions">
+      <span class="row-drag-handle" draggable="true" role="button" tabindex="0" title="גררו לשינוי סדר הכיתות" aria-label="גררו לשינוי סדר הכיתות">⠿</span>
+      <button type="button" class="btn-icon" title="מחיקת כיתה" aria-label="מחיקת כיתה" onclick="removeClassCountRow('${r.id}')">🗑</button>
+    </div></td>
   `;
+  setupOrderedRowDrag(tr, 'classRows', r.id);
   document.getElementById('classCountBody').appendChild(tr);
 }
 
@@ -3103,18 +3241,19 @@ function renderClassCountRows() {
 }
 
 function addClassCountRow() {
+  collectClassRowsFromDOM();
   const r = { id: newId(), name: '', students: '' };
   appData.classRows = appData.classRows || [];
   appData.classRows.push(r);
-  appendClassCountRow(r);
+  renderClassCountRows();
   markDirty();
   recalcTotals();
 }
 
 function removeClassCountRow(rid) {
+  collectClassRowsFromDOM();
   appData.classRows = (appData.classRows || []).filter(r => r.id !== rid);
-  const tr = document.querySelector(`#classCountBody tr[data-rid="${rid}"]`);
-  if (tr) tr.remove();
+  renderClassCountRows();
   markDirty();
   recalcTotals();
 }
@@ -3128,19 +3267,64 @@ function collectClassRowsFromDOM() {
   }));
 }
 
+function getGradeLayerKey(className, fallbackId = '') {
+  const normalized = String(className || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^(?:כיתה|שכבה)/, '')
+    .replace(/["'׳״]/g, '');
+  const gradeMatch = normalized.match(/(יב|יא|[א-י])/);
+  return gradeMatch ? gradeMatch[1] : `row:${fallbackId}`;
+}
+
+function calculateStandardClassesForGrade(totalStudents, actualClassCount) {
+  const students = Math.max(0, Number(totalStudents) || 0);
+  const classCount = Math.max(0, Math.floor(Number(actualClassCount) || 0));
+  if (!classCount || students < STANDARD_FIRST_CLASS_MIN) return 0;
+  if (students < STANDARD_TWO_CLASSES_MIN) return Math.min(classCount, 1);
+  if (students < STANDARD_THIRD_CLASS_MIN) return Math.min(classCount, 2);
+  const calculated = 3 + Math.floor((students - STANDARD_THIRD_CLASS_MIN) / STANDARD_ADDITIONAL_CLASS_STEP);
+  return Math.min(classCount, calculated);
+}
+
+function calculateRegularClassTotals(rows) {
+  const grades = new Map();
+  let totalStudents = 0;
+
+  (Array.isArray(rows) ? rows : []).forEach((row, index) => {
+    const name = String(row?.name || '').trim();
+    const parsedStudents = parseInt(row?.students, 10);
+    const hasStudentValue = !Number.isNaN(parsedStudents);
+    if (!name && !hasStudentValue) return;
+
+    const students = hasStudentValue ? Math.max(0, parsedStudents) : 0;
+    const layerKey = getGradeLayerKey(name, row?.id || index);
+    const grade = grades.get(layerKey) || { students: 0, classCount: 0 };
+    grade.students += students;
+    grade.classCount += 1;
+    grades.set(layerKey, grade);
+    totalStudents += students;
+  });
+
+  let standardClasses = 0;
+  grades.forEach(grade => {
+    standardClasses += calculateStandardClassesForGrade(grade.students, grade.classCount);
+  });
+  return { totalStudents, standardClasses };
+}
+
 // מחשב את סה"כ התלמידים ואת מספר הכיתות התיקניות, מהטבלה + מתיבת החנ"מ,
 // ומעדכן את השדות "מספר תלמידים" (אלא אם הוזנה ידנית) ו"מספר כיתות תיקניות".
 function recalcTotals() {
   // --- טבלת כיתות רגילות ---
-  let totalStudents = 0;
-  let standardClasses = 0;
-  document.querySelectorAll('#classCountBody tr[data-rid]').forEach(tr => {
-    const n = parseInt(tr.querySelector('.cc_students')?.value, 10);
-    if (!isNaN(n)) {
-      totalStudents += n;
-      if (n >= STANDARD_CLASS_MIN) standardClasses++;
-    }
-  });
+  const regularRows = Array.from(document.querySelectorAll('#classCountBody tr[data-rid]')).map(tr => ({
+    id: tr.dataset.rid,
+    name: tr.querySelector('.cc_name')?.value || '',
+    students: tr.querySelector('.cc_students')?.value || '',
+  }));
+  const regularTotals = calculateRegularClassTotals(regularRows);
+  let totalStudents = regularTotals.totalStudents;
+  let standardClasses = regularTotals.standardClasses;
 
   // --- חנ"מ ---
   const hasHanam = !!document.getElementById('gi_hasHanam')?.checked;
@@ -3890,22 +4074,28 @@ function appendStaffRow(r) {
     <td><input class="sf_name"  value="${esc(r.name||'')}"           oninput="markDirty()"></td>
     <td><input class="sf_resp"  value="${esc(r.responsibility||'')}" oninput="markDirty()"></td>
     <td><input class="sf_email" value="${esc(r.email||'')}"          oninput="markDirty()"></td>
-    <td><button class="btn-icon" onclick="removeStaffRow('${r.id}')">🗑</button></td>
+    <td><div class="ordered-row-actions">
+      <span class="row-drag-handle" draggable="true" role="button" tabindex="0" title="גררו לשינוי סדר צוות ההנהלה" aria-label="גררו לשינוי סדר צוות ההנהלה">⠿</span>
+      <button type="button" class="btn-icon" title="מחיקת חבר הנהלה" aria-label="מחיקת חבר הנהלה" onclick="removeStaffRow('${r.id}')">🗑</button>
+    </div></td>
   `;
+  setupOrderedRowDrag(tr, 'staffRows', r.id);
   document.getElementById('staffBody').appendChild(tr);
 }
 
 function addStaffRow() {
+  collectStaffFromDOM();
   const r = { id: newId(), role: '', name: '', responsibility: '', email: '' };
+  appData.staffRows = appData.staffRows || [];
   appData.staffRows.push(r);
-  appendStaffRow(r);
+  renderStaffTable();
   markDirty();
 }
 
 function removeStaffRow(rid) {
+  collectStaffFromDOM();
   appData.staffRows = appData.staffRows.filter(r => r.id !== rid);
-  const tr = document.querySelector(`#staffBody tr[data-rid="${rid}"]`);
-  if (tr) tr.remove();
+  renderStaffTable();
   markDirty();
 }
 
@@ -4944,7 +5134,10 @@ function appendRoleHolderRow(r) {
     <td><textarea rows="1" class="rh_domain"  placeholder="תחום"           oninput="markDirty()"></textarea></td>
     <td><textarea rows="1" class="rh_contact" placeholder="טלפון / דוא&quot;ל" oninput="markDirty()"></textarea></td>
     <td><textarea rows="1" class="rh_notes"   placeholder="הערות"          oninput="markDirty()"></textarea></td>
-    <td><button class="btn-icon" onclick="removeRoleHolderRow('${r.id}')">🗑</button></td>
+    <td><div class="ordered-row-actions">
+      <span class="row-drag-handle" draggable="true" role="button" tabindex="0" title="גררו לשינוי סדר בעלי התפקידים" aria-label="גררו לשינוי סדר בעלי התפקידים">⠿</span>
+      <button type="button" class="btn-icon" title="מחיקת בעל תפקיד" aria-label="מחיקת בעל תפקיד" onclick="removeRoleHolderRow('${r.id}')">🗑</button>
+    </div></td>
   `;
   const values = {
     rh_role: r.role || '',
@@ -4957,21 +5150,23 @@ function appendRoleHolderRow(r) {
     const field = tr.querySelector(`.${className}`);
     if (field) field.value = String(value);
   });
+  setupOrderedRowDrag(tr, 'roleHolderRows', r.id);
   document.getElementById('roleHoldersBody').appendChild(tr);
 }
 
 function addRoleHolderRow() {
+  collectRoleHoldersFromDOM();
   if (!appData.roleHolderRows) appData.roleHolderRows = [];
   const r = { id: newId(), role: '', name: '', domain: '', contact: '', notes: '' };
   appData.roleHolderRows.push(r);
-  appendRoleHolderRow(r);
+  renderRoleHoldersTable();
   markDirty();
 }
 
 function removeRoleHolderRow(rid) {
+  collectRoleHoldersFromDOM();
   appData.roleHolderRows = (appData.roleHolderRows || []).filter(r => r.id !== rid);
-  const tr = document.querySelector(`#roleHoldersBody tr[data-rid="${rid}"]`);
-  if (tr) tr.remove();
+  renderRoleHoldersTable();
   markDirty();
 }
 
@@ -5349,9 +5544,6 @@ function appendBasketRow(b) {
   b.id = b.id || newId();
   const tbody = document.getElementById('basketsBody');
   if (!tbody) return;
-  const basketIndex = (appData.hourBaskets || []).findIndex(item => item.id === b.id);
-  const isFirstBasket = basketIndex <= 0;
-  const isLastBasket = basketIndex === (appData.hourBaskets || []).length - 1;
   const tr = document.createElement('tr');
   tr.dataset.bid = b.id;
   tr.innerHTML = `
@@ -5366,45 +5558,16 @@ function appendBasketRow(b) {
     <td><span class="basket-free-val" id="bkFree__${b.id}">0</span></td>
     <td><input class="bk_notes" value="${esc(b.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
     <td>
-      <div class="basket-row-actions">
-        <button type="button" class="btn-icon basket-order-btn" data-direction="-1"
-          title="העבר את הסל למעלה" aria-label="העבר את ${esc(b.name || 'הסל')} למעלה"
-          onclick="moveBasketRow('${b.id}', -1)" ${isFirstBasket ? 'disabled' : ''}>▲</button>
-        <button type="button" class="btn-icon basket-order-btn" data-direction="1"
-          title="העבר את הסל למטה" aria-label="העבר את ${esc(b.name || 'הסל')} למטה"
-          onclick="moveBasketRow('${b.id}', 1)" ${isLastBasket ? 'disabled' : ''}>▼</button>
+      <div class="ordered-row-actions">
+        <span class="row-drag-handle" draggable="true" role="button" tabindex="0"
+          title="גררו לשינוי סדר סלי השעות" aria-label="גררו לשינוי סדר סלי השעות">⠿</span>
         <button type="button" class="btn-icon" title="מחיקת סל" aria-label="מחיקת ${esc(b.name || 'הסל')}"
           onclick="removeBasketRow('${b.id}')">🗑</button>
       </div>
     </td>
   `;
+  setupOrderedRowDrag(tr, 'hourBaskets', b.id);
   tbody.appendChild(tr);
-}
-
-function moveArrayItem(items, fromIndex, toIndex) {
-  if (!Array.isArray(items) || fromIndex < 0 || toIndex < 0 ||
-      fromIndex >= items.length || toIndex >= items.length || fromIndex === toIndex) return false;
-  const [item] = items.splice(fromIndex, 1);
-  items.splice(toIndex, 0, item);
-  return true;
-}
-
-function moveBasketRow(bid, direction) {
-  collectBasketsFromDOM();
-  const baskets = appData.hourBaskets || [];
-  const fromIndex = baskets.findIndex(b => b.id === bid);
-  const step = Number(direction) < 0 ? -1 : 1;
-  const toIndex = fromIndex + step;
-  if (!moveArrayItem(baskets, fromIndex, toIndex)) return;
-
-  renderBasketsTable();
-  markDirty();
-
-  requestAnimationFrame(() => {
-    const movedRow = Array.from(document.querySelectorAll('#basketsBody tr[data-bid]'))
-      .find(tr => tr.dataset.bid === bid);
-    movedRow?.querySelector(`.basket-order-btn[data-direction="${step}"]`)?.focus();
-  });
 }
 
 function addBasketRow() {
@@ -8895,7 +9058,7 @@ Object.assign(window, {
   addRoleHolderRow, removeRoleHolderRow,
   addHoursRow, removeHoursRow,
   calcRowTotal, onRoleHoursChange, onRoleSourceChange, updateHoursSummary,
-  addBasketRow, removeBasketRow, moveBasketRow, addCommonBaskets,
+  addBasketRow, removeBasketRow, addCommonBaskets,
   onBasketFieldChange, onBaseBasketToggle,
   openTeacherBasketModal, closeTeacherBasketModal,
   addTeacherBasketAllocRow, removeTeacherBasketAllocRow,
