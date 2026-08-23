@@ -381,7 +381,7 @@
     display:inline-flex; align-items:center; justify-content:center;
     min-width:28px; min-height:28px; padding:3px 6px;
     color:#98a2b0; cursor:grab; user-select:none;
-    border-radius:4px; font-size:1.15rem; line-height:1;
+    border-radius:4px; font-size:1.15rem; line-height:1; touch-action:none;
   }
   .row-drag-handle:hover, .row-drag-handle:focus-visible { color:var(--primary-light); background:var(--primary-soft); outline:none; }
   .row-drag-handle:active { cursor:grabbing; }
@@ -3153,42 +3153,67 @@ function clearOrderedRowDragIndicators() {
     .forEach(row => row.classList.remove('dragging', 'drag-over-before', 'drag-over-after'));
 }
 
-function startOrderedRowDrag(event, collectionKey, rid) {
-  const config = getOrderedRowConfig(collectionKey);
-  if (!config) return;
-  config.collect();
-  activeOrderedRowDrag = { collectionKey, rid };
-  event.currentTarget.closest('tr')?.classList.add('dragging');
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', rid);
-  }
+function getOrderedRowAtPoint(event, config, draggedId) {
+  const hit = document.elementFromPoint(event.clientX, event.clientY);
+  const row = hit?.closest(`${config.bodySelector} tr[data-${config.rowIdAttribute}]`);
+  if (!row || row.dataset[config.rowIdAttribute] === draggedId) return null;
+  return row;
 }
 
-function showOrderedRowDropPosition(event, collectionKey) {
-  if (!activeOrderedRowDrag || activeOrderedRowDrag.collectionKey !== collectionKey) return;
+function startOrderedRowDrag(event, collectionKey, rid) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  const config = getOrderedRowConfig(collectionKey);
+  if (!config) return;
+  cancelOrderedRowDrag();
+  config.collect();
+  activeOrderedRowDrag = {
+    collectionKey,
+    rid,
+    pointerId: event.pointerId,
+    handle: event.currentTarget,
+    targetId: null,
+    position: 'before',
+  };
+  event.currentTarget.closest('tr')?.classList.add('dragging');
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  document.addEventListener('pointermove', showOrderedRowDropPosition);
+  document.addEventListener('pointerup', finishOrderedRowDrag, { once: true });
+  document.addEventListener('pointercancel', cancelOrderedRowDrag, { once: true });
   event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  const row = event.currentTarget;
+}
+
+function showOrderedRowDropPosition(event) {
+  const drag = activeOrderedRowDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const config = getOrderedRowConfig(drag.collectionKey);
+  if (!config) return;
+  event.preventDefault();
   document.querySelectorAll('.draggable-table-row.drag-over-before, .draggable-table-row.drag-over-after')
-    .forEach(otherRow => {
-      if (otherRow !== row) otherRow.classList.remove('drag-over-before', 'drag-over-after');
-    });
+    .forEach(otherRow => otherRow.classList.remove('drag-over-before', 'drag-over-after'));
+  const row = getOrderedRowAtPoint(event, config, drag.rid);
+  if (!row) {
+    drag.targetId = null;
+    return;
+  }
   const position = event.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2 ? 'before' : 'after';
-  row.dataset.dropPosition = position;
+  drag.targetId = row.dataset[config.rowIdAttribute];
+  drag.position = position;
   row.classList.toggle('drag-over-before', position === 'before');
   row.classList.toggle('drag-over-after', position === 'after');
 }
 
-function dropOrderedTableRow(event, collectionKey, targetId) {
-  event.preventDefault();
+function finishOrderedRowDrag(event) {
   const drag = activeOrderedRowDrag;
-  const config = getOrderedRowConfig(collectionKey);
-  const position = event.currentTarget.dataset.dropPosition || 'before';
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  event.preventDefault();
+  const config = getOrderedRowConfig(drag.collectionKey);
+  drag.handle?.releasePointerCapture?.(drag.pointerId);
+  document.removeEventListener('pointermove', showOrderedRowDropPosition);
+  document.removeEventListener('pointercancel', cancelOrderedRowDrag);
   clearOrderedRowDragIndicators();
   activeOrderedRowDrag = null;
-  if (!drag || drag.collectionKey !== collectionKey || !config) return;
-  if (!reorderRowsByDrop(config.rows(), drag.rid, targetId, position)) return;
+  if (!config || !drag.targetId) return;
+  if (!reorderRowsByDrop(config.rows(), drag.rid, drag.targetId, drag.position)) return;
 
   config.render();
   config.afterRender?.();
@@ -3202,19 +3227,20 @@ function dropOrderedTableRow(event, collectionKey, targetId) {
   });
 }
 
-function endOrderedRowDrag() {
+function cancelOrderedRowDrag() {
+  const drag = activeOrderedRowDrag;
+  drag?.handle?.releasePointerCapture?.(drag.pointerId);
+  document.removeEventListener('pointermove', showOrderedRowDropPosition);
+  document.removeEventListener('pointerup', finishOrderedRowDrag);
+  document.removeEventListener('pointercancel', cancelOrderedRowDrag);
   clearOrderedRowDragIndicators();
   activeOrderedRowDrag = null;
 }
 
 function setupOrderedRowDrag(tr, collectionKey, rid) {
   tr.classList.add('draggable-table-row');
-  tr.addEventListener('dragover', event => showOrderedRowDropPosition(event, collectionKey));
-  tr.addEventListener('dragleave', () => tr.classList.remove('drag-over-before', 'drag-over-after'));
-  tr.addEventListener('drop', event => dropOrderedTableRow(event, collectionKey, rid));
   const handle = tr.querySelector('.row-drag-handle');
-  handle?.addEventListener('dragstart', event => startOrderedRowDrag(event, collectionKey, rid));
-  handle?.addEventListener('dragend', endOrderedRowDrag);
+  handle?.addEventListener('pointerdown', event => startOrderedRowDrag(event, collectionKey, rid));
 }
 
 function appendClassCountRow(r) {
@@ -3225,7 +3251,7 @@ function appendClassCountRow(r) {
     <td><input class="cc_name" value="${esc(r.name||'')}" placeholder="לדוגמה: א'1" oninput="markDirty();recalcTotals();"></td>
     <td><input class="cc_students" type="number" min="0" value="${esc(r.students||'')}" placeholder="0" style="max-width:120px;" oninput="markDirty();recalcTotals();"></td>
     <td><div class="ordered-row-actions">
-      <span class="row-drag-handle" draggable="true" role="button" tabindex="0" title="גררו לשינוי סדר הכיתות" aria-label="גררו לשינוי סדר הכיתות">⠿</span>
+      <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר הכיתות" aria-label="גררו לשינוי סדר הכיתות">⠿</span>
       <button type="button" class="btn-icon" title="מחיקת כיתה" aria-label="מחיקת כיתה" onclick="removeClassCountRow('${r.id}')">🗑</button>
     </div></td>
   `;
@@ -4075,7 +4101,7 @@ function appendStaffRow(r) {
     <td><input class="sf_resp"  value="${esc(r.responsibility||'')}" oninput="markDirty()"></td>
     <td><input class="sf_email" value="${esc(r.email||'')}"          oninput="markDirty()"></td>
     <td><div class="ordered-row-actions">
-      <span class="row-drag-handle" draggable="true" role="button" tabindex="0" title="גררו לשינוי סדר צוות ההנהלה" aria-label="גררו לשינוי סדר צוות ההנהלה">⠿</span>
+      <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר צוות ההנהלה" aria-label="גררו לשינוי סדר צוות ההנהלה">⠿</span>
       <button type="button" class="btn-icon" title="מחיקת חבר הנהלה" aria-label="מחיקת חבר הנהלה" onclick="removeStaffRow('${r.id}')">🗑</button>
     </div></td>
   `;
@@ -5135,7 +5161,7 @@ function appendRoleHolderRow(r) {
     <td><textarea rows="1" class="rh_contact" placeholder="טלפון / דוא&quot;ל" oninput="markDirty()"></textarea></td>
     <td><textarea rows="1" class="rh_notes"   placeholder="הערות"          oninput="markDirty()"></textarea></td>
     <td><div class="ordered-row-actions">
-      <span class="row-drag-handle" draggable="true" role="button" tabindex="0" title="גררו לשינוי סדר בעלי התפקידים" aria-label="גררו לשינוי סדר בעלי התפקידים">⠿</span>
+      <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר בעלי התפקידים" aria-label="גררו לשינוי סדר בעלי התפקידים">⠿</span>
       <button type="button" class="btn-icon" title="מחיקת בעל תפקיד" aria-label="מחיקת בעל תפקיד" onclick="removeRoleHolderRow('${r.id}')">🗑</button>
     </div></td>
   `;
@@ -5559,7 +5585,7 @@ function appendBasketRow(b) {
     <td><input class="bk_notes" value="${esc(b.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
     <td>
       <div class="ordered-row-actions">
-        <span class="row-drag-handle" draggable="true" role="button" tabindex="0"
+        <span class="row-drag-handle" role="button" tabindex="0"
           title="גררו לשינוי סדר סלי השעות" aria-label="גררו לשינוי סדר סלי השעות">⠿</span>
         <button type="button" class="btn-icon" title="מחיקת סל" aria-label="מחיקת ${esc(b.name || 'הסל')}"
           onclick="removeBasketRow('${b.id}')">🗑</button>
