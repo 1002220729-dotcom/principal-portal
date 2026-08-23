@@ -165,7 +165,43 @@
     border-color: var(--primary-light);
     box-shadow: 0 0 0 3px rgba(37,99,168,0.1);
   }
-  .form-group textarea { resize: vertical; min-height: 70px; }
+  /* שדות מלל ניתנים להרחבה: תיבות חד־שורתיות לרוחב ותיבות מרובות שורות לכל כיוון */
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"] {
+    min-width: 80px;
+    max-width: none;
+  }
+  .resizable-input-shell {
+    display: inline-block;
+    width: 100%;
+    min-width: 80px;
+    max-width: none;
+    resize: horizontal;
+    overflow: auto;
+    vertical-align: middle;
+    line-height: 0;
+  }
+  .resizable-input-shell > input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    box-sizing: border-box;
+  }
+  .resizable-input-shell::-webkit-resizer,
+  textarea::-webkit-resizer {
+    background: linear-gradient(135deg, transparent 45%, var(--primary-light) 46%, var(--primary-light) 58%, transparent 59%);
+  }
+  textarea {
+    resize: both !important;
+    overflow: auto !important;
+    min-width: 80px;
+    max-width: none;
+  }
+  .form-group textarea { min-height: 70px; }
   .form-full { grid-column: 1 / -1; }
 
   /* ===== ACCORDION ===== */
@@ -330,7 +366,7 @@
     background: #fff;
     outline: none;
   }
-  table.data-table textarea { min-height: 40px; resize: vertical; }
+  table.data-table textarea { min-height: 40px; }
   .btn-icon {
     background: none;
     border: none;
@@ -8266,6 +8302,43 @@ function printBudget() {
 }
 
 // =============================================================
+const RESIZABLE_TEXT_INPUT_SELECTOR = [
+  'input:not([type])',
+  'input[type="text"]',
+  'input[type="email"]',
+  'input[type="tel"]',
+  'input[type="url"]',
+  'input[type="search"]',
+].join(',');
+
+function enhanceResizableTextFields(root = document) {
+  const candidates = [];
+  if (root.nodeType === Node.ELEMENT_NODE && root.matches?.(RESIZABLE_TEXT_INPUT_SELECTOR)) {
+    candidates.push(root);
+  }
+  root.querySelectorAll?.(RESIZABLE_TEXT_INPUT_SELECTOR).forEach(input => candidates.push(input));
+  candidates.forEach(input => {
+    if (input.closest('.resizable-input-shell')) return;
+    const shell = document.createElement('span');
+    shell.className = 'resizable-input-shell';
+    shell.title = 'גררו את הפינה כדי להרחיב את השדה';
+    input.before(shell);
+    shell.appendChild(input);
+  });
+}
+
+function initResizableTextFields() {
+  enhanceResizableTextFields(document);
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE) enhanceResizableTextFields(node);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   buildStaticUI();
   _domReady = true;
@@ -8282,6 +8355,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const levelEl = document.getElementById('gi_level');
   if (levelEl) levelEl.addEventListener('change', updateBackgroundDataFields);
   updateBackgroundDataFields();
+  initResizableTextFields();
 
   // שיבוץ מקצועות: מאזין קבוע (delegation) על מיכל הטבלה עצמו — לא על
   // כל תא בנפרד — כדי שסה"כ השעות/הפרש מהתקן יתעדכנו תמיד בזמן אמת,
