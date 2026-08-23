@@ -165,7 +165,7 @@
     border-color: var(--primary-light);
     box-shadow: 0 0 0 3px rgba(37,99,168,0.1);
   }
-  /* שדות מלל ניתנים להרחבה: תיבות חד־שורתיות לרוחב ותיבות מרובות שורות לכל כיוון */
+  /* שדות מלל ניתנים להרחבה מהפינה לרוחב ולגובה */
   input:not([type]),
   input[type="text"],
   input[type="email"],
@@ -179,21 +179,26 @@
     display: inline-block;
     width: 100%;
     min-width: 80px;
+    min-height: 32px;
     max-width: none;
-    resize: horizontal;
+    max-height: none;
+    resize: both;
     overflow: auto;
     vertical-align: middle;
     line-height: 0;
   }
   .resizable-input-shell > input {
     width: 100% !important;
+    height: 100% !important;
     min-width: 0 !important;
+    min-height: 30px !important;
     max-width: none !important;
+    max-height: none !important;
     box-sizing: border-box;
   }
   .resizable-input-shell::-webkit-resizer,
   textarea::-webkit-resizer {
-    background: linear-gradient(135deg, transparent 45%, var(--primary-light) 46%, var(--primary-light) 58%, transparent 59%);
+    background: linear-gradient(135deg, transparent 0 62%, #a8afb8 63% 74%, transparent 75%);
   }
   textarea {
     resize: both !important;
