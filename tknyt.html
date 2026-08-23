@@ -2726,6 +2726,7 @@ function buildDefaultAppData() {
     scheduleNormHours: {},
     scheduleHomeroom: {},
     teacherColors: {},
+    fieldSizes: {},
     inventory: [],
     budget: {
       sourceConfig: {
@@ -2894,6 +2895,8 @@ function migrateContentIfNeeded(payload) {
     payload.scheduleHomeroom = {};
   if (!payload.teacherColors || typeof payload.teacherColors !== 'object')
     payload.teacherColors = {};
+  if (!payload.fieldSizes || typeof payload.fieldSizes !== 'object' || Array.isArray(payload.fieldSizes))
+    payload.fieldSizes = {};
   if (!Array.isArray(payload.inventory)) payload.inventory = [];
   payload.inventory.forEach(cat => {
     if (!Array.isArray(cat.rows)) cat.rows = [];
@@ -3861,6 +3864,7 @@ function _applyLoadedData(payload) {
   renderInventory();
   renderBudget();
   renderDefects();
+  applyAllSavedFieldSizes();
 
   const displaySchool = appData.schoolName || window.__portalSchool || '';
   const displayYear   = appData.year       || window.__portalYear   || '';
@@ -8520,6 +8524,119 @@ const RESIZABLE_TEXT_INPUT_SELECTOR = [
   'input[type="search"]',
 ].join(',');
 
+const RESIZABLE_TEXT_FIELD_SELECTOR = `${RESIZABLE_TEXT_INPUT_SELECTOR}, textarea`;
+const RESIZABLE_FIELD_MIN_WIDTH = 80;
+const RESIZABLE_FIELD_MIN_HEIGHT = 32;
+const RESIZABLE_FIELD_MAX_WIDTH = 5000;
+const RESIZABLE_FIELD_MAX_HEIGHT = 3000;
+
+function getResizableFieldToken(field) {
+  const explicit = field.dataset.resizeKey || field.name || '';
+  const classes = Array.from(field.classList || [])
+    .filter(className => className !== 'resizable-input-shell')
+    .sort()
+    .join('.');
+  return explicit || classes || field.getAttribute('placeholder') || field.tagName.toLowerCase();
+}
+
+function getResizableFieldKey(field) {
+  if (!field) return '';
+  if (field.id) return `id:${field.id}`;
+
+  let owner = field.parentElement;
+  while (owner && owner !== document.body) {
+    const dataEntries = Object.entries(owner.dataset || {})
+      .filter(([key, value]) => key !== 'resizePersistenceReady' && value !== '')
+      .sort(([left], [right]) => left.localeCompare(right));
+    if (dataEntries.length > 0) {
+      const containerId = owner.closest('[id]')?.id || field.closest('.section[id]')?.id || 'page';
+      const ownerKey = dataEntries
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&');
+      const ownerFields = Array.from(owner.querySelectorAll(RESIZABLE_TEXT_FIELD_SELECTOR));
+      const fieldIndex = Math.max(0, ownerFields.indexOf(field));
+      return `row:${encodeURIComponent(containerId)}:${ownerKey}:${encodeURIComponent(getResizableFieldToken(field))}:${fieldIndex}`;
+    }
+    owner = owner.parentElement;
+  }
+
+  const scope = field.closest('.section[id], form[id], [id]');
+  if (!scope) return '';
+  const scopeFields = Array.from(scope.querySelectorAll(RESIZABLE_TEXT_FIELD_SELECTOR));
+  const fieldIndex = Math.max(0, scopeFields.indexOf(field));
+  return `scope:${encodeURIComponent(scope.id)}:${encodeURIComponent(getResizableFieldToken(field))}:${fieldIndex}`;
+}
+
+function normalizeResizableFieldSize(size) {
+  if (!size || typeof size !== 'object') return null;
+  const width = Math.round(Number(size.width));
+  const height = Math.round(Number(size.height));
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+  return {
+    width: Math.min(RESIZABLE_FIELD_MAX_WIDTH, Math.max(RESIZABLE_FIELD_MIN_WIDTH, width)),
+    height: Math.min(RESIZABLE_FIELD_MAX_HEIGHT, Math.max(RESIZABLE_FIELD_MIN_HEIGHT, height)),
+  };
+}
+
+function applySavedResizableFieldSize(field, target) {
+  const key = getResizableFieldKey(field);
+  const size = normalizeResizableFieldSize(appData.fieldSizes?.[key]);
+  if (!key || !size) return;
+  target.style.width = `${size.width}px`;
+  target.style.height = `${size.height}px`;
+}
+
+function saveResizableFieldSize(field, target, rect = target.getBoundingClientRect()) {
+  const key = getResizableFieldKey(field);
+  const size = normalizeResizableFieldSize(rect);
+  if (!key || !size) return;
+  if (!appData.fieldSizes || typeof appData.fieldSizes !== 'object' || Array.isArray(appData.fieldSizes)) {
+    appData.fieldSizes = {};
+  }
+  const previous = normalizeResizableFieldSize(appData.fieldSizes[key]);
+  if (previous?.width === size.width && previous?.height === size.height) return;
+  appData.fieldSizes[key] = size;
+  target.style.width = `${size.width}px`;
+  target.style.height = `${size.height}px`;
+  markDirty();
+}
+
+function beginResizableFieldTracking(event, field, target) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  const pointerId = event.pointerId;
+  const startRect = target.getBoundingClientRect();
+
+  const cleanup = () => {
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+  };
+  const finish = endEvent => {
+    if (endEvent.pointerId !== pointerId) return;
+    cleanup();
+    requestAnimationFrame(() => {
+      if (!target.isConnected) return;
+      const endRect = target.getBoundingClientRect();
+      const changed = Math.abs(endRect.width - startRect.width) >= 1
+        || Math.abs(endRect.height - startRect.height) >= 1;
+      if (changed) saveResizableFieldSize(field, target, endRect);
+    });
+  };
+  const cancel = endEvent => {
+    if (endEvent.pointerId !== pointerId) return;
+    cleanup();
+  };
+
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+}
+
+function registerResizableField(field, target) {
+  applySavedResizableFieldSize(field, target);
+  if (field.dataset.resizePersistenceReady === '1') return;
+  field.dataset.resizePersistenceReady = '1';
+  target.addEventListener('pointerdown', event => beginResizableFieldTracking(event, field, target));
+}
+
 function enhanceResizableTextFields(root = document) {
   const candidates = [];
   if (root.nodeType === Node.ELEMENT_NODE && root.matches?.(RESIZABLE_TEXT_INPUT_SELECTOR)) {
@@ -8527,12 +8644,29 @@ function enhanceResizableTextFields(root = document) {
   }
   root.querySelectorAll?.(RESIZABLE_TEXT_INPUT_SELECTOR).forEach(input => candidates.push(input));
   candidates.forEach(input => {
-    if (input.closest('.resizable-input-shell')) return;
-    const shell = document.createElement('span');
-    shell.className = 'resizable-input-shell';
-    shell.title = 'גררו את הפינה כדי להרחיב את השדה';
-    input.before(shell);
-    shell.appendChild(input);
+    let shell = input.closest('.resizable-input-shell');
+    if (!shell) {
+      shell = document.createElement('span');
+      shell.className = 'resizable-input-shell';
+      shell.title = 'גררו את הפינה כדי להרחיב את השדה';
+      input.before(shell);
+      shell.appendChild(input);
+    }
+    registerResizableField(input, shell);
+  });
+
+  const textareas = [];
+  if (root.nodeType === Node.ELEMENT_NODE && root.matches?.('textarea')) textareas.push(root);
+  root.querySelectorAll?.('textarea').forEach(textarea => textareas.push(textarea));
+  textareas.forEach(textarea => registerResizableField(textarea, textarea));
+}
+
+function applyAllSavedFieldSizes() {
+  document.querySelectorAll('.resizable-input-shell > input').forEach(input => {
+    applySavedResizableFieldSize(input, input.closest('.resizable-input-shell'));
+  });
+  document.querySelectorAll('textarea').forEach(textarea => {
+    applySavedResizableFieldSize(textarea, textarea);
   });
 }
 
