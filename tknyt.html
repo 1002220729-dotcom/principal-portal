@@ -775,14 +775,45 @@
     color:transparent; cursor:pointer;
   }
   .sched-cell select.sched-teacher-select.assigned option { color:var(--text); }
-  .teacher-summary-modal { max-width:640px; }
+  .teacher-summary-modal {
+    width:min(640px, calc(100vw - 40px));
+    min-width:min(360px, calc(100vw - 24px));
+    min-height:260px;
+    max-width:calc(100vw - 24px);
+    max-height:calc(100vh - 24px);
+    resize:both;
+    overflow:hidden;
+  }
+  .teacher-summary-modal::-webkit-resizer {
+    background:linear-gradient(135deg, transparent 0 62%, #a8afb8 63% 74%, transparent 75%);
+  }
+  .teacher-summary-modal .basket-modal-header,
+  .teacher-summary-modal .basket-modal-footer { flex:0 0 auto; }
+  .teacher-summary-modal .basket-modal-body {
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+  }
+  .teacher-summary-modal .table-wrap { overflow:auto; }
+  .teacher-summary-resize-hint {
+    margin-inline-end:auto;
+    color:var(--text-muted);
+    font-size:0.6875rem;
+    font-weight:400;
+  }
   .teacher-summary-total {
     margin-bottom:12px; padding:10px 12px; border-radius:6px;
     background:var(--primary-soft); color:var(--primary); font-weight:700;
   }
   .teacher-summary-empty { text-align:center; color:var(--text-muted); padding:24px 10px !important; }
   @media (max-width: 520px) {
-    .teacher-summary-modal { max-height:92vh; }
+    .teacher-summary-modal {
+      width:calc(100vw - 16px);
+      min-width:0;
+      max-width:calc(100vw - 16px);
+      max-height:calc(100vh - 16px);
+      resize:vertical;
+    }
     .sched-table td { min-width:120px; }
   }
   .sched-subject-label { font-weight:700; color:var(--primary); font-size:0.6875rem; padding:2px 0; }
@@ -1810,8 +1841,8 @@
     <!-- חלונית סיכום שיבוצי מורה -->
     <div id="teacherScheduleSummaryOverlay" class="basket-modal-overlay" style="display:none;"
       onclick="if(event.target===this) closeTeacherScheduleSummary()">
-      <div class="basket-modal teacher-summary-modal" role="dialog" aria-modal="true"
-        aria-labelledby="teacherScheduleSummaryTitle">
+      <div id="teacherScheduleSummaryDialog" class="basket-modal teacher-summary-modal" role="dialog" aria-modal="true"
+        aria-labelledby="teacherScheduleSummaryTitle" aria-describedby="teacherScheduleSummaryResizeHint">
         <div class="basket-modal-header">
           <h3 id="teacherScheduleSummaryTitle">שיבוצי מורה</h3>
           <button id="teacherScheduleSummaryClose" type="button" class="btn-icon"
@@ -1827,6 +1858,7 @@
           </div>
         </div>
         <div class="basket-modal-footer">
+          <span id="teacherScheduleSummaryResizeHint" class="teacher-summary-resize-hint">גררו את הפינה לשינוי גודל</span>
           <button type="button" class="btn btn-save" style="background:var(--primary);color:#fff;"
             onclick="closeTeacherScheduleSummary()">סגור</button>
         </div>
