@@ -587,6 +587,13 @@
      יציבה בכל מקום שהטבלה מוצגת בו (כולל מצב פורטל, מודלים וכו') */
   #scheduleGridWrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: var(--radius); }
   .sched-table { border-collapse:collapse; font-size:0.75rem; }
+  .schedule-grid-print-actions {
+    display:flex; justify-content:flex-end; align-items:center;
+    margin:0 0 12px; gap:8px;
+  }
+  @media print {
+    .schedule-grid-print-actions { display:none !important; }
+  }
 
   /* --- כותרת עליונה דביקה (שמות הכיתות) --- */
   .sched-table thead th {
@@ -1918,6 +1925,11 @@
       <div class="card">
         <div class="card-title"><span class="icon">📋</span> טבלת שיבוץ</div>
         <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ. תא עם מורה משובץ יצבע בצבע המורה. לחצו על שם המורה להצגת כל שיבוציו; החץ שלצד השם משמש לשינוי המורה.</p>
+        <div class="schedule-grid-print-actions">
+          <button type="button" class="btn-outline-print" onclick="printScheduleGridOnly()">
+            🖨️ הדפסת הטבלה המלאה
+          </button>
+        </div>
         <div id="scheduleGridWrap" class="table-wrap">
           <div style="color:var(--text-muted);text-align:center;padding:32px;">הגדר כיתות ומקצועות ולחץ "בנה טבלת שיבוץ"</div>
         </div>
@@ -7171,6 +7183,123 @@ function preparePrintHeader(sectionId) {
 }
 
 // ─────────────────────────────────────────
+// הדפסה נקייה ומלאה של טבלת השיבוצים בלבד
+// ─────────────────────────────────────────
+function printScheduleGridOnly() {
+  const sourceTable = document.querySelector('#scheduleGridWrap .sched-table');
+  if (!sourceTable) {
+    showToast('יש לבנות תחילה את טבלת השיבוץ', 'error');
+    return;
+  }
+
+  const headerCells = Array.from(sourceTable.tHead?.rows?.[0]?.cells || []).slice(1);
+  const classes = headerCells.map(th => ({
+    name: th.querySelector('.sched-class-name')?.textContent?.trim() || '',
+    homeroom: th.querySelector('.sched-homeroom-input')?.value?.trim() || ''
+  }));
+  const sourceRows = Array.from(sourceTable.tBodies?.[0]?.rows || []);
+  if (!classes.length || !sourceRows.length) {
+    showToast('טבלת השיבוץ עדיין ריקה', 'error');
+    return;
+  }
+
+  const school = document.getElementById('schoolName')?.value || appData?.schoolName || '';
+  const year = document.getElementById('gi_year')?.value || appData?.year || '';
+  const date = new Date().toLocaleDateString('he-IL');
+  const densityClass = classes.length >= 15 ? 'extra-dense' : classes.length >= 10 ? 'dense' : '';
+
+  const headerHtml = '<tr><th class="subject-col">מקצוע</th>' + classes.map(cls =>
+    '<th><div class="class-name">' + esc(cls.name) + '</div>' +
+    (cls.homeroom ? '<div class="homeroom">מחנך/ת: ' + esc(cls.homeroom) + '</div>' : '') +
+    '</th>'
+  ).join('') + '</tr>';
+
+  const bodyHtml = sourceRows.map(row => {
+    const subject = row.cells[0]?.textContent?.trim() || '';
+    const cells = Array.from(row.cells).slice(1).map(td => {
+      const hours = td.querySelector('.hrs-input')?.value?.trim() || '';
+      const teacherSelect = td.querySelector('.sched-teacher-select');
+      const teacher = teacherSelect?.value?.trim()
+        || td.querySelector('.sched-teacher-name-btn')?.textContent?.trim()
+        || '';
+      const style = teacher
+        ? ' style="background:' + getTeacherColorTint(teacher) +
+          ';border-inline-start:3px solid ' + getTeacherColor(teacher) + ';"'
+        : '';
+      return '<td class="assignment"' + style + '>' +
+        '<span class="hours">' + (hours ? esc(hours) + ' שע׳' : '') + '</span>' +
+        '<span class="teacher' + (teacher ? '' : ' empty') + '">' +
+          (teacher ? esc(teacher) : '—') +
+        '</span></td>';
+    }).join('');
+    return '<tr><th scope="row" class="subject-col">' + esc(subject) + '</th>' + cells + '</tr>';
+  }).join('');
+
+  const footerHtml = Array.from(sourceTable.tFoot?.rows || []).map(row => {
+    const cells = Array.from(row.cells);
+    const label = cells[0]?.textContent?.trim() || '';
+    const values = cells.slice(1).map(td => {
+      const input = td.querySelector('input');
+      const value = input ? input.value.trim() : td.textContent.trim();
+      const stateClass = td.querySelector('.diff-ok') ? ' diff-ok'
+        : td.querySelector('.diff-under') ? ' diff-under'
+        : td.querySelector('.diff-over') ? ' diff-over' : '';
+      return '<td class="footer-value' + stateClass + '">' + esc(value || '—') + '</td>';
+    }).join('');
+    return '<tr><th scope="row" class="subject-col">' + esc(label) + '</th>' + values + '</tr>';
+  }).join('');
+
+  const printHtml = '<!doctype html><html lang="he" dir="rtl"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>טבלת שיבוץ מלאה</title><style>' +
+    '@page{size:landscape;margin:6mm}' +
+    '*{box-sizing:border-box}' +
+    'html,body{direction:rtl;margin:0;background:#fff;color:#17263a;font-family:Segoe UI,Arial Hebrew,Arial,sans-serif;' +
+      '-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    '.print-sheet{width:100%}' +
+    '.print-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;' +
+      'border-bottom:2px solid #1a3a5c;padding:0 0 5mm;margin:0 0 4mm}' +
+    'h1{font-size:15pt;line-height:1.2;color:#1a3a5c;margin:0}' +
+    '.meta{font-size:8pt;color:#52657b;text-align:left;white-space:nowrap}' +
+    'table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:7.5pt}' +
+    'thead{display:table-header-group}tfoot{display:table-row-group}' +
+    'tr{break-inside:avoid;page-break-inside:avoid}' +
+    'th,td{border:1px solid #b9c5d3;padding:2.2mm 1.4mm;text-align:center;vertical-align:middle;' +
+      'overflow-wrap:anywhere;word-break:break-word;line-height:1.25}' +
+    'thead th{background:#1a3a5c;color:#fff;font-weight:700}' +
+    '.subject-col{width:8%;background:#edf2f8;color:#1a3a5c;font-weight:700}' +
+    'thead .subject-col{background:#1a3a5c;color:#fff}' +
+    '.class-name{font-size:8pt;font-weight:700}.homeroom{font-size:6pt;font-weight:400;margin-top:1mm;color:#e8f0fb}' +
+    '.hours{display:block;min-height:1em;text-align:left;direction:rtl;font-weight:700;font-size:6.5pt}' +
+    '.teacher{display:block;margin-top:.5mm}.teacher.empty{color:#7d8997}' +
+    'tfoot th,tfoot td{background:#eef2f7;font-weight:700;border-top:1.5px solid #1a3a5c}' +
+    '.diff-ok{color:#0b7a42}.diff-under{color:#a96000}.diff-over{color:#b42318}' +
+    'table.dense{font-size:6pt}table.dense th,table.dense td{padding:1.3mm .7mm}' +
+    'table.dense .class-name{font-size:6.5pt}table.dense .homeroom,table.dense .hours{font-size:5.2pt}' +
+    'table.extra-dense{font-size:5pt}table.extra-dense th,table.extra-dense td{padding:1mm .45mm}' +
+    'table.extra-dense .class-name{font-size:5.5pt}table.extra-dense .homeroom,table.extra-dense .hours{font-size:4.6pt}' +
+    '@media screen{body{padding:10mm;background:#eef2f7}.print-sheet{background:#fff;padding:8mm;' +
+      'box-shadow:0 3px 18px rgba(0,0,0,.15)}}' +
+    '</style></head><body><main class="print-sheet">' +
+    '<div class="print-heading"><div><h1>טבלת שיבוץ מקצועות לכיתות</h1>' +
+      '<div>' + esc(school) + (year ? ' | שנה״ל ' + esc(year) : '') + '</div></div>' +
+      '<div class="meta">תאריך הפקה: ' + esc(date) + '<br>הטבלה כוללת את כל הכיתות והמקצועות</div></div>' +
+    '<table class="' + densityClass + '"><thead>' + headerHtml + '</thead><tbody>' + bodyHtml +
+      '</tbody>' + (footerHtml ? '<tfoot>' + footerHtml + '</tfoot>' : '') + '</table>' +
+    '</main></body></html>';
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    showToast('לא ניתן לפתוח חלון הדפסה — אנא אפשר חלונות קופצים בדפדפן', 'error');
+    return;
+  }
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
+// ─────────────────────────────────────────
 // printSection — מנגנון הדפסה מרכזי
 // ─────────────────────────────────────────
 function printSection() {
@@ -9285,7 +9414,7 @@ Object.assign(window, {
   collectDefectsFromDOM, updateDefectsSummary,
   filterDefects, exportDefectsCSV,
   // Unified print/CSV system
-  preparePrintHeader, printSection, exportSectionCSV,
+  preparePrintHeader, printSection, printScheduleGridOnly, exportSectionCSV,
   exportDefectsWord, exportDefectsExcel,
   exportInventoryWord, exportInventoryExcel,
 });
