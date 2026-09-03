@@ -7541,6 +7541,46 @@ function _budgetTypeBadge(bt) {
   return `<span class="btype-badge ${cls}">${_BUDGET_TYPE_LABELS[bt || '']}</span>`;
 }
 
+function _budgetAllocationOptionLabel(alloc) {
+  const name = alloc?.name || '(ללא שם)';
+  const source = _BUDGET_SRC_LABELS[alloc?.source] || 'כללי';
+  const budgetType = _BUDGET_TYPE_LABELS[alloc?.budgetType || ''];
+  return `${name} · ${source} · ${budgetType}`;
+}
+
+function _getBudgetAllocationById(id) {
+  if (!id) return null;
+  const row = Array.from(document.querySelectorAll('#budgetAllocBody tr[data-aid]'))
+    .find(tr => tr.dataset.aid === id);
+  if (row) {
+    return {
+      id,
+      name:       row.querySelector('.bal-name')?.value   || '',
+      source:     row.querySelector('.bal-source')?.value || '',
+      budgetType: row.querySelector('.bal-btype')?.value  || ''
+    };
+  }
+  return (appData.budget?.allocations || []).find(a => a.id === id) || null;
+}
+
+function _syncBudgetTxMetaValues(tx, alloc) {
+  if (!alloc) return {
+    source: tx?.source || 'parents',
+    budgetType: tx?.budgetType || ''
+  };
+  return {
+    // ייעוד כללי ללא מקור נשאר זמין לכל מקור; ייעוד בעל מקור הוא מקור האמת.
+    source: alloc.source || tx?.source || 'parents',
+    budgetType: alloc.budgetType || ''
+  };
+}
+
+function _budgetTxMatchesAllocation(source, budgetType, alloc) {
+  if (!alloc) return true;
+  const sourceMatches = !alloc.source || source === alloc.source;
+  return sourceMatches && (budgetType || '') === (alloc.budgetType || '');
+}
+
 // קורא את מצב התקציב הנוכחי (תנועות, ייעודים, מבנה מקורות) ישירות מה-DOM החי,
 // עם נפילה חזרה ל-appData כשה-DOM עדיין לא נטען (render ראשוני)
 function _getLiveBudgetData() {
@@ -7603,6 +7643,11 @@ function renderBudget() {
   renderBudgetTransactions();   // calls refreshBudgetComputedViews() internally
   renderBudgetAllocations();
   updateBudgetAllocDropdown();
+  const repairedLinks = syncBudgetLinkedTransactions();
+  if (repairedLinks) {
+    markDirty();
+    showToast(`סונכרנו ${repairedLinks} תנועות לייעודי התקציב שלהן — יש לשמור לקיבוע`, 'info');
+  }
   refreshBudgetComputedViews(); // ensure charts/KPI reflect final combined state
 }
 
@@ -7644,8 +7689,8 @@ function appendBudgetTxRow(tx) {
          placeholder="תיאור..." style="min-width:120px" oninput="markDirty()"></td>
     <td><select class="btx-type" onchange="onBudgetTxTypeChange(this); markDirty()">
          ${typeOpts}</select></td>
-    <td><select class="btx-source" onchange="refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
-    <td><select class="btx-btype" onchange="refreshBudgetComputedViews(); markDirty()">${btypeOpts}</select></td>
+    <td><select class="btx-source" onchange="onBudgetTxMetaChange(this); markDirty()">${srcOpts}</select></td>
+    <td><select class="btx-btype" onchange="onBudgetTxMetaChange(this); markDirty()">${btypeOpts}</select></td>
     <td><select class="btx-alloc" onchange="onBudgetTxAllocChange(this); markDirty()">
          ${allocOpts}</select></td>
     <td><input type="number" class="btx-amount" value="${tx.amount||0}" min="0" step="0.01"
@@ -7675,7 +7720,7 @@ function _buildAllocOptions(selectedId) {
 
   let html = `<option value="">— ללא ייעוד —</option>`;
   allocs.forEach(a => {
-    html += `<option value="${esc(a.id)}" data-btype="${esc(a.budgetType||'')}" data-src="${esc(a.source||'')}"${a.id === selectedId ? ' selected' : ''}>${esc(a.name || '(ללא שם)')}</option>`;
+    html += `<option value="${esc(a.id)}" data-btype="${esc(a.budgetType||'')}" data-src="${esc(a.source||'')}"${a.id === selectedId ? ' selected' : ''}>${esc(_budgetAllocationOptionLabel(a))}</option>`;
   });
   return html;
 }
@@ -7694,14 +7739,32 @@ function onBudgetTxTypeChange(sel) {
 // המקור התקציבי מהייעוד שנבחר, כדי לשמור על עקביות (ניתן עדיין לשנות ידנית לאחר מכן)
 function onBudgetTxAllocChange(sel) {
   const tr = sel.closest('tr');
-  const opt = sel.selectedOptions && sel.selectedOptions[0];
-  if (tr && opt && opt.value) {
-    const bt  = opt.dataset.btype || '';
-    const src = opt.dataset.src   || '';
+  const alloc = _getBudgetAllocationById(sel.value);
+  if (tr && alloc) {
+    const synced = _syncBudgetTxMetaValues({
+      source: tr.querySelector('.btx-source')?.value || '',
+      budgetType: tr.querySelector('.btx-btype')?.value || ''
+    }, alloc);
     const btypeSel = tr.querySelector('.btx-btype');
     const srcSel   = tr.querySelector('.btx-source');
-    if (btypeSel && bt)  btypeSel.value = bt;
-    if (srcSel   && src) srcSel.value   = src;
+    if (btypeSel) btypeSel.value = synced.budgetType;
+    if (srcSel)   srcSel.value   = synced.source;
+  }
+  refreshBudgetComputedViews();
+}
+
+// אם משנים ידנית את המקור או סוג התקציב של תנועה משויכת, מנתקים ייעוד
+// שאינו תואם. כך לא נשמרת תנועה "גמישה" בתוך ייעוד "קבוע" (או להפך).
+function onBudgetTxMetaChange(sel) {
+  const tr = sel.closest('tr');
+  if (!tr) return;
+  const allocSel = tr.querySelector('.btx-alloc');
+  const alloc = _getBudgetAllocationById(allocSel?.value || '');
+  const source = tr.querySelector('.btx-source')?.value || '';
+  const budgetType = tr.querySelector('.btx-btype')?.value || '';
+  if (allocSel?.value && !_budgetTxMatchesAllocation(source, budgetType, alloc)) {
+    allocSel.value = '';
+    showToast('הייעוד נותק מהתנועה משום שמקור או סוג התקציב שונו', 'info');
   }
   refreshBudgetComputedViews();
 }
@@ -7877,8 +7940,8 @@ function appendBudgetAllocRow(alloc) {
     <td><input type="text" class="bal-name" value="${esc(alloc.name||'')}"
          placeholder="שם ייעוד..." style="min-width:140px"
          oninput="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()"></td>
-    <td><select class="bal-source" onchange="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
-    <td><select class="bal-btype" onchange="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${btypeOpts}</select></td>
+    <td><select class="bal-source" onchange="onBudgetAllocationMetaChange(this); markDirty()">${srcOpts}</select></td>
+    <td><select class="bal-btype" onchange="onBudgetAllocationMetaChange(this); markDirty()">${btypeOpts}</select></td>
     <td><input type="number" class="bal-planned" value="${alloc.planned||0}" min="0" step="0.01"
          style="width:90px;direction:ltr;text-align:left"
          oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
@@ -7937,6 +8000,50 @@ function refreshAllocActuals() {
     }
     if (lbl) lbl.textContent = Math.round(pct) + '%';
   });
+}
+
+function syncBudgetLinkedTransactions(allocationId = '') {
+  let changed = 0;
+  document.querySelectorAll('#budgetTxBody tr[data-rid]').forEach(tr => {
+    const allocSel = tr.querySelector('.btx-alloc');
+    const aid = allocSel?.value || '';
+    if (!aid || (allocationId && aid !== allocationId)) return;
+    const alloc = _getBudgetAllocationById(aid);
+    if (!alloc) return;
+    const sourceSel = tr.querySelector('.btx-source');
+    const btypeSel = tr.querySelector('.btx-btype');
+    const synced = _syncBudgetTxMetaValues({
+      source: sourceSel?.value || '',
+      budgetType: btypeSel?.value || ''
+    }, alloc);
+    let rowChanged = false;
+    if (sourceSel && sourceSel.value !== synced.source) {
+      sourceSel.value = synced.source;
+      rowChanged = true;
+    }
+    if (btypeSel && btypeSel.value !== synced.budgetType) {
+      btypeSel.value = synced.budgetType;
+      rowChanged = true;
+    }
+    if (rowChanged) {
+      changed += 1;
+      const tx = (appData.budget?.transactions || []).find(t => t.id === tr.dataset.rid);
+      if (tx) {
+        tx.source = synced.source;
+        tx.budgetType = synced.budgetType;
+      }
+    }
+  });
+  return changed;
+}
+
+// שינוי מקור/סוג בתוך ייעוד מעדכן מיד את כל התנועות שכבר משויכות אליו.
+function onBudgetAllocationMetaChange(sel) {
+  const tr = sel.closest('tr');
+  const aid = tr?.dataset.aid || '';
+  updateBudgetAllocDropdown();
+  syncBudgetLinkedTransactions(aid);
+  refreshBudgetComputedViews();
 }
 
 // ── Collect from DOM ──────────────────────────────────────────
@@ -8051,8 +8158,10 @@ function updateBudgetAllocDropdown() {
   const domAllocs = Array.from(
     document.querySelectorAll('#budgetAllocBody tr[data-aid]')
   ).map(tr => ({
-    id:   tr.dataset.aid,
-    name: tr.querySelector('.bal-name')?.value || ''
+    id:         tr.dataset.aid,
+    name:       tr.querySelector('.bal-name')?.value || '',
+    source:     tr.querySelector('.bal-source')?.value || '',
+    budgetType: tr.querySelector('.bal-btype')?.value || ''
   }));
   // גיבוי ל-appData אם DOM ריק
   const source = domAllocs.length ? domAllocs : (appData.budget?.allocations || []);
@@ -8072,7 +8181,7 @@ function updateBudgetAllocDropdown() {
     source.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a.id;
-      opt.textContent = a.name || '(ללא שם)';
+      opt.textContent = _budgetAllocationOptionLabel(a);
       if (a.id === cur) opt.selected = true;
       filterSel.appendChild(opt);
     });
@@ -9404,7 +9513,8 @@ Object.assign(window, {
   // Budget module
   addBudgetTransaction, addBudgetAllocation,
   removeBudgetTx, removeBudgetAlloc,
-  onBudgetTxTypeChange, onBudgetTxAllocChange, switchBudgetTab,
+  onBudgetTxTypeChange, onBudgetTxAllocChange, onBudgetTxMetaChange,
+  onBudgetAllocationMetaChange, switchBudgetTab,
   filterBudgetTx, exportBudgetCSV, printBudget,
   refreshBudgetTotals, refreshAllocActuals,
   updateBudgetAllocDropdown, refreshBudgetComputedViews,
