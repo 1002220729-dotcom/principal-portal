@@ -823,6 +823,136 @@
     }
     .sched-table td { min-width:120px; }
   }
+
+  /* ===== MOBILE LAYOUT =====
+     The planning file is also opened directly, so it needs its own responsive
+     shell in addition to the parent portal's mobile navigation. Dense tables
+     stay horizontally scrollable; forms, cards and controls use the full phone
+     width and retain practical touch targets. */
+  @media (max-width: 767px) {
+    html, body { max-width:100%; overflow-x:hidden; }
+
+    #saveBar {
+      position:relative;
+      padding:8px;
+      gap:6px;
+      align-items:stretch;
+    }
+    #saveBar h1 { flex:1 1 100%; font-size:.95rem; line-height:1.35; }
+    #saveBar .badge { display:none; }
+    #saveStatus { min-width:0; flex:1 1 100%; text-align:right; }
+    #saveBar .btn { min-height:44px; padding:8px 12px; flex:1 1 auto; }
+
+    #appShell { display:block; min-height:0; width:100%; }
+    #sideNav {
+      position:relative;
+      top:auto;
+      width:100%;
+      min-width:0;
+      height:auto;
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      gap:2px;
+      padding:0 4px;
+      overflow-x:auto;
+      overflow-y:hidden;
+      overscroll-behavior-inline:contain;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:thin;
+    }
+    #sideNav .nav-section { display:none; }
+    #sideNav .nav-item {
+      flex:0 0 auto;
+      width:auto;
+      min-height:44px;
+      padding:9px 12px;
+      white-space:nowrap;
+      border-inline-start:0;
+      border-bottom:3px solid transparent;
+    }
+    #sideNav .nav-item.active { border-bottom-color:#7ec8e3; }
+
+    #mainContent,
+    body.in-portal #mainContent {
+      width:100%;
+      min-width:0;
+      padding:10px;
+      overflow-x:hidden;
+    }
+    body.in-portal #appShell { min-height:100%; }
+
+    .section-title {
+      font-size:1.08rem;
+      line-height:1.35;
+      margin-bottom:12px;
+      padding-bottom:8px;
+      flex-wrap:wrap;
+    }
+    .section-title .icon { font-size:1.15rem; }
+    .card { padding:12px; margin-bottom:14px; }
+    .card-title { margin-bottom:10px; }
+    .form-grid { grid-template-columns:minmax(0,1fr); gap:10px; }
+    .form-full { grid-column:auto; }
+    .dashboard-grid { grid-template-columns:minmax(0,1fr); gap:10px; margin-bottom:14px; }
+    .dashboard-charts-grid { grid-template-columns:minmax(0,1fr); gap:10px; }
+
+    .table-wrap,
+    #scheduleGridWrap {
+      display:block;
+      width:100%;
+      max-width:100%;
+      overflow:auto;
+      overscroll-behavior-inline:contain;
+      -webkit-overflow-scrolling:touch;
+    }
+    table.data-table { width:max-content; min-width:100%; }
+    table.data-table th,
+    table.data-table td { padding:7px 8px; }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea,
+    table.data-table input,
+    table.data-table select,
+    table.data-table textarea {
+      font-size:16px;
+    }
+    textarea {
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      resize:vertical !important;
+    }
+    .resizable-input-shell {
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      resize:vertical;
+    }
+    .accordion-header,
+    .add-row-btn,
+    .arena-tab,
+    .quarter-tab { min-height:44px; }
+    .row-drag-handle,
+    .btn-icon { min-width:40px; min-height:40px; }
+    .arena-tabs,
+    .quarter-tabs { gap:8px; }
+
+    .basket-modal-overlay { padding:8px; }
+    .basket-modal {
+      width:100%;
+      max-width:none;
+      max-height:calc(100dvh - 16px);
+    }
+    .basket-modal-header,
+    .basket-modal-body,
+    .basket-modal-footer { padding:12px; }
+    .basket-modal-footer { flex-wrap:wrap; }
+    .basket-modal-footer .btn { min-height:44px; flex:1 1 auto; }
+
+    #toast { left:10px; right:10px; bottom:10px; text-align:center; }
+  }
   .sched-subject-label { font-weight:700; color:var(--primary); font-size:0.6875rem; padding:2px 0; }
 
   .sched-table tfoot td, .sched-table tfoot th { border-top:2px solid var(--primary); }

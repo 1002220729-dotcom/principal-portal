@@ -9,6 +9,9 @@
 <title>פורטל ניהול בית ספר</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#1a3a5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="נעם רז">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -100,6 +103,30 @@ body{
   cursor:pointer;transition:background .15s;margin-bottom:10px;
 }
 .login-submit-btn:hover{background:#015e63;}
+.login-install-btn{
+  display:none;width:100%;min-height:44px;margin-top:12px;padding:10px 14px;
+  border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;color:var(--primary);
+  font-family:var(--font);font-size:.88rem;font-weight:700;cursor:pointer;
+}
+.login-install-btn.show{display:block;}
+.login-install-btn:hover{background:#f8fafc;border-color:var(--teal);color:var(--teal);}
+
+/* PWA installation instructions (used on iPhone/iPad and as a safe fallback). */
+.pwa-help-overlay{
+  position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.62);
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.pwa-help-card{
+  width:min(390px,100%);max-height:calc(100dvh - 32px);overflow:auto;
+  background:#fff;border-radius:18px;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+  text-align:right;color:#1e293b;
+}
+.pwa-help-title{font-size:1.15rem;font-weight:800;color:var(--primary);margin-bottom:10px;text-align:center;}
+.pwa-help-text{font-size:.9rem;line-height:1.75;color:#475569;margin-bottom:18px;}
+.pwa-help-close{
+  width:100%;min-height:44px;border:0;border-radius:9px;background:var(--teal);color:#fff;
+  font-family:var(--font);font-size:.93rem;font-weight:700;cursor:pointer;
+}
 
 /* Change password modal */
 .chpwd-overlay{
@@ -450,7 +477,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 @media(max-width:767px){
 
   /* Show hamburger */
-  #menuToggleBtn{display:flex;align-items:center;justify-content:center;}
+  #menuToggleBtn{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;}
 
   /* Compact header */
   #portalHeader{gap:6px;padding:0 10px;}
@@ -461,8 +488,17 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
   #userName{display:none;}                   /* keep avatar, hide name */
   #userRoleLabel{display:none;}
   #userBadge{padding:3px 6px;gap:4px;}
-  .btn-logout{font-size:0.65rem;padding:3px 7px;}
-  #headerSaveBtn{font-size:0.65rem;padding:3px 8px;}
+  .btn-logout{font-size:0.68rem;padding:4px 8px;min-height:36px;}
+  #headerSaveBtn{font-size:0.68rem;padding:4px 9px;min-height:36px;}
+  #pwaInstallBtn{font-size:0.68rem;padding:4px 9px;min-height:36px;}
+  .login-card{width:calc(100% - 32px);padding:32px 22px;max-height:calc(100dvh - 32px);overflow:auto;}
+  .login-role-btn,.login-method-tab,.login-back{min-height:44px;}
+  .login-input-field,.chpwd-input,.sa-add-input{font-size:16px;}
+  .chpwd-overlay,.sup-modal-overlay{padding:10px;}
+  .chpwd-card{width:100%;padding:28px 20px;max-height:calc(100dvh - 20px);overflow:auto;}
+  .sup-modal{max-height:calc(100dvh - 20px);border-radius:12px;}
+  .sup-modal-header,.sup-modal-body{padding:14px 12px;}
+  .sa-table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
   /* Sidebar: hidden by default, slides in as overlay */
   #sideNav{
@@ -537,6 +573,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     </div>
 
     <div id="loginError"></div>
+    <button type="button" id="loginPwaInstallBtn" class="login-install-btn" onclick="handlePwaInstallClick()">⬇️ התקנת האפליקציה בטלפון</button>
   </div>
 </div>
 
@@ -843,7 +880,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
               <input class="sa-add-input" id="saNewRole" placeholder="תפקיד">
             </div>
             <div class="sa-row">
-              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 8 תווים)" type="password" autocomplete="new-password">
+              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 12 תווים)" type="password" autocomplete="new-password" minlength="12" aria-describedby="saAddError">
               <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:#475569;white-space:nowrap;">
                 <input type="checkbox" id="saNewMustChange" checked> דרוש החלפה בכניסה ראשונה
               </label>
@@ -891,11 +928,20 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div class="chpwd-title" id="chpwdTitle">החלפת סיסמא</div>
     <div class="chpwd-sub" id="chpwdSub">הזן/י את הסיסמא הנוכחית והחדשה</div>
     <input type="password" id="chpwdCurrent" class="chpwd-input" placeholder="סיסמא נוכחית" autocomplete="current-password">
-    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
-    <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password">
-    <div id="chpwdError" class="chpwd-err"></div>
+    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password" minlength="12" aria-describedby="chpwdError">
+    <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password" minlength="12" aria-describedby="chpwdError">
+    <div id="chpwdError" class="chpwd-err" role="alert" aria-live="polite"></div>
     <button class="chpwd-btn" onclick="submitPasswordChange()">שמור סיסמא חדשה</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" id="chpwdCancelBtn" onclick="document.getElementById('changePasswordModal').style.display='none'">ביטול</button>
+  </div>
+</div>
+
+<!-- INSTALLATION HELP MODAL -->
+<div id="pwaInstallHelp" class="pwa-help-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pwaHelpTitle" onclick="if(event.target===this)closePwaInstallHelp()">
+  <div class="pwa-help-card">
+    <div class="pwa-help-title" id="pwaHelpTitle">התקנת האפליקציה בטלפון</div>
+    <div class="pwa-help-text" id="pwaHelpText"></div>
+    <button type="button" class="pwa-help-close" onclick="closePwaInstallHelp()">הבנתי</button>
   </div>
 </div>
 
@@ -3422,30 +3468,62 @@ function isRunningStandalone() {
     || window.navigator.standalone === true; // iOS Safari
 }
 
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function setPwaInstallButtonsVisible(visible) {
+  ['pwaInstallBtn', 'loginPwaInstallBtn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('show', visible && !isRunningStandalone());
+  });
+}
+
+function openPwaInstallHelp() {
+  const modal = document.getElementById('pwaInstallHelp');
+  const text = document.getElementById('pwaHelpText');
+  if (!modal || !text) return;
+  text.innerHTML = isIosDevice()
+    ? 'פתח/י את האתר ב־Safari, לחצ/י על כפתור <strong>שיתוף</strong> ובחר/י <strong>הוספה למסך הבית</strong>. לאחר מכן אשר/י את ההוספה.'
+    : 'פתח/י את תפריט הדפדפן ובחר/י <strong>התקנת אפליקציה</strong> או <strong>הוספה למסך הבית</strong>.';
+  modal.style.display = 'flex';
+  modal.querySelector('button')?.focus();
+}
+
+function closePwaInstallHelp() {
+  const modal = document.getElementById('pwaInstallHelp');
+  if (modal) modal.style.display = 'none';
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  if (!isRunningStandalone()) {
-    const btn = document.getElementById('pwaInstallBtn');
-    if (btn) btn.classList.add('show');
-  }
+  setPwaInstallButtonsVisible(true);
 });
 
 function handlePwaInstallClick() {
-  const btn = document.getElementById('pwaInstallBtn');
-  if (!deferredInstallPrompt) return;
+  if (!deferredInstallPrompt) {
+    openPwaInstallHelp();
+    return;
+  }
   deferredInstallPrompt.prompt();
   deferredInstallPrompt.userChoice.finally(() => {
     deferredInstallPrompt = null;
-    if (btn) btn.classList.remove('show');
+    setPwaInstallButtonsVisible(false);
   });
 }
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
-  const btn = document.getElementById('pwaInstallBtn');
-  if (btn) btn.classList.remove('show');
+  setPwaInstallButtonsVisible(false);
 });
+
+// iOS does not fire beforeinstallprompt. On every phone-sized screen we keep a
+// manual path visible as well, so installation never depends on a silent event.
+if ((isIosDevice() || window.matchMedia('(max-width: 767px)').matches) && !isRunningStandalone()) {
+  setPwaInstallButtonsVisible(true);
+}
 </script>
 </body>
 </html>
