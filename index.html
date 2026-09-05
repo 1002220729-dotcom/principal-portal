@@ -1173,6 +1173,55 @@ async function authFetch(url, options = {}) {
 let _pendingRole = null;
 let _staffLoginUsername = null; // for password change flow
 let _pendingPasswordChangeToken = null; // restricted session; kept in memory only
+let _googleIdentityInitialized = false;
+
+// Google recommends initializing Identity Services only once per page.  More
+// importantly for the installed Android app, FedCM keeps the account chooser
+// inside the browser-managed sign-in flow instead of depending on a popup
+// window being able to call back into the standalone PWA window.
+function initializeGoogleIdentity() {
+  if (_googleIdentityInitialized) return true;
+  if (!window.google || !google.accounts?.id) return false;
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    use_fedcm_for_button: true,
+    button_auto_select: false,
+  });
+  _googleIdentityInitialized = true;
+  return true;
+}
+
+function resetGoogleButton(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  delete container.dataset.googleButtonRendered;
+}
+
+function renderGoogleLoginButton(container, attempt = 0) {
+  if (!container || container.dataset.googleButtonRendered === 'true') return;
+
+  if (!initializeGoogleIdentity()) {
+    if (attempt < 20) {
+      container.textContent = 'טוען כניסה באמצעות Google...';
+      setTimeout(() => renderGoogleLoginButton(container, attempt + 1), 250);
+    } else {
+      container.innerHTML = '<div style="color:#dc2626;font-size:0.84rem;">לא הצלחנו לטעון את הכניסה באמצעות Google. בדוק/י חיבור לאינטרנט ונסה/י שוב.</div>';
+    }
+    return;
+  }
+
+  resetGoogleButton(container);
+  google.accounts.id.renderButton(container, {
+    theme: 'outline',
+    size: 'large',
+    locale: 'he',
+    width: 290,
+  });
+  container.dataset.googleButtonRendered = 'true';
+}
 
 function switchLoginMethod(method, btn) {
   document.querySelectorAll('.login-method-tab').forEach(b => b.classList.remove('active'));
@@ -1181,11 +1230,8 @@ function switchLoginMethod(method, btn) {
   document.getElementById('loginGoogleBtnAlt').style.display = isPassword ? 'none' : '';
   document.getElementById('loginPasswordForm').style.display  = isPassword ? '' : 'none';
   if (!isPassword) {
-    // Re-render Google button in alt container if needed
     const container = document.getElementById('loginGoogleBtnAlt');
-    if (!container.innerHTML.trim() && window.google && google.accounts) {
-      google.accounts.id.renderButton(container, { theme:'outline', size:'large', locale:'he', width:290 });
-    }
+    renderGoogleLoginButton(container);
   } else {
     setTimeout(() => document.getElementById('loginUsername')?.focus(), 80);
   }
@@ -1376,15 +1422,15 @@ function selectRole(role, btn) {
   document.getElementById('loginRoleLabel').textContent = `כניסה כ${roleNames[role]||role}`;
   document.getElementById('loginError').style.display = 'none';
   document.getElementById('loginError').textContent = '';
+  _pendingRole = role;
 
   const btnContainer = document.getElementById('loginGoogleBtn');
-  btnContainer.innerHTML = '';
+  resetGoogleButton(btnContainer);
 
   // For staffmember: show password login section with tabs
-  if (role === 'staffmember' || role === 'staffmember') {
-    _pendingRole = 'staffmember';
+  if (role === 'staffmember') {
     const altContainer = document.getElementById('loginGoogleBtnAlt');
-    altContainer.innerHTML = '';
+    resetGoogleButton(altContainer);
     document.getElementById('loginPasswordSection').style.display = 'block';
     document.getElementById('loginGoogleSection').style.display   = 'none';
     document.getElementById('roleButtons').style.display = 'none';
@@ -1392,29 +1438,13 @@ function selectRole(role, btn) {
     // Default to password tab for staff, but also render Google button for alt tab
     switchLoginMethod('password', document.getElementById('tabPassword'));
     setTimeout(() => {
-      if (window.google && google.accounts) {
-        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false });
-        if (altContainer && !altContainer.innerHTML.trim()) {
-          google.accounts.id.renderButton(altContainer, { theme:'outline', size:'large', locale:'he', width:290 });
-        }
-      }
+      renderGoogleLoginButton(altContainer);
     }, 250);
     return;
   }
 
   setTimeout(() => {
-    if (window.google && google.accounts) {
-      google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-        auto_select: false,
-      });
-      google.accounts.id.renderButton(btnContainer, {
-        theme: 'outline', size: 'large', locale: 'he', width: 290,
-      });
-    } else {
-      btnContainer.innerHTML = '<div style="color:#dc2626;font-size:0.84rem;">טוען Google Sign-In... רענן את הדף</div>';
-    }
+    renderGoogleLoginButton(btnContainer);
     document.getElementById('loginGoogleSection').style.display = 'block';
     document.getElementById('roleButtons').style.display = 'none';
   }, 250);
@@ -1439,6 +1469,10 @@ async function handleGoogleCredential(response) {
   // the JWT itself and sent the resulting email as a plain query param
   // to GET /api/auth/role — anyone who knew/guessed an email could
   // impersonate that person with no credential at all. Fixed.)
+  if (!response?.credential) {
+    showLoginError('הכניסה באמצעות Google לא הושלמה. נסה/י שוב.');
+    return;
+  }
   const payload = (() => { try { return parseJwt(response.credential); } catch { return {}; } })();
   const role    = _pendingRole;
   const errEl   = document.getElementById('loginError');
@@ -3240,7 +3274,10 @@ async function init() {
   updateBadges(); updateStatus();
 
   const session = getPortalSession();
-  if (session && session.portalRole && session.email) {
+  // Google sessions use an email address while password-based staff sessions
+  // use a username.  The old email-only check discarded a perfectly valid
+  // password session whenever the installed app was resumed or reloaded.
+  if (session && session.portalRole && session.token && (session.email || session.username)) {
     applyRoleUI(session.portalRole, session);
   } else {
     applyRoleUI(null, null);
