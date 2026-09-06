@@ -572,7 +572,8 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <button class="login-back" onclick="backToRoles()">← חזרה לבחירת תפקיד</button>
     </div>
 
-    <div id="loginError"></div>
+    <div id="loginStatus" role="status" aria-live="polite" style="font-size:0.85rem;color:#475569;margin-top:12px;display:none"></div>
+    <div id="loginError" role="alert"></div>
     <button type="button" id="loginPwaInstallBtn" class="login-install-btn" onclick="handlePwaInstallClick()">⬇️ התקנת האפליקציה בטלפון</button>
   </div>
 </div>
@@ -726,7 +727,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbPlan"></div>
         📋 תכנית עבודה — מנהל בית ספר
       </div>
-      <iframe id="planFrame" src="tknyt.html"
+      <iframe id="planFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="תכנית עבודה"></iframe>
     </div>
@@ -736,7 +737,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbGantt"></div>
         📅 לוח גאנט שנתי
       </div>
-      <iframe id="ganttFrame" src="gantt.html"
+      <iframe id="ganttFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="גאנט שנתי"></iframe>
     </div>
@@ -746,7 +747,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbMtss"></div>
         🎯 מודל MTSS
       </div>
-      <iframe id="mtssFrame" src="mtss.html"
+      <iframe id="mtssFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="MTSS"></iframe>
     </div>
@@ -756,7 +757,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbCalendar"></div>
         🗓️ יומן מנהל
       </div>
-      <iframe id="calendarFrame" src="calendar.html"
+      <iframe id="calendarFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="יומן מנהל"></iframe>
     </div>
@@ -1117,7 +1118,13 @@ function getPortalSession() {
   try { return JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)); } catch { return null; }
 }
 function setPortalSession(data) {
-  try { sessionStorage.setItem(PORTAL_SESSION_KEY, JSON.stringify(data)); } catch {}
+  try {
+    const serialized = JSON.stringify(data);
+    sessionStorage.setItem(PORTAL_SESSION_KEY, serialized);
+    if (sessionStorage.getItem(PORTAL_SESSION_KEY) !== serialized) throw new Error('storage-check');
+  } catch {
+    throw new Error('לא ניתן לשמור את ההתחברות במכשיר. יש לאפשר אחסון לאתר בדפדפן. [S1]');
+  }
 }
 function clearPortalSession() {
   try {
@@ -1143,6 +1150,8 @@ function getSessionToken() {
 
 async function authFetch(url, options = {}) {
   const token = getSessionToken();
+  // Do not launch anonymous background requests while Google is signing in.
+  if (!token) throw new Error('unauthorized');
   const headers = { ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
@@ -1154,10 +1163,11 @@ async function authFetch(url, options = {}) {
     throw networkErr; // let caller's existing try/catch show the network error as before
   }
 
+  // A response belongs to the session that sent it, not a subsequent login.
+  // Discard stale successes too, so data from another session cannot be applied.
+  if (getSessionToken() !== token) throw new Error('stale-session');
   if (res.status === 401) {
-    clearPortalSession();
-    toast('פג תוקף ההתחברות. יש להתחבר מחדש.', 'warn');
-    applyRoleUI(null, null);
+    expirePortalSession();
     throw new Error('unauthorized');
   }
   if (res.status === 403) {
@@ -1167,6 +1177,32 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
+function expirePortalSession() {
+  clearPortalSession();
+  PS._initDone = false;
+  PS._dataLoadStarted = false;
+  PS._planLoadSent = false;
+  PS._pendingIframeReady.length = 0;
+  for (const name of ['plan', 'gantt', 'mtss', 'calendar', 'teachers']) {
+    PS[name + 'Data'] = null;
+    PS[name + 'Ready'] = false;
+    const frame = document.getElementById(name + 'Frame');
+    if (frame) frame.src = 'about:blank';
+  }
+  applyRoleUI(null, null);
+  showLoginError('השרת לא אישר את החיבור הנוכחי. יש להתחבר מחדש. [S2]');
+}
+
+let _sessionRecheck = null;
+function recheckSessionFromFrame() {
+  // Never let a queued child message invalidate a newer login. Ask the server
+  // about the CURRENT session; authFetch also guards changes during this check.
+  if (!getSessionToken() || _sessionRecheck) return;
+  _sessionRecheck = authFetch(`${WORKER_URL_AUTH}/api/auth/role`, { cache: 'no-store' })
+    .catch(() => {})
+    .finally(() => { _sessionRecheck = null; });
+}
+
 // ═══════════════════════════════════════════════════════
 //  AUTH — LOGIN FLOW
 // ═══════════════════════════════════════════════════════
@@ -1174,6 +1210,24 @@ let _pendingRole = null;
 let _staffLoginUsername = null; // for password change flow
 let _pendingPasswordChangeToken = null; // restricted session; kept in memory only
 let _googleIdentityInitialized = false;
+let _googleLoginInFlight = false;
+let _googleWaitTimer = null;
+
+function setLoginStatus(message) {
+  const el = document.getElementById('loginStatus');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
+}
+
+function onGoogleLoginClick() {
+  if (_googleLoginInFlight) return;
+  document.getElementById('loginError').style.display = 'none';
+  clearTimeout(_googleWaitTimer);
+  setLoginStatus('ממתין לבחירת החשבון ולאישור Google… [G1]');
+  _googleWaitTimer = setTimeout(() => {
+    setLoginStatus('טרם התקבל אישור מ־Google. אם כבר בחרת חשבון וחזרת לכאן, צלם/י את ההודעה הזו. [G1]');
+  }, 45000);
+}
 
 // Google recommends initializing Identity Services only once per page.  More
 // importantly for the installed Android app, FedCM keeps the account chooser
@@ -1219,6 +1273,7 @@ function renderGoogleLoginButton(container, attempt = 0) {
     size: 'large',
     locale: 'he',
     width: 290,
+    click_listener: onGoogleLoginClick,
   });
   container.dataset.googleButtonRendered = 'true';
 }
@@ -1451,6 +1506,8 @@ function selectRole(role, btn) {
 }
 
 function backToRoles() {
+  clearTimeout(_googleWaitTimer);
+  setLoginStatus('');
   _pendingRole = null;
   document.getElementById('loginGoogleSection').style.display  = 'none';
   document.getElementById('loginPasswordSection').style.display = 'none';
@@ -1469,6 +1526,8 @@ async function handleGoogleCredential(response) {
   // the JWT itself and sent the resulting email as a plain query param
   // to GET /api/auth/role — anyone who knew/guessed an email could
   // impersonate that person with no credential at all. Fixed.)
+  if (_googleLoginInFlight) return;
+  clearTimeout(_googleWaitTimer);
   if (!response?.credential) {
     showLoginError('הכניסה באמצעות Google לא הושלמה. נסה/י שוב.');
     return;
@@ -1482,9 +1541,14 @@ async function handleGoogleCredential(response) {
   // כי localStorage הוא פר-מכשיר ולא קיים במכשיר חדש (ראו הסבר למעלה).
   const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
 
+  _googleLoginInFlight = true;
+  setLoginStatus('התקבל אישור מ־Google. מאמת את ההתחברות באתר… [G2]');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
   try {
     const res = await fetch(`${WORKER_URL_AUTH}/api/auth/google-login`, {
       method: 'POST',
+      signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         idToken: response.credential,
@@ -1501,6 +1565,10 @@ async function handleGoogleCredential(response) {
     }
 
     const srv = data.session || {};
+    if (!data.token || !srv.role) {
+      showLoginError('השרת לא החזיר חיבור תקין. נסה/י שוב. [G3]');
+      return;
+    }
 
     // Verify selected role matches the server-resolved role
     if (role === 'principal' && !['principal', 'systemadmin'].includes(srv.role)) {
@@ -1543,7 +1611,13 @@ async function handleGoogleCredential(response) {
     loadPortalDataAndNotifyFrames();
 
   } catch(e) {
-    showLoginError('שגיאת רשת: ' + e.message);
+    showLoginError(e.name === 'AbortError'
+      ? 'שרת האתר לא השיב בזמן לאחר אישור Google. בדוק/י את חיבור האינטרנט ונסה/י שוב. [G2]'
+      : 'הכניסה לא הושלמה: ' + e.message);
+  } finally {
+    clearTimeout(timeout);
+    _googleLoginInFlight = false;
+    setLoginStatus('');
   }
 }
 
@@ -2932,15 +3006,12 @@ window.addEventListener('message', async (e) => {
   const fromCalendar  = e.source===calendarWin;
   const fromTeachers  = e.source===teachersWin;
   if (!fromPlan&&!fromGantt&&!fromMtss&&!fromCalendar&&!fromTeachers) return;
+  if (!getSessionToken() && e.data.type !== 'iframe-ready') return;
 
   switch(e.data.type) {
 
     case 'session-expired':
-      // A child iframe's Worker call got a 401. Only the top-level shell
-      // can show the login screen, so tear the session down here.
-      clearPortalSession();
-      toast('פג תוקף ההתחברות. יש להתחבר מחדש.', 'warn');
-      applyRoleUI(null, null);
+      recheckSessionFromFrame();
       break;
 
     case 'iframe-ready':
@@ -3304,13 +3375,15 @@ async function init() {
 //  מיד, בלי צורך ברענון.
 // ═══════════════════════════════════════════════════════
 async function loadPortalDataAndNotifyFrames() {
+  const loadingToken = getSessionToken();
+  if (!loadingToken) return;
   if (PS._dataLoadStarted) return; // מונע טעינה כפולה אם נקרא יותר מפעם אחת
-  PS._dataLoadStarted = true;
 
   // טעינת נתוני פורטל מ-D1
   const school = PS.school || '';
   const year   = PS.year   || '';
   if (!school && !year) return;
+  PS._dataLoadStarted = true;
 
   async function dbLoad(type) {
     const t0 = performance.now();
@@ -3328,6 +3401,7 @@ async function loadPortalDataAndNotifyFrames() {
 
   const _initT0 = performance.now();
   const [sp, sg, sm, sc, st] = await Promise.all([dbLoad('plan'), dbLoad('gantt'), dbLoad('mtss'), dbLoad('calendar'), dbLoad('teachers')]);
+  if (getSessionToken() !== loadingToken) return;
   console.log(`[timing] all 5 dbLoad calls together took ${(performance.now()-_initT0).toFixed(0)}ms`);
   if(sp){ PS.planData=sp;  PS.school=sp.schoolName||PS.school; PS.year=sp.year||PS.year; }
   if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
@@ -3436,6 +3510,7 @@ console.log('portal script loaded');
 // ═══════════════════════════════════════════════════════
 function reloadFrameData() {
   // אם עדיין לא עברו לוגין — לא לעשות כלום
+  if (!getSessionToken() || !PS._initDone) return;
   if (!PS.school && !PS.year) return;
   console.log('[portal] reloadFrameData triggered | school:', PS.school, '| planData exists:', !!PS.planData);
 

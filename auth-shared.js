@@ -48,17 +48,17 @@
     el._hideTimer = setTimeout(function () { el.style.display = 'none'; }, 4000);
   }
 
-  // On 401: clear the local session and hand control back to the
-  // top-level portal shell (index.html), which owns the login screen.
+  // On 401: let the parent verify the current session. A queued message
+  // from an older request must not delete a login that just succeeded.
   // This file's own tool (inventory/budget/teachers) is always loaded
   // as an iframe — it has no login UI of its own.
   function handleUnauthorized() {
-    clearSession();
     if (window.top !== window.self) {
       try { window.parent.postMessage({ type: 'session-expired' }, PORTAL_ORIGIN); } catch (_) {}
       showAccessDenied('פג תוקף ההתחברות. יש להתחבר מחדש.');
     } else {
       // Opened directly, not inside the portal shell — no parent to relay to.
+      clearSession();
       showAccessDenied('פג תוקף ההתחברות. יש לחזור לפורטל הראשי ולהתחבר מחדש.');
     }
   }
@@ -66,12 +66,14 @@
   async function authFetch(url, options) {
     options = options || {};
     var token = getToken();
+    if (!token) throw new Error('unauthorized');
     var headers = Object.assign({}, options.headers || {});
     if (token) headers['Authorization'] = 'Bearer ' + token;
     if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
 
     var res = await fetch(url, Object.assign({}, options, { headers: headers }));
 
+    if (getToken() !== token) throw new Error('stale-session');
     if (res.status === 401) {
       handleUnauthorized();
       throw new Error('unauthorized');
