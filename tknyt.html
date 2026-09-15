@@ -376,6 +376,26 @@
     outline: none;
   }
   table.data-table textarea { min-height: 40px; vertical-align: top; }
+  /* Keep long goal descriptions inside their columns, including legacy saved widths. */
+  #goalsTable { table-layout: fixed; width: 100%; min-width: 0; }
+  #goalsTable th { white-space: normal; overflow-wrap: anywhere; }
+  #goalsTable td { vertical-align: top; padding: 7px 5px; }
+  #goalsTable textarea, #goalsTable select {
+    width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+    box-sizing: border-box;
+  }
+  #goalsTable textarea {
+    display: block; min-height: 64px; white-space: pre-wrap;
+    overflow-wrap: anywhere; word-break: break-word; resize: vertical !important;
+  }
+  #goalsTable .btn-icon { min-width: 0; padding: 4px; }
+  @media screen and (max-width: 760px) {
+    #goalsTable, #goalsTable tbody, #goalsTable tr, #goalsTable td { display: block; width: 100%; }
+    #goalsTable colgroup, #goalsTable thead { display: none; }
+    #goalsTable tr { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; padding: 8px; }
+    #goalsTable td { border: 0; }
+    #goalsTable td[aria-label]::before { content: attr(aria-label); display: block; font-weight: 600; color: var(--primary); margin-bottom: 4px; }
+  }
   .ordered-row-actions { display:flex; align-items:center; justify-content:center; gap:3px; white-space:nowrap; }
   .row-drag-handle {
     display:inline-flex; align-items:center; justify-content:center;
@@ -1581,9 +1601,13 @@
         <div class="print-meta" id="printDate-s2"></div>
       </div>
       <div class="card">
-        <p class="text-muted" style="margin-bottom:12px;">הגדר עד 12 יעדי על לשנה. יעדים אלו ישמשו כעמוד השדרה של כל הזירות והתכנון הרבעוני.</p>
+        <p class="text-muted" style="margin-bottom:12px;">הגדר עד 12 יעדי על לשנה. יעדים אלו ישמשו כעמוד השדרה של כל הזירות והתכנון הרבעוני. הטקסט יורד שורה אוטומטית; Enter מוסיף שורה, וגרירת הפינה משנה את גובה התיבה.</p>
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table" id="goalsTable">
+            <colgroup>
+              <col style="width:3%"><col style="width:20%"><col style="width:9%"><col style="width:20%">
+              <col style="width:20%"><col style="width:17%"><col style="width:8%"><col style="width:3%">
+            </colgroup>
             <thead>
               <tr>
                 <th style="width:30px">#</th>
@@ -3218,6 +3242,7 @@ function switchSection(id, el) {
   if (el) el.classList.add('active');
   if (id === 's_dash') renderDashboard();
   if (id === 'splan')  renderPathwayView(); // UPGRADE 2
+  if (id === 's2') requestAnimationFrame(refreshGoalTextLayout);
 }
 
 function switchArena(aId) {
@@ -4343,6 +4368,39 @@ function removeFocusArea(id) {
 // =============================================================
 //  STRATEGIC GOALS
 // =============================================================
+function fitGoalTextField(field) {
+  if (!field.isConnected || field.getBoundingClientRect().width === 0) return;
+  // A manually chosen height takes precedence over automatic content sizing.
+  const savedSize = normalizeResizableFieldSize(appData.fieldSizes?.[getResizableFieldKey(field)]);
+  if (savedSize) return;
+  field.style.height = 'auto';
+  field.style.height = `${Math.max(64, field.scrollHeight + 2)}px`;
+}
+
+function refreshGoalTextLayout() {
+  document.querySelectorAll('#goalsBody textarea').forEach(fitGoalTextField);
+}
+
+function initGoalTextLayout() {
+  const table = document.getElementById('goalsTable');
+  if (!table) return;
+  table.addEventListener('input', event => {
+    if (event.target.matches('textarea')) fitGoalTextField(event.target);
+  });
+  // Reflow when the portal/sidebar changes available width, or the hidden tab opens.
+  if (typeof ResizeObserver === 'function') {
+    let lastWidth = -1;
+    new ResizeObserver(entries => {
+      const width = entries[0].contentRect.width;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      requestAnimationFrame(refreshGoalTextLayout);
+    }).observe(table);
+  } else {
+    window.addEventListener('resize', refreshGoalTextLayout);
+  }
+}
+
 function renderGoalsTable() {
   const tbody = document.getElementById('goalsBody');
   if (!tbody) return;
@@ -4356,12 +4414,12 @@ function appendGoalRow(g, i) {
   tr.dataset.gid = g.id;
   tr.innerHTML = `
     <td style="color:var(--text-muted);font-weight:700;text-align:center">${i + 1}</td>
-    <td><input class="g_title"    value="${esc(g.title    || '')}" placeholder="יעד..." style="min-width:180px" oninput="markDirty()"></td>
-    <td><input class="g_domain"   value="${esc(g.domain   || '')}" placeholder="תחום"   oninput="markDirty()"></td>
-    <td><input class="g_metric"   value="${esc(g.metric   || '')}" placeholder="מדד"    oninput="markDirty()"></td>
-    <td><input class="g_baseline" value="${esc(g.baseline || '')}" placeholder="נוכחי"  oninput="markDirty()"></td>
-    <td><input class="g_target"   value="${esc(g.target   || '')}" placeholder="יעד"    oninput="markDirty()"></td>
-    <td>
+    <td aria-label="יעד על"><textarea rows="3" class="g_title" placeholder="יעד..." aria-label="יעד על" oninput="markDirty()"></textarea></td>
+    <td aria-label="תחום"><textarea rows="3" class="g_domain" placeholder="תחום" aria-label="תחום" oninput="markDirty()"></textarea></td>
+    <td aria-label="מדד הצלחה"><textarea rows="3" class="g_metric" placeholder="מדד" aria-label="מדד הצלחה" oninput="markDirty()"></textarea></td>
+    <td aria-label="מצב נוכחי"><textarea rows="3" class="g_baseline" placeholder="נוכחי" aria-label="מצב נוכחי" oninput="markDirty()"></textarea></td>
+    <td aria-label="יעד לסיום השנה"><textarea rows="3" class="g_target" placeholder="יעד" aria-label="יעד לסיום השנה" oninput="markDirty()"></textarea></td>
+    <td aria-label="סטטוס">
       <select class="g_status" onchange="markDirty()">
         <option value="todo"       ${g.status === 'todo'        ? 'selected' : ''}>לביצוע</option>
         <option value="inprogress" ${g.status === 'inprogress'  ? 'selected' : ''}>בתהליך</option>
@@ -4371,7 +4429,11 @@ function appendGoalRow(g, i) {
     </td>
     <td><button class="btn-icon" onclick="removeGoalRow('${g.id}')">🗑</button></td>
   `;
+  ['title', 'domain', 'metric', 'baseline', 'target'].forEach(key => {
+    tr.querySelector(`.g_${key}`).value = String(g[key] ?? '');
+  });
   document.getElementById('goalsBody').appendChild(tr);
+  requestAnimationFrame(refreshGoalTextLayout);
 }
 
 function addGoalRow() {
@@ -9099,6 +9161,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (levelEl) levelEl.addEventListener('change', updateBackgroundDataFields);
   updateBackgroundDataFields();
   initResizableTextFields();
+  initGoalTextLayout();
 
   // שיבוץ מקצועות: מאזין קבוע (delegation) על מיכל הטבלה עצמו — לא על
   // כל תא בנפרד — כדי שסה"כ השעות/הפרש מהתקן יתעדכנו תמיד בזמן אמת,
