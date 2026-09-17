@@ -20,7 +20,13 @@
   "env": {
     "staging": {
       "name": "principal-api-staging",
-      "compatibility_date": "2024-11-01",
+      "main": "worker-with-private-calendar.js",
+      "compatibility_date": "2026-09-16",
+      "vars": {
+        "GOOGLE_CALENDAR_ENABLED": "false",
+        "GOOGLE_CALENDAR_ALLOWED_EMAIL": "1002220729@educ.org.il",
+        "GOOGLE_CALENDAR_CLIENT_ID": "492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com"
+      },
       "d1_databases": [
         {
           "binding": "DB",
