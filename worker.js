@@ -89,7 +89,10 @@ async function sha256Hex(str) {
 // the iteration count raised for new/changed passwords and the
 // upgrade-on-login path below. Revisit if a WASM Argon2id build
 // becomes available for the Workers runtime.
-const CURRENT_PBKDF2_ITERATIONS = 210000;
+// Cloudflare Workers currently caps a single WebCrypto PBKDF2 operation at
+// 100,000 iterations. Going above that throws before the D1 write, which makes
+// account creation and password resets fail with a generic 500 response.
+const CURRENT_PBKDF2_ITERATIONS = 100000;
 const LEGACY_PBKDF2_ITERATIONS = 100000; // fallback for rows predating the iterations column
 
 async function hashPassword(password, salt, iterations) {
@@ -166,7 +169,21 @@ function validEmail(v) {
 function validUsername(v) {
   const t = reqStr(v, 64);
   if (!t) return null;
-  return /^[a-zA-Z0-9._-]+$/.test(t) ? t.toLowerCase() : null;
+  const normalized = t.normalize('NFKC').toLowerCase();
+  return /^[\p{L}\p{N}._-]+$/u.test(normalized) ? normalized : null;
+}
+// staff_permissions predates password accounts and calls its identity column
+// `email`. Google accounts still use an email there, while password accounts
+// must use their login username so loadPermissions() resolves the same key.
+function validPermissionSubject(v) {
+  return validEmail(v) || validUsername(v);
+}
+function validPathUsername(v) {
+  try {
+    return validUsername(decodeURIComponent(String(v || '')));
+  } catch {
+    return null;
+  }
 }
 function validId(v) {
   if (typeof v === 'string' && !/^[1-9]\d*$/.test(v)) return null;
@@ -340,6 +357,13 @@ function requireSameSchool(session, requestedSchool) {
   if (session.role === 'systemadmin') return;
   if (!requestedSchool || session.school !== requestedSchool) {
     throw new HttpError(403, 'Cross-school access denied');
+  }
+}
+function requireSameStaffAuthTenant(session, requestedSchool, requestedYear) {
+  if (session.role === 'systemadmin') return;
+  if (!requestedSchool || !requestedYear ||
+      session.school !== requestedSchool || session.year !== requestedYear) {
+    throw new HttpError(403, 'Cross-school/year access denied');
   }
 }
 function requirePermission(session, moduleName, requiredLevel) {
@@ -647,13 +671,19 @@ export default {
       }
 
       // ═══════════════════════════════════════════════
-      //  ADMIN: staff_auth account management (systemadmin only)
+      //  ADMIN: staff_auth account management.
+      //  Principals are restricted to the school + year in their session;
+      //  systemadmins retain global access.
       // ═══════════════════════════════════════════════
 
       if (method === 'GET' && path === 'api/admin/staff-auth/list') {
-        const session = await requireRole(request, env, ['systemadmin']);
+        const session = await requireRole(request, env, ['principal', 'systemadmin']);
         const school = validSchool(q('school'));
         const year = validYear(q('year'));
+        if (session.role === 'principal') {
+          if (!school || !year) return err('school, year required', 400, cors);
+          requireSameStaffAuthTenant(session, school, year);
+        }
         let stmt;
         if (school && year) {
           stmt = env.DB.prepare(
@@ -670,7 +700,7 @@ export default {
       }
 
       if (method === 'POST' && path === 'api/admin/staff-auth') {
-        const session = await requireRole(request, env, ['systemadmin']);
+        const session = await requireRole(request, env, ['principal', 'systemadmin']);
         const { username, password, name, email, school, year, roleTitle, mustChangePassword } = await body();
         const cleanUsername = validUsername(username);
         const cleanSchool = validSchool(school) || '';
@@ -681,6 +711,8 @@ export default {
         }
         if (password.length < MIN_PASSWORD_LENGTH) return err(`הסיסמא חייבת להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים`, 400, cors);
         if (!cleanEmail) return err('email לא תקין', 400, cors);
+        if (session.role === 'principal' && (!cleanSchool || !cleanYear)) return err('school, year required', 400, cors);
+        requireSameStaffAuthTenant(session, cleanSchool, cleanYear);
 
         const existing = await env.DB.prepare('SELECT username FROM staff_auth WHERE username = ?').bind(cleanUsername).first();
         if (existing) return err('שם משתמש כבר קיים במערכת', 409, cors);
@@ -700,16 +732,17 @@ export default {
       }
 
       if (method === 'PUT' && path.startsWith('api/admin/staff-auth/') && path.endsWith('/reset-password')) {
-        const session = await requireRole(request, env, ['systemadmin']);
-        const username = validUsername(seg[seg.length - 2]);
+        const session = await requireRole(request, env, ['principal', 'systemadmin']);
+        const username = validPathUsername(seg[seg.length - 2]);
         const { newPassword } = await body();
         if (!username || typeof newPassword !== 'string' || !newPassword || newPassword.length > MAX_PASSWORD_LENGTH) {
           return err('username ו-newPassword נדרשים', 400, cors);
         }
         if (newPassword.length < MIN_PASSWORD_LENGTH) return err(`הסיסמא חייבת להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים`, 400, cors);
 
-        const existing = await env.DB.prepare('SELECT username FROM staff_auth WHERE username = ?').bind(username).first();
+        const existing = await env.DB.prepare('SELECT username, school, year FROM staff_auth WHERE username = ?').bind(username).first();
         if (!existing) return err('משתמש לא נמצא', 404, cors);
+        requireSameStaffAuthTenant(session, existing.school, existing.year);
 
         const { hash, salt, iterations } = await hashPassword(newPassword, null, CURRENT_PBKDF2_ITERATIONS);
         const now = new Date().toISOString();
@@ -717,32 +750,40 @@ export default {
           UPDATE staff_auth
           SET password_hash=?, password_salt=?, password_iterations=?, password_changed_at=?, must_change_password=1,
               failed_attempts=0, locked_at=NULL, updated_at=?
-          WHERE username=?
-        `).bind(hash, salt, iterations, now, now, username).run();
+          WHERE username=? AND school=? AND year=?
+        `).bind(hash, salt, iterations, now, now, username, existing.school, existing.year).run();
 
         await revokeAllSessionsForUser(env, username); // Phase 2: reset revokes all sessions
-        await audit(env, request, { session, action: 'password_reset', resourceType: 'staff_auth', resourceId: username, outcome: 'success' });
+        await audit(env, request, { session, action: 'password_reset', resourceType: 'staff_auth', resourceId: username, targetSchool: existing.school, targetYear: existing.year, outcome: 'success' });
         return json({ ok: true }, 200, cors);
       }
 
       if (method === 'PUT' && path.startsWith('api/admin/staff-auth/') && path.endsWith('/unlock')) {
-        const session = await requireRole(request, env, ['systemadmin']);
-        const username = validUsername(seg[seg.length - 2]);
+        const session = await requireRole(request, env, ['principal', 'systemadmin']);
+        const username = validPathUsername(seg[seg.length - 2]);
         if (!username) return err('username נדרש', 400, cors);
+        const existing = await env.DB.prepare('SELECT username, school, year FROM staff_auth WHERE username = ?').bind(username).first();
+        if (!existing) return err('משתמש לא נמצא', 404, cors);
+        requireSameStaffAuthTenant(session, existing.school, existing.year);
         const now = new Date().toISOString();
-        await env.DB.prepare('UPDATE staff_auth SET locked_at=NULL, failed_attempts=0, updated_at=? WHERE username=?').bind(now, username).run();
-        await audit(env, request, { session, action: 'unlock', resourceType: 'staff_auth', resourceId: username, outcome: 'success' });
+        await env.DB.prepare('UPDATE staff_auth SET locked_at=NULL, failed_attempts=0, updated_at=? WHERE username=? AND school=? AND year=?')
+          .bind(now, username, existing.school, existing.year).run();
+        await audit(env, request, { session, action: 'unlock', resourceType: 'staff_auth', resourceId: username, targetSchool: existing.school, targetYear: existing.year, outcome: 'success' });
         return json({ ok: true }, 200, cors);
       }
 
       if (method === 'DELETE' && path.startsWith('api/admin/staff-auth/') && !path.endsWith('/unlock') && !path.endsWith('/reset-password')) {
-        const session = await requireRole(request, env, ['systemadmin']);
-        const username = validUsername(decodeURIComponent(lastSeg));
+        const session = await requireRole(request, env, ['principal', 'systemadmin']);
+        const username = validPathUsername(lastSeg);
         if (!username) return err('username נדרש', 400, cors);
-        const result = await env.DB.prepare('DELETE FROM staff_auth WHERE username = ?').bind(username).run();
+        const existing = await env.DB.prepare('SELECT username, school, year FROM staff_auth WHERE username = ?').bind(username).first();
+        if (!existing) return json({ ok: false, error: `משתמש "${username}" לא נמצא` }, 404, cors);
+        requireSameStaffAuthTenant(session, existing.school, existing.year);
+        const result = await env.DB.prepare('DELETE FROM staff_auth WHERE username = ? AND school = ? AND year = ?')
+          .bind(username, existing.school, existing.year).run();
         const changes = result.meta?.changes ?? 0;
         await revokeAllSessionsForUser(env, username);
-        await audit(env, request, { session, action: 'delete', resourceType: 'staff_auth', resourceId: username, outcome: changes ? 'success' : 'not_found' });
+        await audit(env, request, { session, action: 'delete', resourceType: 'staff_auth', resourceId: username, targetSchool: existing.school, targetYear: existing.year, outcome: changes ? 'success' : 'not_found' });
         if (changes === 0) return json({ ok: false, error: `משתמש "${username}" לא נמצא` }, 404, cors);
         return json({ ok: true, deleted: username }, 200, cors);
       }
@@ -806,7 +847,7 @@ export default {
 
       if (method === 'GET' && path === 'api/staff') {
         const session = await requireSession(request, env);
-        const email = validEmail(q('email'));
+        const email = validPermissionSubject(q('email'));
         const school = validSchool(q('school'));
         const year = validYear(q('year'));
         if (!email || !school || !year) return err('email, school, year required', 400, cors);
@@ -835,7 +876,7 @@ export default {
       if (method === 'POST' && path === 'api/staff-permissions') {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
         const { email, name, roleTitle, school, year, permissions } = await body();
-        const cleanEmail = validEmail(email);
+        const cleanEmail = validPermissionSubject(email);
         const cleanSchool = validSchool(school);
         const cleanYear = validYear(year);
         if (!cleanEmail || !cleanSchool || !cleanYear) return err('email, school, year required', 400, cors);
@@ -865,7 +906,7 @@ export default {
 
       if (method === 'DELETE' && path === 'api/staff') {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
-        const email = validEmail(q('email'));
+        const email = validPermissionSubject(q('email'));
         const school = validSchool(q('school'));
         const year = validYear(q('year'));
         if (!email || !school || !year) return err('email, school, year required', 400, cors);

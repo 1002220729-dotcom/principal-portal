@@ -165,7 +165,52 @@
     border-color: var(--primary-light);
     box-shadow: 0 0 0 3px rgba(37,99,168,0.1);
   }
-  .form-group textarea { resize: vertical; min-height: 70px; }
+  /* שדות מלל ניתנים להרחבה מהפינה לרוחב ולגובה */
+  input:not([type]),
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"] {
+    min-width: 80px;
+    max-width: none;
+  }
+  .resizable-input-shell {
+    display: inline-block;
+    width: 100%;
+    min-width: 80px;
+    min-height: 32px;
+    max-width: none;
+    max-height: none;
+    resize: both;
+    overflow: auto;
+    vertical-align: middle;
+    line-height: 0;
+  }
+  .resizable-input-shell > input {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    min-height: 30px !important;
+    max-width: none !important;
+    max-height: none !important;
+    box-sizing: border-box;
+  }
+  .resizable-input-shell::-webkit-resizer,
+  textarea::-webkit-resizer {
+    background: linear-gradient(135deg, transparent 0 62%, #a8afb8 63% 74%, transparent 75%);
+  }
+  textarea {
+    resize: both !important;
+    overflow: auto !important;
+    min-width: 80px;
+    max-width: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.45;
+  }
+  .form-group textarea { min-height: 70px; }
   .form-full { grid-column: 1 / -1; }
 
   /* ===== ACCORDION ===== */
@@ -330,7 +375,40 @@
     background: #fff;
     outline: none;
   }
-  table.data-table textarea { min-height: 40px; resize: vertical; }
+  table.data-table textarea { min-height: 40px; vertical-align: top; }
+  /* Keep long goal descriptions inside their columns, including legacy saved widths. */
+  #goalsTable { table-layout: fixed; width: 100%; min-width: 0; }
+  #goalsTable th { white-space: normal; overflow-wrap: anywhere; }
+  #goalsTable td { vertical-align: top; padding: 7px 5px; }
+  #goalsTable textarea, #goalsTable select {
+    width: 100% !important; min-width: 0 !important; max-width: 100% !important;
+    box-sizing: border-box;
+  }
+  #goalsTable textarea {
+    display: block; min-height: 64px; white-space: pre-wrap;
+    overflow-wrap: anywhere; word-break: break-word; resize: vertical !important;
+  }
+  #goalsTable .btn-icon { min-width: 0; padding: 4px; }
+  @media screen and (max-width: 760px) {
+    #goalsTable, #goalsTable tbody, #goalsTable tr, #goalsTable td { display: block; width: 100%; }
+    #goalsTable colgroup, #goalsTable thead { display: none; }
+    #goalsTable tr { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; padding: 8px; }
+    #goalsTable td { border: 0; }
+    #goalsTable td[aria-label]::before { content: attr(aria-label); display: block; font-weight: 600; color: var(--primary); margin-bottom: 4px; }
+  }
+  .ordered-row-actions { display:flex; align-items:center; justify-content:center; gap:3px; white-space:nowrap; }
+  .row-drag-handle {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:28px; min-height:28px; padding:3px 6px;
+    color:#98a2b0; cursor:grab; user-select:none;
+    border-radius:4px; font-size:1.15rem; line-height:1; touch-action:none;
+  }
+  .row-drag-handle:hover, .row-drag-handle:focus-visible { color:var(--primary-light); background:var(--primary-soft); outline:none; }
+  .row-drag-handle:active { cursor:grabbing; }
+  .draggable-table-row { transition:opacity 0.12s, box-shadow 0.12s; }
+  .draggable-table-row.dragging { opacity:0.42; }
+  .draggable-table-row.drag-over-before { box-shadow:inset 0 3px 0 var(--primary-light); }
+  .draggable-table-row.drag-over-after { box-shadow:inset 0 -3px 0 var(--primary-light); }
   .btn-icon {
     background: none;
     border: none;
@@ -529,6 +607,13 @@
      יציבה בכל מקום שהטבלה מוצגת בו (כולל מצב פורטל, מודלים וכו') */
   #scheduleGridWrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: var(--radius); }
   .sched-table { border-collapse:collapse; font-size:0.75rem; }
+  .schedule-grid-print-actions {
+    display:flex; justify-content:flex-end; align-items:center;
+    margin:0 0 12px; gap:8px;
+  }
+  @media print {
+    .schedule-grid-print-actions { display:none !important; }
+  }
 
   /* --- כותרת עליונה דביקה (שמות הכיתות) --- */
   .sched-table thead th {
@@ -597,6 +682,14 @@
   }
   .teacher-legend-reset:hover { color: var(--accent); }
   .teacher-legend-empty { color: var(--text-muted); font-size: 0.8rem; }
+  .teacher-legend-name {
+    border: none; background: none; color: var(--primary); cursor: pointer;
+    padding: 0; font: inherit; font-weight: 600;
+  }
+  .teacher-legend-name:hover,
+  .teacher-legend-name:focus-visible,
+  .sched-teacher-name-btn:hover,
+  .sched-teacher-name-btn:focus-visible { text-decoration: underline; }
   /* ===== PATHWAY VIEW (מתווה עבודה) ===== */
   .pathway-goal-card {
     background: var(--card);
@@ -696,6 +789,190 @@
   .sched-cell input.hrs-input { width:52px; }
   .sched-cell select { border:1px solid transparent; border-radius:3px; padding:2px 4px; font-size:0.75rem; background:transparent; width:100%; }
   .sched-cell select:focus { border-color:var(--primary-light); background:#fff; outline:none; }
+  .sched-teacher-control { display:flex; align-items:stretch; gap:3px; width:100%; min-width:0; }
+  .sched-teacher-name-btn {
+    flex:1 1 auto; min-width:0; border:1px solid transparent; border-radius:3px;
+    padding:2px 4px; background:transparent; color:var(--text); cursor:pointer;
+    font:inherit; font-size:0.75rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .sched-teacher-name-btn[hidden] { display:none !important; }
+  .sched-cell select.sched-teacher-select { flex:1 1 auto; min-width:0; }
+  .sched-cell select.sched-teacher-select.assigned {
+    flex:0 0 28px; width:28px; min-width:28px; padding-inline:0;
+    color:transparent; cursor:pointer;
+  }
+  .sched-cell select.sched-teacher-select.assigned option { color:var(--text); }
+  .teacher-summary-modal {
+    width:min(640px, calc(100vw - 40px));
+    min-width:min(360px, calc(100vw - 24px));
+    min-height:260px;
+    max-width:calc(100vw - 24px);
+    max-height:calc(100vh - 24px);
+    resize:both;
+    overflow:hidden;
+  }
+  .teacher-summary-modal::-webkit-resizer {
+    background:linear-gradient(135deg, transparent 0 62%, #a8afb8 63% 74%, transparent 75%);
+  }
+  .teacher-summary-modal .basket-modal-header,
+  .teacher-summary-modal .basket-modal-footer { flex:0 0 auto; }
+  .teacher-summary-modal .basket-modal-body {
+    flex:1 1 auto;
+    min-height:0;
+    overflow:auto;
+  }
+  .teacher-summary-modal .table-wrap { overflow:auto; }
+  .teacher-summary-resize-hint {
+    margin-inline-end:auto;
+    color:var(--text-muted);
+    font-size:0.6875rem;
+    font-weight:400;
+  }
+  .teacher-summary-total {
+    margin-bottom:12px; padding:10px 12px; border-radius:6px;
+    background:var(--primary-soft); color:var(--primary); font-weight:700;
+  }
+  .teacher-summary-empty { text-align:center; color:var(--text-muted); padding:24px 10px !important; }
+  @media (max-width: 520px) {
+    .teacher-summary-modal {
+      width:calc(100vw - 16px);
+      min-width:0;
+      max-width:calc(100vw - 16px);
+      max-height:calc(100vh - 16px);
+      resize:vertical;
+    }
+    .sched-table td { min-width:120px; }
+  }
+
+  /* ===== MOBILE LAYOUT =====
+     The planning file is also opened directly, so it needs its own responsive
+     shell in addition to the parent portal's mobile navigation. Dense tables
+     stay horizontally scrollable; forms, cards and controls use the full phone
+     width and retain practical touch targets. */
+  @media (max-width: 767px) {
+    html, body { max-width:100%; overflow-x:hidden; }
+
+    #saveBar {
+      position:relative;
+      padding:8px;
+      gap:6px;
+      align-items:stretch;
+    }
+    #saveBar h1 { flex:1 1 100%; font-size:.95rem; line-height:1.35; }
+    #saveBar .badge { display:none; }
+    #saveStatus { min-width:0; flex:1 1 100%; text-align:right; }
+    #saveBar .btn { min-height:44px; padding:8px 12px; flex:1 1 auto; }
+
+    #appShell { display:block; min-height:0; width:100%; }
+    #sideNav {
+      position:relative;
+      top:auto;
+      width:100%;
+      min-width:0;
+      height:auto;
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      gap:2px;
+      padding:0 4px;
+      overflow-x:auto;
+      overflow-y:hidden;
+      overscroll-behavior-inline:contain;
+      -webkit-overflow-scrolling:touch;
+      scrollbar-width:thin;
+    }
+    #sideNav .nav-section { display:none; }
+    #sideNav .nav-item {
+      flex:0 0 auto;
+      width:auto;
+      min-height:44px;
+      padding:9px 12px;
+      white-space:nowrap;
+      border-inline-start:0;
+      border-bottom:3px solid transparent;
+    }
+    #sideNav .nav-item.active { border-bottom-color:#7ec8e3; }
+
+    #mainContent,
+    body.in-portal #mainContent {
+      width:100%;
+      min-width:0;
+      padding:10px;
+      overflow-x:hidden;
+    }
+    body.in-portal #appShell { min-height:100%; }
+
+    .section-title {
+      font-size:1.08rem;
+      line-height:1.35;
+      margin-bottom:12px;
+      padding-bottom:8px;
+      flex-wrap:wrap;
+    }
+    .section-title .icon { font-size:1.15rem; }
+    .card { padding:12px; margin-bottom:14px; }
+    .card-title { margin-bottom:10px; }
+    .form-grid { grid-template-columns:minmax(0,1fr); gap:10px; }
+    .form-full { grid-column:auto; }
+    .dashboard-grid { grid-template-columns:minmax(0,1fr); gap:10px; margin-bottom:14px; }
+    .dashboard-charts-grid { grid-template-columns:minmax(0,1fr); gap:10px; }
+
+    .table-wrap,
+    #scheduleGridWrap {
+      display:block;
+      width:100%;
+      max-width:100%;
+      overflow:auto;
+      overscroll-behavior-inline:contain;
+      -webkit-overflow-scrolling:touch;
+    }
+    table.data-table { width:max-content; min-width:100%; }
+    table.data-table th,
+    table.data-table td { padding:7px 8px; }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea,
+    table.data-table input,
+    table.data-table select,
+    table.data-table textarea {
+      font-size:16px;
+    }
+    textarea {
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      resize:vertical !important;
+    }
+    .resizable-input-shell {
+      width:100%;
+      min-width:0;
+      max-width:100%;
+      resize:vertical;
+    }
+    .accordion-header,
+    .add-row-btn,
+    .arena-tab,
+    .quarter-tab { min-height:44px; }
+    .row-drag-handle,
+    .btn-icon { min-width:40px; min-height:40px; }
+    .arena-tabs,
+    .quarter-tabs { gap:8px; }
+
+    .basket-modal-overlay { padding:8px; }
+    .basket-modal {
+      width:100%;
+      max-width:none;
+      max-height:calc(100dvh - 16px);
+    }
+    .basket-modal-header,
+    .basket-modal-body,
+    .basket-modal-footer { padding:12px; }
+    .basket-modal-footer { flex-wrap:wrap; }
+    .basket-modal-footer .btn { min-height:44px; flex:1 1 auto; }
+
+    #toast { left:10px; right:10px; bottom:10px; text-align:center; }
+  }
   .sched-subject-label { font-weight:700; color:var(--primary); font-size:0.6875rem; padding:2px 0; }
 
   .sched-table tfoot td, .sched-table tfoot th { border-top:2px solid var(--primary); }
@@ -716,7 +993,7 @@
   .section.readonly-mode input,
   .section.readonly-mode select,
   .section.readonly-mode textarea,
-  .section.readonly-mode button:not(.export-btn) {
+  .section.readonly-mode button:not(.export-btn):not(.teacher-summary-trigger) {
     pointer-events: none;
     opacity: 0.6;
   }
@@ -1036,7 +1313,9 @@
         <div class="card-title"><span class="icon">🧮</span> פירוט תלמידים לפי כיתות</div>
         <p class="text-muted" style="margin-bottom:12px;">
           הוסיפו שורה לכל כיתה בבית הספר עם מספר התלמידים בה. הסכום יחושב אוטומטית וישלח לשדה "מספר תלמידים" שבמידע הכללי.
-          כיתה עם 20 תלמידים ומעלה תיספר כ"כיתה תיקנית". גם שדות "מספר תלמידים" בתיבת החנ"מ למטה נכללים בסכום הכולל.
+          בכיתות רגילות החישוב נעשה לפי שכבה: 20 תלמידים לכיתה תיקנית אחת, 40 לשתיים, 69 לשלוש,
+          ולאחר מכן כל 34 תלמידים נוספים פותחים כיתה תיקנית נוספת — עד מספר הכיתות שהוזנו בפועל.
+          גם שדות "מספר תלמידים" בתיבת החנ"מ למטה נכללים בסכום הכולל ומחושבים לפי כללי החנ"מ הנפרדים.
         </p>
         <div class="table-wrap">
           <table class="data-table" id="classCountTable">
@@ -1322,9 +1601,13 @@
         <div class="print-meta" id="printDate-s2"></div>
       </div>
       <div class="card">
-        <p class="text-muted" style="margin-bottom:12px;">הגדר עד 12 יעדי על לשנה. יעדים אלו ישמשו כעמוד השדרה של כל הזירות והתכנון הרבעוני.</p>
+        <p class="text-muted" style="margin-bottom:12px;">הגדר עד 12 יעדי על לשנה. יעדים אלו ישמשו כעמוד השדרה של כל הזירות והתכנון הרבעוני. הטקסט יורד שורה אוטומטית; Enter מוסיף שורה, וגרירת הפינה משנה את גובה התיבה.</p>
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table" id="goalsTable">
+            <colgroup>
+              <col style="width:3%"><col style="width:20%"><col style="width:9%"><col style="width:20%">
+              <col style="width:20%"><col style="width:17%"><col style="width:8%"><col style="width:3%">
+            </colgroup>
             <thead>
               <tr>
                 <th style="width:30px">#</th>
@@ -1606,19 +1889,20 @@
         <div class="card-title"><span class="icon">🗂️</span> סוגי סלי שעות (לפי תקנט)</div>
         <p class="text-muted" style="margin-bottom:12px;">
           הגדירו כאן את סוגי סלי השעות שהוקצו לבית הספר (למשל: תקן בסיס, שעות אמירים, סל שילוב והכלה, סל טיפוח, סל עדיפות וכד' — לפי דו"ח תקנט).
-          סמנו סל אחד כ"סל בסיס" — שיבוץ מקצועות רגיל (סעיף הבא) ינוכה אוטומטית ממנו.
+          סמנו סל אחד או יותר כמיועד להוראה פרונטלית בכיתות — שיבוץ המקצועות הרגיל (בסעיף הבא) ייספר מול סך השעות שהוקצו למורה בכל הסלים שסומנו.
+          את סדר הסלים ניתן לשנות באמצעות החצים שבצד כל שורה.
         </p>
         <div class="table-wrap">
           <table class="data-table" id="basketsTable">
             <thead>
               <tr>
                 <th style="min-width:160px">שם הסל</th>
-                <th style="min-width:70px">סל בסיס</th>
+                <th style="min-width:110px">להוראה פרונטלית</th>
                 <th>סה"כ שעות בסל</th>
                 <th>שעות שהוקצו למורים</th>
                 <th>שעות פנויות</th>
                 <th>הערות</th>
-                <th></th>
+                <th>סדר ופעולות</th>
               </tr>
             </thead>
             <tbody id="basketsBody"></tbody>
@@ -1633,19 +1917,29 @@
       <!-- סיכום סל שעות -->
       <div class="card">
         <div class="card-title"><span class="icon">📊</span> סל שעות כולל</div>
-        <p class="text-muted" style="margin-bottom:12px;">מחושב אוטומטית מסיכום כל סלי השעות שהוגדרו למעלה, מול השעות שבפועל שובצו למורים בטבלה שמתחת.</p>
+        <p class="text-muted" style="margin-bottom:12px;">
+          השעות המנוצלות מהסלים כוללות שעות פרונטליות ושעות תפקיד שמקורן בסל בלבד. שעות שהייה ופרטני אינן מנוכות מסלי השעות ומסוכמות בנפרד.
+        </p>
         <div class="form-grid">
           <div class="form-group">
             <label>סה"כ שעות בסל (כל הסלים)</label>
             <input type="number" id="hrs_total" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;">
           </div>
           <div class="form-group">
-            <label>שעות מנוצלות (מחושב אוטומטית)</label>
+            <label>שעות סל מנוצלות (מחושב אוטומטית)</label>
             <input type="number" id="hrs_used" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;">
           </div>
           <div class="form-group">
             <label>שעות פנויות</label>
             <input type="number" id="hrs_free" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;color:var(--success);">
+          </div>
+          <div class="form-group">
+            <label>סה"כ שעות שהייה בבית הספר</label>
+            <input type="number" id="hrs_stay_total" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;color:var(--info);">
+          </div>
+          <div class="form-group">
+            <label>סה"כ שעות פרטניות בבית הספר</label>
+            <input type="number" id="hrs_private_total" placeholder="0" readonly style="background:#f4f6f9;font-weight:700;color:var(--info);">
           </div>
         </div>
         <div id="hrs_summary_bar" style="margin-top:14px;"></div>
@@ -1663,6 +1957,7 @@
                 <th>שעות שהייה</th>
                 <th>שעות פרטני</th>
                 <th>שעות תפקיד / רוחב</th>
+                <th style="min-width:120px">מקור שעות התפקיד</th>
                 <th style="min-width:130px">סלי שעות</th>
                 <th>שעות קביעות</th>
                 <th>סה"כ שעות</th>
@@ -1687,7 +1982,9 @@
           <button class="btn-icon" onclick="closeTeacherBasketModal()">✖</button>
         </div>
         <div class="basket-modal-body">
-          <p class="text-muted" style="margin-bottom:10px;">ניתן לחלק את שעות המורה בין כמה סלי שעות שונים.</p>
+          <p class="text-muted" style="margin-bottom:10px;">
+            ניתן לחלק את שעות המורה בין כמה סלי שעות. יש לכלול כאן רק שעות שמקורן בסלים, ולא שעות שהייה, פרטני או שעות תפקיד שסומנו כמגיעות מהן.
+          </p>
           <table class="data-table" id="basketAllocTable">
             <thead><tr><th>סל שעות</th><th>שעות</th><th></th></tr></thead>
             <tbody id="basketAllocBody"></tbody>
@@ -1698,6 +1995,33 @@
         <div class="basket-modal-footer">
           <button class="btn btn-outline" style="border:1.5px solid var(--border);color:var(--text);" onclick="closeTeacherBasketModal()">ביטול</button>
           <button class="btn btn-save" style="background:var(--primary);color:#fff;" onclick="saveTeacherBasketAlloc()">💾 שמור</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- חלונית סיכום שיבוצי מורה -->
+    <div id="teacherScheduleSummaryOverlay" class="basket-modal-overlay" style="display:none;"
+      onclick="if(event.target===this) closeTeacherScheduleSummary()">
+      <div id="teacherScheduleSummaryDialog" class="basket-modal teacher-summary-modal" role="dialog" aria-modal="true"
+        aria-labelledby="teacherScheduleSummaryTitle" aria-describedby="teacherScheduleSummaryResizeHint">
+        <div class="basket-modal-header">
+          <h3 id="teacherScheduleSummaryTitle">שיבוצי מורה</h3>
+          <button id="teacherScheduleSummaryClose" type="button" class="btn-icon"
+            aria-label="סגירת סיכום השיבוצים" onclick="closeTeacherScheduleSummary()">✖</button>
+        </div>
+        <div class="basket-modal-body">
+          <div id="teacherScheduleSummaryTotal" class="teacher-summary-total"></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>מקצוע</th><th>כיתה</th><th>שעות שבועיות</th></tr></thead>
+              <tbody id="teacherScheduleSummaryBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="basket-modal-footer">
+          <span id="teacherScheduleSummaryResizeHint" class="teacher-summary-resize-hint">גררו את הפינה לשינוי גודל</span>
+          <button type="button" class="btn btn-save" style="background:var(--primary);color:#fff;"
+            onclick="closeTeacherScheduleSummary()">סגור</button>
         </div>
       </div>
     </div>
@@ -1745,6 +2069,7 @@
         <p class="text-muted" style="margin-bottom:10px;">
           לכל מורה מוקצה אוטומטית צבע קבוע. ניתן ללחוץ על העיגול ולבחור צבע אחר לפי טעמכם — הבחירה תישמר.
           התאים בטבלת השיבוץ למטה יצבעו בצבע המורה המשובץ בהם, כך שקל לראות מה שובץ ומה עדיין ריק.
+          לחיצה על שם מורה תציג את כל המקצועות והכיתות שאליהם הוא משובץ.
         </p>
         <div id="teacherColorLegend" class="teacher-legend">
           <span class="teacher-legend-empty">הוסיפו מורים בסדין השעות כדי לראות כאן מקרא צבעים</span>
@@ -1753,7 +2078,12 @@
 
       <div class="card">
         <div class="card-title"><span class="icon">📋</span> טבלת שיבוץ</div>
-        <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ. תא עם מורה משובץ יצבע בצבע המורה.</p>
+        <p class="text-muted" style="margin-bottom:12px;">לכל תא – שעות שבועיות ושם המורה המשובץ. תא עם מורה משובץ יצבע בצבע המורה. לחצו על שם המורה להצגת כל שיבוציו; החץ שלצד השם משמש לשינוי המורה.</p>
+        <div class="schedule-grid-print-actions">
+          <button type="button" class="btn-outline-print" onclick="printScheduleGridOnly()">
+            🖨️ הדפסת הטבלה המלאה
+          </button>
+        </div>
         <div id="scheduleGridWrap" class="table-wrap">
           <div style="color:var(--text-muted);text-align:center;padding:32px;">הגדר כיתות ומקצועות ולחץ "בנה טבלת שיבוץ"</div>
         </div>
@@ -1762,9 +2092,9 @@
       <div class="card">
         <div class="card-title"><span class="icon">🔄</span> סנכרון מול סדין השעות</div>
         <p class="text-muted" style="margin-bottom:12px;">
-          שיבוץ מקצועות רגיל מנוכה אוטומטית משעות ה<strong>תקן הבסיסי (הפרונטליות)</strong> של כל מורה בסדין השעות בלבד —
-          סלי שעות אחרים (אמירים, שילוב וכד') אינם מושפעים מטבלה זו. שעות <strong>תפקיד / רוחב</strong> אינן נספרות
-          כאן בשום מקרה — גם אם הן מנוכות מסל התקן הבסיסי — כי לא ניתן לשבץ אותן למקצועות הוראה בכיתה.
+          שיבוץ מקצועות רגיל נספר אוטומטית מול סך השעות שהוקצו לכל מורה בכל <strong>הסלים שסומנו להוראה פרונטלית בכיתות</strong> —
+          סלים שלא סומנו אינם מושפעים מטבלה זו. שעות <strong>תפקיד / רוחב</strong> אינן נספרות כאן בשום מקרה,
+          כי לא ניתן לשבץ אותן למקצועות הוראה בכיתה.
           הנתונים מתעדכנים אוטומטית ומוצגים גם בסדין השעות.
         </p>
         <div class="table-wrap">
@@ -1772,7 +2102,7 @@
             <thead>
               <tr>
                 <th>מורה</th>
-                <th>שעות תקן בסיס (פרונטלי)</th>
+                <th>שעות להוראה פרונטלית</th>
                 <th>שובצו במקצועות</th>
                 <th>סטטוס שיבוץ</th>
               </tr>
@@ -2594,6 +2924,7 @@ function buildDefaultAppData() {
     scheduleNormHours: {},
     scheduleHomeroom: {},
     teacherColors: {},
+    fieldSizes: {},
     inventory: [],
     budget: {
       sourceConfig: {
@@ -2729,17 +3060,13 @@ function migrateContentIfNeeded(payload) {
     b.isBase = !!b.isBase;
     b.notes  = b.notes || '';
   });
-  // ודא שיש תמיד סל בסיס אחד (הראשון), אם קיימים סלים ואף אחד לא סומן
+  // תאימות לאחור: אם קיימים סלים ואף אחד לא סומן, הסל הראשון יהיה זמין לשיבוץ בכיתות
   if (payload.hourBaskets.length > 0 && !payload.hourBaskets.some(b => b.isBase)) {
     payload.hourBaskets[0].isBase = true;
   }
-  // ודא שרק סל אחד מסומן כסל בסיס
-  let _baseSeen = false;
-  payload.hourBaskets.forEach(b => {
-    if (b.isBase) { if (_baseSeen) b.isBase = false; else _baseSeen = true; }
-  });
   // ── פירוט סלים למורים קיימים (basketAllocations): מריצים רק אחרי שסלי השעות מוכנים ──
   payload.hoursRows.forEach(r => {
+    r.roleSource = normalizeRoleSource(r.roleSource);
     if (!Array.isArray(r.basketAllocations)) r.basketAllocations = [];
     // גיבוי: אם למורה היה שדה "מקור שעות" ישן (source) ואין עדיין פירוט סלים —
     // נסה למצוא סל בשם תואם ולשייך אליו את סה"כ שעותיה
@@ -2766,6 +3093,8 @@ function migrateContentIfNeeded(payload) {
     payload.scheduleHomeroom = {};
   if (!payload.teacherColors || typeof payload.teacherColors !== 'object')
     payload.teacherColors = {};
+  if (!payload.fieldSizes || typeof payload.fieldSizes !== 'object' || Array.isArray(payload.fieldSizes))
+    payload.fieldSizes = {};
   if (!Array.isArray(payload.inventory)) payload.inventory = [];
   payload.inventory.forEach(cat => {
     if (!Array.isArray(cat.rows)) cat.rows = [];
@@ -2913,6 +3242,7 @@ function switchSection(id, el) {
   if (el) el.classList.add('active');
   if (id === 's_dash') renderDashboard();
   if (id === 'splan')  renderPathwayView(); // UPGRADE 2
+  if (id === 's2') requestAnimationFrame(refreshGoalTextLayout);
 }
 
 function switchArena(aId) {
@@ -2963,9 +3293,157 @@ function toggleHanamSection() {
 // =============================================================
 //  CLASS COUNT TABLE (מספר תלמידים לפי כיתות) + TOTALS CALCULATION
 // =============================================================
-const STANDARD_CLASS_MIN = 20;   // כיתה רגילה נספרת כתיקנית מ-20 תלמידים
+const STANDARD_FIRST_CLASS_MIN = 20;  // כיתה תיקנית ראשונה בשכבה
+const STANDARD_TWO_CLASSES_MIN = 40;  // שתי כיתות תיקניות בשכבה
+const STANDARD_THIRD_CLASS_MIN = 69;  // כיתה תיקנית שלישית בשכבה
+const STANDARD_ADDITIONAL_CLASS_STEP = 34; // מהכיתה הרביעית ואילך
 const HANAM_LL_KVCH_MIN  = 7;    // ל"ל / כו"ח נספרת כתיקנית מ-7 תלמידים
 const HANAM_TIK_MIN      = 5;    // תקשורת נספרת כתיקנית מ-5 תלמידים
+
+let activeOrderedRowDrag = null;
+
+function getOrderedRowConfig(collectionKey) {
+  const configs = {
+    classRows: {
+      rows: () => appData.classRows || [],
+      collect: collectClassRowsFromDOM,
+      render: renderClassCountRows,
+      bodySelector: '#classCountBody',
+      rowIdAttribute: 'rid',
+      afterRender: recalcTotals,
+    },
+    staffRows: {
+      rows: () => appData.staffRows || [],
+      collect: collectStaffFromDOM,
+      render: renderStaffTable,
+      bodySelector: '#staffBody',
+      rowIdAttribute: 'rid',
+    },
+    roleHolderRows: {
+      rows: () => appData.roleHolderRows || [],
+      collect: collectRoleHoldersFromDOM,
+      render: renderRoleHoldersTable,
+      bodySelector: '#roleHoldersBody',
+      rowIdAttribute: 'rid',
+    },
+    hourBaskets: {
+      rows: () => appData.hourBaskets || [],
+      collect: collectBasketsFromDOM,
+      render: renderBasketsTable,
+      bodySelector: '#basketsBody',
+      rowIdAttribute: 'bid',
+    },
+  };
+  return configs[collectionKey] || null;
+}
+
+function reorderRowsByDrop(rows, draggedId, targetId, position) {
+  if (!Array.isArray(rows) || draggedId === targetId) return false;
+  const fromIndex = rows.findIndex(row => row.id === draggedId);
+  const targetIndex = rows.findIndex(row => row.id === targetId);
+  if (fromIndex < 0 || targetIndex < 0) return false;
+
+  let insertIndex = targetIndex + (position === 'after' ? 1 : 0);
+  const [movedRow] = rows.splice(fromIndex, 1);
+  if (fromIndex < insertIndex) insertIndex -= 1;
+  rows.splice(insertIndex, 0, movedRow);
+  return insertIndex !== fromIndex;
+}
+
+function clearOrderedRowDragIndicators() {
+  document.querySelectorAll('.draggable-table-row.dragging, .draggable-table-row.drag-over-before, .draggable-table-row.drag-over-after')
+    .forEach(row => row.classList.remove('dragging', 'drag-over-before', 'drag-over-after'));
+}
+
+function getOrderedRowAtPoint(event, config, draggedId) {
+  const hit = document.elementFromPoint(event.clientX, event.clientY);
+  const row = hit?.closest(`${config.bodySelector} tr[data-${config.rowIdAttribute}]`);
+  if (!row || row.dataset[config.rowIdAttribute] === draggedId) return null;
+  return row;
+}
+
+function startOrderedRowDrag(event, collectionKey, rid) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  const config = getOrderedRowConfig(collectionKey);
+  if (!config) return;
+  cancelOrderedRowDrag();
+  config.collect();
+  activeOrderedRowDrag = {
+    collectionKey,
+    rid,
+    pointerId: event.pointerId,
+    handle: event.currentTarget,
+    targetId: null,
+    position: 'before',
+  };
+  event.currentTarget.closest('tr')?.classList.add('dragging');
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  document.addEventListener('pointermove', showOrderedRowDropPosition);
+  document.addEventListener('pointerup', finishOrderedRowDrag, { once: true });
+  document.addEventListener('pointercancel', cancelOrderedRowDrag, { once: true });
+  event.preventDefault();
+}
+
+function showOrderedRowDropPosition(event) {
+  const drag = activeOrderedRowDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  const config = getOrderedRowConfig(drag.collectionKey);
+  if (!config) return;
+  event.preventDefault();
+  document.querySelectorAll('.draggable-table-row.drag-over-before, .draggable-table-row.drag-over-after')
+    .forEach(otherRow => otherRow.classList.remove('drag-over-before', 'drag-over-after'));
+  const row = getOrderedRowAtPoint(event, config, drag.rid);
+  if (!row) {
+    drag.targetId = null;
+    return;
+  }
+  const position = event.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2 ? 'before' : 'after';
+  drag.targetId = row.dataset[config.rowIdAttribute];
+  drag.position = position;
+  row.classList.toggle('drag-over-before', position === 'before');
+  row.classList.toggle('drag-over-after', position === 'after');
+}
+
+function finishOrderedRowDrag(event) {
+  const drag = activeOrderedRowDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  event.preventDefault();
+  const config = getOrderedRowConfig(drag.collectionKey);
+  drag.handle?.releasePointerCapture?.(drag.pointerId);
+  document.removeEventListener('pointermove', showOrderedRowDropPosition);
+  document.removeEventListener('pointercancel', cancelOrderedRowDrag);
+  clearOrderedRowDragIndicators();
+  activeOrderedRowDrag = null;
+  if (!config || !drag.targetId) return;
+  if (!reorderRowsByDrop(config.rows(), drag.rid, drag.targetId, drag.position)) return;
+
+  config.render();
+  config.afterRender?.();
+  markDirty();
+
+  requestAnimationFrame(() => {
+    const movedRow = document.querySelector(
+      `${config.bodySelector} tr[data-${config.rowIdAttribute}="${drag.rid}"]`
+    );
+    movedRow?.querySelector('.row-drag-handle')?.focus();
+  });
+}
+
+function cancelOrderedRowDrag() {
+  const drag = activeOrderedRowDrag;
+  drag?.handle?.releasePointerCapture?.(drag.pointerId);
+  document.removeEventListener('pointermove', showOrderedRowDropPosition);
+  document.removeEventListener('pointerup', finishOrderedRowDrag);
+  document.removeEventListener('pointercancel', cancelOrderedRowDrag);
+  clearOrderedRowDragIndicators();
+  activeOrderedRowDrag = null;
+}
+
+function setupOrderedRowDrag(tr, collectionKey, rid) {
+  tr.classList.add('draggable-table-row');
+  const handle = tr.querySelector('.row-drag-handle');
+  handle?.addEventListener('pointerdown', event => startOrderedRowDrag(event, collectionKey, rid));
+}
 
 function appendClassCountRow(r) {
   r.id = r.id || newId();
@@ -2974,8 +3452,12 @@ function appendClassCountRow(r) {
   tr.innerHTML = `
     <td><input class="cc_name" value="${esc(r.name||'')}" placeholder="לדוגמה: א'1" oninput="markDirty();recalcTotals();"></td>
     <td><input class="cc_students" type="number" min="0" value="${esc(r.students||'')}" placeholder="0" style="max-width:120px;" oninput="markDirty();recalcTotals();"></td>
-    <td><button class="btn-icon" onclick="removeClassCountRow('${r.id}')">🗑</button></td>
+    <td><div class="ordered-row-actions">
+      <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר הכיתות" aria-label="גררו לשינוי סדר הכיתות">⠿</span>
+      <button type="button" class="btn-icon" title="מחיקת כיתה" aria-label="מחיקת כיתה" onclick="removeClassCountRow('${r.id}')">🗑</button>
+    </div></td>
   `;
+  setupOrderedRowDrag(tr, 'classRows', r.id);
   document.getElementById('classCountBody').appendChild(tr);
 }
 
@@ -2987,18 +3469,19 @@ function renderClassCountRows() {
 }
 
 function addClassCountRow() {
+  collectClassRowsFromDOM();
   const r = { id: newId(), name: '', students: '' };
   appData.classRows = appData.classRows || [];
   appData.classRows.push(r);
-  appendClassCountRow(r);
+  renderClassCountRows();
   markDirty();
   recalcTotals();
 }
 
 function removeClassCountRow(rid) {
+  collectClassRowsFromDOM();
   appData.classRows = (appData.classRows || []).filter(r => r.id !== rid);
-  const tr = document.querySelector(`#classCountBody tr[data-rid="${rid}"]`);
-  if (tr) tr.remove();
+  renderClassCountRows();
   markDirty();
   recalcTotals();
 }
@@ -3012,19 +3495,64 @@ function collectClassRowsFromDOM() {
   }));
 }
 
+function getGradeLayerKey(className, fallbackId = '') {
+  const normalized = String(className || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^(?:כיתה|שכבה)/, '')
+    .replace(/["'׳״]/g, '');
+  const gradeMatch = normalized.match(/(יב|יא|[א-י])/);
+  return gradeMatch ? gradeMatch[1] : `row:${fallbackId}`;
+}
+
+function calculateStandardClassesForGrade(totalStudents, actualClassCount) {
+  const students = Math.max(0, Number(totalStudents) || 0);
+  const classCount = Math.max(0, Math.floor(Number(actualClassCount) || 0));
+  if (!classCount || students < STANDARD_FIRST_CLASS_MIN) return 0;
+  if (students < STANDARD_TWO_CLASSES_MIN) return Math.min(classCount, 1);
+  if (students < STANDARD_THIRD_CLASS_MIN) return Math.min(classCount, 2);
+  const calculated = 3 + Math.floor((students - STANDARD_THIRD_CLASS_MIN) / STANDARD_ADDITIONAL_CLASS_STEP);
+  return Math.min(classCount, calculated);
+}
+
+function calculateRegularClassTotals(rows) {
+  const grades = new Map();
+  let totalStudents = 0;
+
+  (Array.isArray(rows) ? rows : []).forEach((row, index) => {
+    const name = String(row?.name || '').trim();
+    const parsedStudents = parseInt(row?.students, 10);
+    const hasStudentValue = !Number.isNaN(parsedStudents);
+    if (!name && !hasStudentValue) return;
+
+    const students = hasStudentValue ? Math.max(0, parsedStudents) : 0;
+    const layerKey = getGradeLayerKey(name, row?.id || index);
+    const grade = grades.get(layerKey) || { students: 0, classCount: 0 };
+    grade.students += students;
+    grade.classCount += 1;
+    grades.set(layerKey, grade);
+    totalStudents += students;
+  });
+
+  let standardClasses = 0;
+  grades.forEach(grade => {
+    standardClasses += calculateStandardClassesForGrade(grade.students, grade.classCount);
+  });
+  return { totalStudents, standardClasses };
+}
+
 // מחשב את סה"כ התלמידים ואת מספר הכיתות התיקניות, מהטבלה + מתיבת החנ"מ,
 // ומעדכן את השדות "מספר תלמידים" (אלא אם הוזנה ידנית) ו"מספר כיתות תיקניות".
 function recalcTotals() {
   // --- טבלת כיתות רגילות ---
-  let totalStudents = 0;
-  let standardClasses = 0;
-  document.querySelectorAll('#classCountBody tr[data-rid]').forEach(tr => {
-    const n = parseInt(tr.querySelector('.cc_students')?.value, 10);
-    if (!isNaN(n)) {
-      totalStudents += n;
-      if (n >= STANDARD_CLASS_MIN) standardClasses++;
-    }
-  });
+  const regularRows = Array.from(document.querySelectorAll('#classCountBody tr[data-rid]')).map(tr => ({
+    id: tr.dataset.rid,
+    name: tr.querySelector('.cc_name')?.value || '',
+    students: tr.querySelector('.cc_students')?.value || '',
+  }));
+  const regularTotals = calculateRegularClassTotals(regularRows);
+  let totalStudents = regularTotals.totalStudents;
+  let standardClasses = regularTotals.standardClasses;
 
   // --- חנ"מ ---
   const hasHanam = !!document.getElementById('gi_hasHanam')?.checked;
@@ -3535,6 +4063,7 @@ function _applyLoadedData(payload) {
   renderInventory();
   renderBudget();
   renderDefects();
+  applyAllSavedFieldSizes();
 
   const displaySchool = appData.schoolName || window.__portalSchool || '';
   const displayYear   = appData.year       || window.__portalYear   || '';
@@ -3774,22 +4303,28 @@ function appendStaffRow(r) {
     <td><input class="sf_name"  value="${esc(r.name||'')}"           oninput="markDirty()"></td>
     <td><input class="sf_resp"  value="${esc(r.responsibility||'')}" oninput="markDirty()"></td>
     <td><input class="sf_email" value="${esc(r.email||'')}"          oninput="markDirty()"></td>
-    <td><button class="btn-icon" onclick="removeStaffRow('${r.id}')">🗑</button></td>
+    <td><div class="ordered-row-actions">
+      <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר צוות ההנהלה" aria-label="גררו לשינוי סדר צוות ההנהלה">⠿</span>
+      <button type="button" class="btn-icon" title="מחיקת חבר הנהלה" aria-label="מחיקת חבר הנהלה" onclick="removeStaffRow('${r.id}')">🗑</button>
+    </div></td>
   `;
+  setupOrderedRowDrag(tr, 'staffRows', r.id);
   document.getElementById('staffBody').appendChild(tr);
 }
 
 function addStaffRow() {
+  collectStaffFromDOM();
   const r = { id: newId(), role: '', name: '', responsibility: '', email: '' };
+  appData.staffRows = appData.staffRows || [];
   appData.staffRows.push(r);
-  appendStaffRow(r);
+  renderStaffTable();
   markDirty();
 }
 
 function removeStaffRow(rid) {
+  collectStaffFromDOM();
   appData.staffRows = appData.staffRows.filter(r => r.id !== rid);
-  const tr = document.querySelector(`#staffBody tr[data-rid="${rid}"]`);
-  if (tr) tr.remove();
+  renderStaffTable();
   markDirty();
 }
 
@@ -3833,6 +4368,39 @@ function removeFocusArea(id) {
 // =============================================================
 //  STRATEGIC GOALS
 // =============================================================
+function fitGoalTextField(field) {
+  if (!field.isConnected || field.getBoundingClientRect().width === 0) return;
+  // A manually chosen height takes precedence over automatic content sizing.
+  const savedSize = normalizeResizableFieldSize(appData.fieldSizes?.[getResizableFieldKey(field)]);
+  if (savedSize) return;
+  field.style.height = 'auto';
+  field.style.height = `${Math.max(64, field.scrollHeight + 2)}px`;
+}
+
+function refreshGoalTextLayout() {
+  document.querySelectorAll('#goalsBody textarea').forEach(fitGoalTextField);
+}
+
+function initGoalTextLayout() {
+  const table = document.getElementById('goalsTable');
+  if (!table) return;
+  table.addEventListener('input', event => {
+    if (event.target.matches('textarea')) fitGoalTextField(event.target);
+  });
+  // Reflow when the portal/sidebar changes available width, or the hidden tab opens.
+  if (typeof ResizeObserver === 'function') {
+    let lastWidth = -1;
+    new ResizeObserver(entries => {
+      const width = entries[0].contentRect.width;
+      if (width === lastWidth) return;
+      lastWidth = width;
+      requestAnimationFrame(refreshGoalTextLayout);
+    }).observe(table);
+  } else {
+    window.addEventListener('resize', refreshGoalTextLayout);
+  }
+}
+
 function renderGoalsTable() {
   const tbody = document.getElementById('goalsBody');
   if (!tbody) return;
@@ -3846,12 +4414,12 @@ function appendGoalRow(g, i) {
   tr.dataset.gid = g.id;
   tr.innerHTML = `
     <td style="color:var(--text-muted);font-weight:700;text-align:center">${i + 1}</td>
-    <td><input class="g_title"    value="${esc(g.title    || '')}" placeholder="יעד..." style="min-width:180px" oninput="markDirty()"></td>
-    <td><input class="g_domain"   value="${esc(g.domain   || '')}" placeholder="תחום"   oninput="markDirty()"></td>
-    <td><input class="g_metric"   value="${esc(g.metric   || '')}" placeholder="מדד"    oninput="markDirty()"></td>
-    <td><input class="g_baseline" value="${esc(g.baseline || '')}" placeholder="נוכחי"  oninput="markDirty()"></td>
-    <td><input class="g_target"   value="${esc(g.target   || '')}" placeholder="יעד"    oninput="markDirty()"></td>
-    <td>
+    <td aria-label="יעד על"><textarea rows="3" class="g_title" placeholder="יעד..." aria-label="יעד על" oninput="markDirty()"></textarea></td>
+    <td aria-label="תחום"><textarea rows="3" class="g_domain" placeholder="תחום" aria-label="תחום" oninput="markDirty()"></textarea></td>
+    <td aria-label="מדד הצלחה"><textarea rows="3" class="g_metric" placeholder="מדד" aria-label="מדד הצלחה" oninput="markDirty()"></textarea></td>
+    <td aria-label="מצב נוכחי"><textarea rows="3" class="g_baseline" placeholder="נוכחי" aria-label="מצב נוכחי" oninput="markDirty()"></textarea></td>
+    <td aria-label="יעד לסיום השנה"><textarea rows="3" class="g_target" placeholder="יעד" aria-label="יעד לסיום השנה" oninput="markDirty()"></textarea></td>
+    <td aria-label="סטטוס">
       <select class="g_status" onchange="markDirty()">
         <option value="todo"       ${g.status === 'todo'        ? 'selected' : ''}>לביצוע</option>
         <option value="inprogress" ${g.status === 'inprogress'  ? 'selected' : ''}>בתהליך</option>
@@ -3861,7 +4429,11 @@ function appendGoalRow(g, i) {
     </td>
     <td><button class="btn-icon" onclick="removeGoalRow('${g.id}')">🗑</button></td>
   `;
+  ['title', 'domain', 'metric', 'baseline', 'target'].forEach(key => {
+    tr.querySelector(`.g_${key}`).value = String(g[key] ?? '');
+  });
   document.getElementById('goalsBody').appendChild(tr);
+  requestAnimationFrame(refreshGoalTextLayout);
 }
 
 function addGoalRow() {
@@ -4823,28 +5395,44 @@ function appendRoleHolderRow(r) {
   const tr = document.createElement('tr');
   tr.dataset.rid = r.id;
   tr.innerHTML = `
-    <td><input class="rh_role"    value="${esc(r.role    || '')}" placeholder="תפקיד"         oninput="markDirty()"></td>
-    <td><input class="rh_name"    value="${esc(r.name    || '')}" placeholder="שם מלא"         oninput="markDirty()"></td>
-    <td><input class="rh_domain"  value="${esc(r.domain  || '')}" placeholder="תחום"           oninput="markDirty()"></td>
-    <td><input class="rh_contact" value="${esc(r.contact || '')}" placeholder="טלפון / דוא&quot;ל" oninput="markDirty()"></td>
-    <td><input class="rh_notes"   value="${esc(r.notes   || '')}" placeholder="הערות"          oninput="markDirty()"></td>
-    <td><button class="btn-icon" onclick="removeRoleHolderRow('${r.id}')">🗑</button></td>
+    <td><textarea rows="1" class="rh_role"    placeholder="תפקיד"         oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_name"    placeholder="שם מלא"         oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_domain"  placeholder="תחום"           oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_contact" placeholder="טלפון / דוא&quot;ל" oninput="markDirty()"></textarea></td>
+    <td><textarea rows="1" class="rh_notes"   placeholder="הערות"          oninput="markDirty()"></textarea></td>
+    <td><div class="ordered-row-actions">
+      <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר בעלי התפקידים" aria-label="גררו לשינוי סדר בעלי התפקידים">⠿</span>
+      <button type="button" class="btn-icon" title="מחיקת בעל תפקיד" aria-label="מחיקת בעל תפקיד" onclick="removeRoleHolderRow('${r.id}')">🗑</button>
+    </div></td>
   `;
+  const values = {
+    rh_role: r.role || '',
+    rh_name: r.name || '',
+    rh_domain: r.domain || '',
+    rh_contact: r.contact || '',
+    rh_notes: r.notes || '',
+  };
+  Object.entries(values).forEach(([className, value]) => {
+    const field = tr.querySelector(`.${className}`);
+    if (field) field.value = String(value);
+  });
+  setupOrderedRowDrag(tr, 'roleHolderRows', r.id);
   document.getElementById('roleHoldersBody').appendChild(tr);
 }
 
 function addRoleHolderRow() {
+  collectRoleHoldersFromDOM();
   if (!appData.roleHolderRows) appData.roleHolderRows = [];
   const r = { id: newId(), role: '', name: '', domain: '', contact: '', notes: '' };
   appData.roleHolderRows.push(r);
-  appendRoleHolderRow(r);
+  renderRoleHoldersTable();
   markDirty();
 }
 
 function removeRoleHolderRow(rid) {
+  collectRoleHoldersFromDOM();
   appData.roleHolderRows = (appData.roleHolderRows || []).filter(r => r.id !== rid);
-  const tr = document.querySelector(`#roleHoldersBody tr[data-rid="${rid}"]`);
-  if (tr) tr.remove();
+  renderRoleHoldersTable();
   markDirty();
 }
 
@@ -4884,7 +5472,15 @@ function appendHoursRow(r) {
     <td><input class="hr_frontal"  value="${esc(r.frontal  || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
     <td><input class="hr_stay"     value="${esc(r.stay     || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
     <td><input class="hr_private"  value="${esc(r.private  || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
-    <td><input class="hr_role"     value="${esc(r.role     || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty(); calcRowTotal(this); updateHoursSummary()"></td>
+    <td><input class="hr_role"     value="${esc(r.role     || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="onRoleHoursChange(this)"></td>
+    <td>
+      <select class="hr_role_source" style="min-width:115px" onchange="onRoleSourceChange(this)"
+        title="בחרו מהיכן נלקחות שעות התפקיד של המורה">
+        <option value="basket" ${normalizeRoleSource(r.roleSource) === 'basket' ? 'selected' : ''}>מסל שעות</option>
+        <option value="stay" ${normalizeRoleSource(r.roleSource) === 'stay' ? 'selected' : ''}>משעות שהייה</option>
+        <option value="private" ${normalizeRoleSource(r.roleSource) === 'private' ? 'selected' : ''}>משעות פרטני</option>
+      </select>
+    </td>
     <td>
       <div class="basket-alloc-cell">
         <span class="basket-alloc-badge" id="basketBadge__${r.id}"></span>
@@ -4910,9 +5506,35 @@ function calcRowTotal(inp) {
   if (totalEl) totalEl.value = total || '';
 }
 
+function normalizeRoleSource(value) {
+  return value === 'stay' || value === 'private' || value === 'basket' ? value : 'basket';
+}
+
+function onRoleHoursChange(inp) {
+  calcRowTotal(inp);
+  const tr = inp.closest('tr');
+  const row = (appData.hoursRows || []).find(r => r.id === tr?.dataset.rid);
+  if (row) {
+    row.role = inp.value;
+    row.total = tr?.querySelector('.hr_total')?.value || '';
+  }
+  updateHoursSummary();
+  refreshHoursScheduleSync();
+  markDirty();
+}
+
+function onRoleSourceChange(sel) {
+  const tr = sel.closest('tr');
+  const row = (appData.hoursRows || []).find(r => r.id === tr?.dataset.rid);
+  if (row) row.roleSource = normalizeRoleSource(sel.value);
+  updateHoursSummary();
+  refreshHoursScheduleSync();
+  markDirty();
+}
+
 function addHoursRow() {
   if (!appData.hoursRows) appData.hoursRows = [];
-  const r = { id: newId(), name: '', frontal: '', stay: '', private: '', role: '', source: '', tenure: '', total: '', notes: '' };
+  const r = { id: newId(), name: '', frontal: '', stay: '', private: '', role: '', roleSource: 'basket', source: '', tenure: '', total: '', notes: '', basketAllocations: [] };
   appData.hoursRows.push(r);
   appendHoursRow(r);
   markDirty();
@@ -4940,6 +5562,7 @@ function collectHoursFromDOM() {
       stay:    tr.querySelector('.hr_stay')?.value    || '',
       private: tr.querySelector('.hr_private')?.value || '',
       role:    tr.querySelector('.hr_role')?.value    || '',
+      roleSource: normalizeRoleSource(tr.querySelector('.hr_role_source')?.value),
       tenure:  tr.querySelector('.hr_tenure')?.value  || '',
       total:   tr.querySelector('.hr_total')?.value   || '',
       notes:   tr.querySelector('.hr_notes')?.value   || '',
@@ -5093,22 +5716,45 @@ function getBasketsTotalFromDOM() {
   return total;
 }
 
+function calculateHoursSummary(rows, basketTotal) {
+  const summary = {
+    total: parseFloat(basketTotal) || 0,
+    used: 0,
+    stayTotal: 0,
+    privateTotal: 0,
+  };
+  (rows || []).forEach(row => {
+    const frontal = parseFloat(row.frontal) || 0;
+    const stay = parseFloat(row.stay) || 0;
+    const privateHours = parseFloat(row.private) || 0;
+    const role = parseFloat(row.role) || 0;
+    const roleSource = normalizeRoleSource(row.roleSource);
+    summary.used += frontal + (roleSource === 'basket' ? role : 0);
+    summary.stayTotal += stay + (roleSource === 'stay' ? role : 0);
+    summary.privateTotal += privateHours + (roleSource === 'private' ? role : 0);
+  });
+  summary.free = summary.total - summary.used;
+  return summary;
+}
+
 function updateHoursSummary() {
   const total = getBasketsTotalFromDOM();
-
-  // sum used hours from table (כלל השעות שבפועל שובצו למורים, בכל הקטגוריות)
-  let used = 0;
-  document.querySelectorAll('#hoursBody tr[data-rid]').forEach(tr => {
-    const get = cls => parseFloat(tr.querySelector(cls)?.value || 0) || 0;
-    used += get('.hr_frontal') + get('.hr_stay') + get('.hr_private') + get('.hr_role');
-  });
-
-  const free = total - used;
+  const rows = Array.from(document.querySelectorAll('#hoursBody tr[data-rid]')).map(tr => ({
+    frontal: tr.querySelector('.hr_frontal')?.value || '',
+    stay: tr.querySelector('.hr_stay')?.value || '',
+    private: tr.querySelector('.hr_private')?.value || '',
+    role: tr.querySelector('.hr_role')?.value || '',
+    roleSource: tr.querySelector('.hr_role_source')?.value || 'basket',
+  }));
+  const summary = calculateHoursSummary(rows, total);
+  const { used, stayTotal, privateTotal, free } = summary;
 
   const setR = (id, v) => { const el = document.getElementById(id); if (el) el.value = v >= 0 ? v : 0; };
   setR('hrs_total', total);
   setR('hrs_used',  used);
   setR('hrs_free',  Math.max(0, free));
+  setR('hrs_stay_total', stayTotal);
+  setR('hrs_private_total', privateTotal);
 
   const freeEl = document.getElementById('hrs_free');
   if (freeEl) freeEl.style.color = free < 0 ? 'var(--accent)' : 'var(--success)';
@@ -5169,15 +5815,24 @@ function appendBasketRow(b) {
   tr.innerHTML = `
     <td><input class="bk_name" value="${esc(b.name || '')}" placeholder="לדוגמה: תקן בסיס" oninput="markDirty(); onBasketFieldChange()"></td>
     <td style="text-align:center;">
-      <input type="radio" name="baseBasketRadio" class="bk_isBase" ${b.isBase ? 'checked' : ''}
-        onchange="onBaseBasketToggle(this)" title="סמן כסל הבסיס — שיבוץ מקצועות רגיל ינוכה ממנו אוטומטית">
+      <input type="checkbox" class="bk_isBase" ${b.isBase ? 'checked' : ''}
+        onchange="onBaseBasketToggle(this)" title="כל השעות שהוקצו למורה מסל זה ייספרו כזמינות לשיבוץ בכיתות"
+        aria-label="${esc(b.name || 'הסל')} מיועד להוראה פרונטלית בכיתות">
     </td>
     <td><input class="bk_hours" type="number" min="0" value="${esc(b.hours ?? '')}" placeholder="0" style="min-width:70px" oninput="markDirty(); onBasketFieldChange()"></td>
     <td><span class="basket-used-val" id="bkUsed__${b.id}">0</span></td>
     <td><span class="basket-free-val" id="bkFree__${b.id}">0</span></td>
     <td><input class="bk_notes" value="${esc(b.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
-    <td><button class="btn-icon" onclick="removeBasketRow('${b.id}')">🗑</button></td>
+    <td>
+      <div class="ordered-row-actions">
+        <span class="row-drag-handle" role="button" tabindex="0"
+          title="גררו לשינוי סדר סלי השעות" aria-label="גררו לשינוי סדר סלי השעות">⠿</span>
+        <button type="button" class="btn-icon" title="מחיקת סל" aria-label="מחיקת ${esc(b.name || 'הסל')}"
+          onclick="removeBasketRow('${b.id}')">🗑</button>
+      </div>
+    </td>
   `;
+  setupOrderedRowDrag(tr, 'hourBaskets', b.id);
   tbody.appendChild(tr);
 }
 
@@ -5216,7 +5871,13 @@ function removeBasketRow(bid) {
   (appData.hoursRows || []).forEach(r => {
     r.basketAllocations = (r.basketAllocations || []).filter(a => a.basketId !== bid);
   });
-  if (removed?.isBase && appData.hourBaskets.length) appData.hourBaskets[0].isBase = true;
+  if (removed?.isBase && appData.hourBaskets.length && !appData.hourBaskets.some(b => b.isBase)) {
+    appData.hourBaskets[0].isBase = true;
+    const firstBasketCheckbox = document.querySelector(
+      `#basketsBody tr[data-bid="${appData.hourBaskets[0].id}"] .bk_isBase`
+    );
+    if (firstBasketCheckbox) firstBasketCheckbox.checked = true;
+  }
   const tr = document.querySelector(`#basketsBody tr[data-bid="${bid}"]`);
   if (tr) tr.remove();
   renderHoursTable(); // רענון הבאדג'ים בטבלת המורים אחרי הסרת השיוכים
@@ -5227,7 +5888,14 @@ function removeBasketRow(bid) {
 function onBaseBasketToggle(el) {
   const tr = el.closest('tr');
   const bid = tr?.dataset.bid;
-  (appData.hourBaskets || []).forEach(b => { b.isBase = (b.id === bid); });
+  const basket = (appData.hourBaskets || []).find(b => b.id === bid);
+  if (basket) basket.isBase = !!el.checked;
+  if (!el.checked && !(appData.hourBaskets || []).some(b => b.isBase)) {
+    el.checked = true;
+    if (basket) basket.isBase = true;
+    showToast('יש להשאיר לפחות סל אחד שמיועד להוראה פרונטלית בכיתות', 'error');
+    return;
+  }
   updateBasketsSummary();
   refreshHoursScheduleSync();
   markDirty();
@@ -5324,7 +5992,7 @@ function renderBasketAllocModalRows() {
   const tbody = document.getElementById('basketAllocBody');
   if (!tbody) return;
   const basketOpts = (appData.hourBaskets || []).map(b =>
-    `<option value="${b.id}">${esc(b.name || '(ללא שם)')}${b.isBase ? ' — סל בסיס' : ''}</option>`
+    `<option value="${b.id}">${esc(b.name || '(ללא שם)')}${b.isBase ? ' — זמין לשיבוץ בכיתות' : ''}</option>`
   ).join('');
   if (!_basketModalDraft.length) {
     tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:12px;">לא הוגדרו עדיין סלים למורה זו</td></tr>`;
@@ -5411,21 +6079,24 @@ function computeTeacherScheduleTotals() {
   return map;
 }
 
-// שעות התקן הבסיסי (הפרונטליות) שהוקצו למורה מסוימת: קודם כל לפי שיוך מפורש
-// לסל הבסיס (במודאל "סלי שעות"), ואם אין — נופלים חזרה לשדה "שעות פרונטליות"
-// הכללי שלה בטבלה הראשית, כדי שהתכונה תעבוד גם בלי מילוי הסלים.
-// חשוב: שעות "תפקיד / רוחב" (row.role) אף פעם לא נספרות כאן, גם אם הן חלק
-// מהשעות שהוקצו למורה מסל התקן הבסיסי — כי אי אפשר לשבץ אותן למקצועות הוראה
-// בכיתה, ולכן הן חייבות להישאר מחוץ לתקן שמוצג במסך "שיבוץ מקצועות".
-function getTeacherBaseBasketHours(row) {
+// שעות ההוראה הפרונטלית שהוקצו למורה: סוכמים את השיוכים מכל הסלים שסומנו
+// כזמינים לשיבוץ בכיתות. אם אין למורה שיוך מפורש לסלים אלה, נופלים חזרה
+// לשדה "שעות פרונטליות" הכללי שלה, כדי לתמוך גם בנתונים קיימים.
+// שעות "תפקיד / רוחב" (row.role) מופחתות פעם אחת בלבד כאשר מקורן בסל שעות,
+// כי אז הן כלולות בהקצאת הסלים אך אי אפשר לשבץ אותן למקצועות הוראה בכיתה.
+function getTeacherFrontalBasketHours(row) {
   const roleHours = parseFloat(row.role) || 0;
-  const baseBasket = (appData.hourBaskets || []).find(b => b.isBase);
-  if (baseBasket) {
-    const alloc = (row.basketAllocations || []).find(a => a.basketId === baseBasket.id);
-    if (alloc && alloc.hours !== '' && alloc.hours !== undefined && alloc.hours !== null) {
-      const allocHours = parseFloat(alloc.hours) || 0;
-      return Math.max(0, allocHours - roleHours);
-    }
+  const basketRoleHours = normalizeRoleSource(row.roleSource) === 'basket' ? roleHours : 0;
+  const frontalBasketIds = new Set(
+    (appData.hourBaskets || []).filter(b => b.isBase).map(b => b.id)
+  );
+  const frontalAllocations = (row.basketAllocations || []).filter(a =>
+    frontalBasketIds.has(a.basketId) &&
+    a.hours !== '' && a.hours !== undefined && a.hours !== null
+  );
+  if (frontalAllocations.length) {
+    const allocatedHours = frontalAllocations.reduce((sum, alloc) => sum + (parseFloat(alloc.hours) || 0), 0);
+    return Math.max(0, allocatedHours - basketRoleHours);
   }
   return parseFloat(row.frontal) || 0;
 }
@@ -5440,7 +6111,7 @@ function refreshHoursScheduleSync() {
     const name = tr.querySelector('.hr_name')?.value || row.name || '';
     if (!name) { el.textContent = '—'; el.className = 'hr-sync-val diff-empty'; return; }
     const scheduled = scheduledMap[name] || 0;
-    const budget    = getTeacherBaseBasketHours(row);
+    const budget    = getTeacherFrontalBasketHours(row);
     if (!budget && !scheduled) {
       el.textContent = 'אין נתונים'; el.className = 'hr-sync-val diff-empty'; return;
     }
@@ -5467,7 +6138,7 @@ function renderScheduleSyncTable(scheduledMapArg) {
   }
   tbody.innerHTML = rows.map(r => {
     const scheduled = scheduledMap[r.name] || 0;
-    const budget    = getTeacherBaseBasketHours(r);
+    const budget    = getTeacherFrontalBasketHours(r);
     const remaining = budget - scheduled;
     let cls, txt;
     if (!budget && !scheduled) { cls = 'diff-empty'; txt = 'אין נתונים'; }
@@ -5886,6 +6557,85 @@ function applyScheduleCellColors() {
     setScheduleCellColor(td, cell.teacher || '');
   });
 }
+
+let _teacherScheduleSummaryReturnFocus = null;
+
+function getTeacherScheduleAssignments(teacherName) {
+  const name = String(teacherName || '').trim();
+  if (!name) return [];
+  const classes = appData.scheduleConfig?.classes || [];
+  const subjects = appData.scheduleConfig?.subjects || [];
+  const assignments = [];
+
+  subjects.forEach(subject => {
+    classes.forEach(className => {
+      const cell = appData.scheduleCells?.[`${subject}__${className}`] || {};
+      if (String(cell.teacher || '').trim() === name) {
+        assignments.push({ subject, className, hours: cell.hrs ?? '' });
+      }
+    });
+  });
+  return assignments;
+}
+
+function openTeacherScheduleSummary(teacherName) {
+  const name = String(teacherName || '').trim();
+  if (!name) return;
+  const overlay = document.getElementById('teacherScheduleSummaryOverlay');
+  const title = document.getElementById('teacherScheduleSummaryTitle');
+  const totalBox = document.getElementById('teacherScheduleSummaryTotal');
+  const body = document.getElementById('teacherScheduleSummaryBody');
+  if (!overlay || !title || !totalBox || !body) return;
+
+  const assignments = getTeacherScheduleAssignments(name);
+  const totalHours = assignments.reduce((sum, row) => {
+    const hours = Number.parseFloat(row.hours);
+    return sum + (Number.isFinite(hours) ? hours : 0);
+  }, 0);
+
+  title.textContent = `שיבוצים – ${name}`;
+  totalBox.textContent = assignments.length
+    ? `${assignments.length} שיבוצים · ${totalHours.toLocaleString('he-IL', { maximumFractionDigits: 2 })} שעות שבועיות`
+    : 'לא נמצאו שיבוצים למורה זה';
+  body.innerHTML = assignments.length
+    ? assignments.map(row => `<tr>
+        <td>${esc(row.subject)}</td>
+        <td>${esc(row.className)}</td>
+        <td>${row.hours === '' || row.hours === null || row.hours === undefined ? '—' : esc(row.hours)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="3" class="teacher-summary-empty">המורה אינו משובץ כעת למקצוע או לכיתה.</td></tr>';
+
+  _teacherScheduleSummaryReturnFocus = document.activeElement;
+  overlay.style.display = 'flex';
+  document.getElementById('teacherScheduleSummaryClose')?.focus();
+}
+
+function closeTeacherScheduleSummary() {
+  const overlay = document.getElementById('teacherScheduleSummaryOverlay');
+  if (!overlay || overlay.style.display === 'none') return;
+  overlay.style.display = 'none';
+  if (_teacherScheduleSummaryReturnFocus?.focus) _teacherScheduleSummaryReturnFocus.focus();
+  _teacherScheduleSummaryReturnFocus = null;
+}
+
+function syncScheduleTeacherControl(select) {
+  if (!select) return;
+  const control = select.closest('.sched-teacher-control');
+  const nameButton = control?.querySelector('.sched-teacher-name-btn');
+  const teacherName = String(select.value || '').trim();
+  if (nameButton) {
+    nameButton.hidden = !teacherName;
+    nameButton.textContent = teacherName;
+    nameButton.dataset.teacher = teacherName;
+    nameButton.title = teacherName ? `הצגת כל השיבוצים של ${teacherName}` : '';
+  }
+  select.classList.toggle('assigned', Boolean(teacherName));
+  select.setAttribute('aria-label', teacherName
+    ? `שינוי המורה המשובץ: ${teacherName}`
+    : 'בחירת מורה לשיבוץ');
+  select.title = teacherName ? 'שינוי המורה המשובץ' : 'בחירת מורה לשיבוץ';
+}
+
 // בונה את מקרא הצבעים מעל טבלת השיבוץ, עם עיגול צבע לכל מורה שניתן ללחוץ
 // עליו ולבחור צבע ידני, וכפתור איפוס חזרה לצבע האוטומטי
 function renderTeacherColorLegend() {
@@ -5900,7 +6650,8 @@ function renderTeacherColorLegend() {
     <span class="teacher-legend-item">
       <input type="color" value="${esc(getTeacherColor(n))}" data-teacher="${esc(n)}"
         title="בחר/י צבע עבור ${esc(n)}" onchange="onTeacherColorPick(this.dataset.teacher, this.value)">
-      <span>${esc(n)}</span>
+      <button type="button" class="teacher-legend-name teacher-summary-trigger" data-teacher="${esc(n)}"
+        title="הצגת כל השיבוצים של ${esc(n)}" onclick="openTeacherScheduleSummary(this.dataset.teacher)">${esc(n)}</button>
       <button type="button" class="teacher-legend-reset" data-teacher="${esc(n)}"
         title="איפוס לצבע אוטומטי" onclick="resetTeacherColor(this.dataset.teacher)">↺</button>
     </span>`).join('');
@@ -5956,13 +6707,21 @@ function buildScheduleGrid() {
             value="${esc(cell.hrs)}"
             data-key="${esc(key)}" data-field="hrs"
             oninput="onScheduleCellChange(this)" title="שעות שבועיות">
-          <select data-key="${esc(key)}" data-field="teacher"
-            onchange="onScheduleCellChange(this)">
-            <option value="">— מורה —</option>
-            ${teacherOpts}
-            ${!teacherOpts ? '' : ''}
-            <option value="${esc(cell.teacher)}" ${cell.teacher ? 'selected' : ''}>${cell.teacher ? esc(cell.teacher) : ''}</option>
-          </select>
+          <div class="sched-teacher-control">
+            <button type="button" class="sched-teacher-name-btn teacher-summary-trigger"
+              data-teacher="${esc(cell.teacher)}" ${cell.teacher ? '' : 'hidden'}
+              title="הצגת כל השיבוצים של ${esc(cell.teacher)}"
+              onclick="openTeacherScheduleSummary(this.dataset.teacher)">${cell.teacher ? esc(cell.teacher) : ''}</button>
+            <select class="sched-teacher-select${cell.teacher ? ' assigned' : ''}"
+              data-key="${esc(key)}" data-field="teacher"
+              aria-label="${cell.teacher ? `שינוי המורה המשובץ: ${esc(cell.teacher)}` : 'בחירת מורה לשיבוץ'}"
+              onchange="onScheduleCellChange(this)">
+              <option value="">— מורה —</option>
+              ${teacherOpts}
+              ${!teacherOpts ? '' : ''}
+              <option value="${esc(cell.teacher)}" ${cell.teacher ? 'selected' : ''}>${cell.teacher ? esc(cell.teacher) : ''}</option>
+            </select>
+          </div>
         </div>
       </td>`;
     });
@@ -6042,6 +6801,7 @@ function renderScheduleGrid() {
       teacherOpts.map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('') +
       (current && !teacherOpts.includes(current)
         ? `<option value="${esc(current)}" selected>${esc(current)}</option>` : '');
+    syncScheduleTeacherControl(sel);
   });
 
   wrap.querySelectorAll('input[data-key]').forEach(inp => {
@@ -6078,6 +6838,7 @@ function onScheduleCellChange(el) {
   if (field === 'teacher') {
     const td = el.closest('td[data-sched-td]');
     setScheduleCellColor(td, el.value);
+    syncScheduleTeacherControl(el);
   }
   // גם שינוי שעות וגם שינוי מורה משפיעים על סנכרון סדין השעות (computeScheduleTotals מרענן אותו)
   if (field === 'hrs' || field === 'teacher') computeScheduleTotals();
@@ -6614,6 +7375,123 @@ function preparePrintHeader(sectionId) {
 }
 
 // ─────────────────────────────────────────
+// הדפסה נקייה ומלאה של טבלת השיבוצים בלבד
+// ─────────────────────────────────────────
+function printScheduleGridOnly() {
+  const sourceTable = document.querySelector('#scheduleGridWrap .sched-table');
+  if (!sourceTable) {
+    showToast('יש לבנות תחילה את טבלת השיבוץ', 'error');
+    return;
+  }
+
+  const headerCells = Array.from(sourceTable.tHead?.rows?.[0]?.cells || []).slice(1);
+  const classes = headerCells.map(th => ({
+    name: th.querySelector('.sched-class-name')?.textContent?.trim() || '',
+    homeroom: th.querySelector('.sched-homeroom-input')?.value?.trim() || ''
+  }));
+  const sourceRows = Array.from(sourceTable.tBodies?.[0]?.rows || []);
+  if (!classes.length || !sourceRows.length) {
+    showToast('טבלת השיבוץ עדיין ריקה', 'error');
+    return;
+  }
+
+  const school = document.getElementById('schoolName')?.value || appData?.schoolName || '';
+  const year = document.getElementById('gi_year')?.value || appData?.year || '';
+  const date = new Date().toLocaleDateString('he-IL');
+  const densityClass = classes.length >= 15 ? 'extra-dense' : classes.length >= 10 ? 'dense' : '';
+
+  const headerHtml = '<tr><th class="subject-col">מקצוע</th>' + classes.map(cls =>
+    '<th><div class="class-name">' + esc(cls.name) + '</div>' +
+    (cls.homeroom ? '<div class="homeroom">מחנך/ת: ' + esc(cls.homeroom) + '</div>' : '') +
+    '</th>'
+  ).join('') + '</tr>';
+
+  const bodyHtml = sourceRows.map(row => {
+    const subject = row.cells[0]?.textContent?.trim() || '';
+    const cells = Array.from(row.cells).slice(1).map(td => {
+      const hours = td.querySelector('.hrs-input')?.value?.trim() || '';
+      const teacherSelect = td.querySelector('.sched-teacher-select');
+      const teacher = teacherSelect?.value?.trim()
+        || td.querySelector('.sched-teacher-name-btn')?.textContent?.trim()
+        || '';
+      const style = teacher
+        ? ' style="background:' + getTeacherColorTint(teacher) +
+          ';border-inline-start:3px solid ' + getTeacherColor(teacher) + ';"'
+        : '';
+      return '<td class="assignment"' + style + '>' +
+        '<span class="hours">' + (hours ? esc(hours) + ' שע׳' : '') + '</span>' +
+        '<span class="teacher' + (teacher ? '' : ' empty') + '">' +
+          (teacher ? esc(teacher) : '—') +
+        '</span></td>';
+    }).join('');
+    return '<tr><th scope="row" class="subject-col">' + esc(subject) + '</th>' + cells + '</tr>';
+  }).join('');
+
+  const footerHtml = Array.from(sourceTable.tFoot?.rows || []).map(row => {
+    const cells = Array.from(row.cells);
+    const label = cells[0]?.textContent?.trim() || '';
+    const values = cells.slice(1).map(td => {
+      const input = td.querySelector('input');
+      const value = input ? input.value.trim() : td.textContent.trim();
+      const stateClass = td.querySelector('.diff-ok') ? ' diff-ok'
+        : td.querySelector('.diff-under') ? ' diff-under'
+        : td.querySelector('.diff-over') ? ' diff-over' : '';
+      return '<td class="footer-value' + stateClass + '">' + esc(value || '—') + '</td>';
+    }).join('');
+    return '<tr><th scope="row" class="subject-col">' + esc(label) + '</th>' + values + '</tr>';
+  }).join('');
+
+  const printHtml = '<!doctype html><html lang="he" dir="rtl"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>טבלת שיבוץ מלאה</title><style>' +
+    '@page{size:landscape;margin:6mm}' +
+    '*{box-sizing:border-box}' +
+    'html,body{direction:rtl;margin:0;background:#fff;color:#17263a;font-family:Segoe UI,Arial Hebrew,Arial,sans-serif;' +
+      '-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+    '.print-sheet{width:100%}' +
+    '.print-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;' +
+      'border-bottom:2px solid #1a3a5c;padding:0 0 5mm;margin:0 0 4mm}' +
+    'h1{font-size:15pt;line-height:1.2;color:#1a3a5c;margin:0}' +
+    '.meta{font-size:8pt;color:#52657b;text-align:left;white-space:nowrap}' +
+    'table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:7.5pt}' +
+    'thead{display:table-header-group}tfoot{display:table-row-group}' +
+    'tr{break-inside:avoid;page-break-inside:avoid}' +
+    'th,td{border:1px solid #b9c5d3;padding:2.2mm 1.4mm;text-align:center;vertical-align:middle;' +
+      'overflow-wrap:anywhere;word-break:break-word;line-height:1.25}' +
+    'thead th{background:#1a3a5c;color:#fff;font-weight:700}' +
+    '.subject-col{width:8%;background:#edf2f8;color:#1a3a5c;font-weight:700}' +
+    'thead .subject-col{background:#1a3a5c;color:#fff}' +
+    '.class-name{font-size:8pt;font-weight:700}.homeroom{font-size:6pt;font-weight:400;margin-top:1mm;color:#e8f0fb}' +
+    '.hours{display:block;min-height:1em;text-align:left;direction:rtl;font-weight:700;font-size:6.5pt}' +
+    '.teacher{display:block;margin-top:.5mm}.teacher.empty{color:#7d8997}' +
+    'tfoot th,tfoot td{background:#eef2f7;font-weight:700;border-top:1.5px solid #1a3a5c}' +
+    '.diff-ok{color:#0b7a42}.diff-under{color:#a96000}.diff-over{color:#b42318}' +
+    'table.dense{font-size:6pt}table.dense th,table.dense td{padding:1.3mm .7mm}' +
+    'table.dense .class-name{font-size:6.5pt}table.dense .homeroom,table.dense .hours{font-size:5.2pt}' +
+    'table.extra-dense{font-size:5pt}table.extra-dense th,table.extra-dense td{padding:1mm .45mm}' +
+    'table.extra-dense .class-name{font-size:5.5pt}table.extra-dense .homeroom,table.extra-dense .hours{font-size:4.6pt}' +
+    '@media screen{body{padding:10mm;background:#eef2f7}.print-sheet{background:#fff;padding:8mm;' +
+      'box-shadow:0 3px 18px rgba(0,0,0,.15)}}' +
+    '</style></head><body><main class="print-sheet">' +
+    '<div class="print-heading"><div><h1>טבלת שיבוץ מקצועות לכיתות</h1>' +
+      '<div>' + esc(school) + (year ? ' | שנה״ל ' + esc(year) : '') + '</div></div>' +
+      '<div class="meta">תאריך הפקה: ' + esc(date) + '<br>הטבלה כוללת את כל הכיתות והמקצועות</div></div>' +
+    '<table class="' + densityClass + '"><thead>' + headerHtml + '</thead><tbody>' + bodyHtml +
+      '</tbody>' + (footerHtml ? '<tfoot>' + footerHtml + '</tfoot>' : '') + '</table>' +
+    '</main></body></html>';
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    showToast('לא ניתן לפתוח חלון הדפסה — אנא אפשר חלונות קופצים בדפדפן', 'error');
+    return;
+  }
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => printWindow.print(), 250);
+}
+
+// ─────────────────────────────────────────
 // printSection — מנגנון הדפסה מרכזי
 // ─────────────────────────────────────────
 function printSection() {
@@ -6855,6 +7733,46 @@ function _budgetTypeBadge(bt) {
   return `<span class="btype-badge ${cls}">${_BUDGET_TYPE_LABELS[bt || '']}</span>`;
 }
 
+function _budgetAllocationOptionLabel(alloc) {
+  const name = alloc?.name || '(ללא שם)';
+  const source = _BUDGET_SRC_LABELS[alloc?.source] || 'כללי';
+  const budgetType = _BUDGET_TYPE_LABELS[alloc?.budgetType || ''];
+  return `${name} · ${source} · ${budgetType}`;
+}
+
+function _getBudgetAllocationById(id) {
+  if (!id) return null;
+  const row = Array.from(document.querySelectorAll('#budgetAllocBody tr[data-aid]'))
+    .find(tr => tr.dataset.aid === id);
+  if (row) {
+    return {
+      id,
+      name:       row.querySelector('.bal-name')?.value   || '',
+      source:     row.querySelector('.bal-source')?.value || '',
+      budgetType: row.querySelector('.bal-btype')?.value  || ''
+    };
+  }
+  return (appData.budget?.allocations || []).find(a => a.id === id) || null;
+}
+
+function _syncBudgetTxMetaValues(tx, alloc) {
+  if (!alloc) return {
+    source: tx?.source || 'parents',
+    budgetType: tx?.budgetType || ''
+  };
+  return {
+    // ייעוד כללי ללא מקור נשאר זמין לכל מקור; ייעוד בעל מקור הוא מקור האמת.
+    source: alloc.source || tx?.source || 'parents',
+    budgetType: alloc.budgetType || ''
+  };
+}
+
+function _budgetTxMatchesAllocation(source, budgetType, alloc) {
+  if (!alloc) return true;
+  const sourceMatches = !alloc.source || source === alloc.source;
+  return sourceMatches && (budgetType || '') === (alloc.budgetType || '');
+}
+
 // קורא את מצב התקציב הנוכחי (תנועות, ייעודים, מבנה מקורות) ישירות מה-DOM החי,
 // עם נפילה חזרה ל-appData כשה-DOM עדיין לא נטען (render ראשוני)
 function _getLiveBudgetData() {
@@ -6917,6 +7835,11 @@ function renderBudget() {
   renderBudgetTransactions();   // calls refreshBudgetComputedViews() internally
   renderBudgetAllocations();
   updateBudgetAllocDropdown();
+  const repairedLinks = syncBudgetLinkedTransactions();
+  if (repairedLinks) {
+    markDirty();
+    showToast(`סונכרנו ${repairedLinks} תנועות לייעודי התקציב שלהן — יש לשמור לקיבוע`, 'info');
+  }
   refreshBudgetComputedViews(); // ensure charts/KPI reflect final combined state
 }
 
@@ -6958,8 +7881,8 @@ function appendBudgetTxRow(tx) {
          placeholder="תיאור..." style="min-width:120px" oninput="markDirty()"></td>
     <td><select class="btx-type" onchange="onBudgetTxTypeChange(this); markDirty()">
          ${typeOpts}</select></td>
-    <td><select class="btx-source" onchange="refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
-    <td><select class="btx-btype" onchange="refreshBudgetComputedViews(); markDirty()">${btypeOpts}</select></td>
+    <td><select class="btx-source" onchange="onBudgetTxMetaChange(this); markDirty()">${srcOpts}</select></td>
+    <td><select class="btx-btype" onchange="onBudgetTxMetaChange(this); markDirty()">${btypeOpts}</select></td>
     <td><select class="btx-alloc" onchange="onBudgetTxAllocChange(this); markDirty()">
          ${allocOpts}</select></td>
     <td><input type="number" class="btx-amount" value="${tx.amount||0}" min="0" step="0.01"
@@ -6989,7 +7912,7 @@ function _buildAllocOptions(selectedId) {
 
   let html = `<option value="">— ללא ייעוד —</option>`;
   allocs.forEach(a => {
-    html += `<option value="${esc(a.id)}" data-btype="${esc(a.budgetType||'')}" data-src="${esc(a.source||'')}"${a.id === selectedId ? ' selected' : ''}>${esc(a.name || '(ללא שם)')}</option>`;
+    html += `<option value="${esc(a.id)}" data-btype="${esc(a.budgetType||'')}" data-src="${esc(a.source||'')}"${a.id === selectedId ? ' selected' : ''}>${esc(_budgetAllocationOptionLabel(a))}</option>`;
   });
   return html;
 }
@@ -7008,14 +7931,32 @@ function onBudgetTxTypeChange(sel) {
 // המקור התקציבי מהייעוד שנבחר, כדי לשמור על עקביות (ניתן עדיין לשנות ידנית לאחר מכן)
 function onBudgetTxAllocChange(sel) {
   const tr = sel.closest('tr');
-  const opt = sel.selectedOptions && sel.selectedOptions[0];
-  if (tr && opt && opt.value) {
-    const bt  = opt.dataset.btype || '';
-    const src = opt.dataset.src   || '';
+  const alloc = _getBudgetAllocationById(sel.value);
+  if (tr && alloc) {
+    const synced = _syncBudgetTxMetaValues({
+      source: tr.querySelector('.btx-source')?.value || '',
+      budgetType: tr.querySelector('.btx-btype')?.value || ''
+    }, alloc);
     const btypeSel = tr.querySelector('.btx-btype');
     const srcSel   = tr.querySelector('.btx-source');
-    if (btypeSel && bt)  btypeSel.value = bt;
-    if (srcSel   && src) srcSel.value   = src;
+    if (btypeSel) btypeSel.value = synced.budgetType;
+    if (srcSel)   srcSel.value   = synced.source;
+  }
+  refreshBudgetComputedViews();
+}
+
+// אם משנים ידנית את המקור או סוג התקציב של תנועה משויכת, מנתקים ייעוד
+// שאינו תואם. כך לא נשמרת תנועה "גמישה" בתוך ייעוד "קבוע" (או להפך).
+function onBudgetTxMetaChange(sel) {
+  const tr = sel.closest('tr');
+  if (!tr) return;
+  const allocSel = tr.querySelector('.btx-alloc');
+  const alloc = _getBudgetAllocationById(allocSel?.value || '');
+  const source = tr.querySelector('.btx-source')?.value || '';
+  const budgetType = tr.querySelector('.btx-btype')?.value || '';
+  if (allocSel?.value && !_budgetTxMatchesAllocation(source, budgetType, alloc)) {
+    allocSel.value = '';
+    showToast('הייעוד נותק מהתנועה משום שמקור או סוג התקציב שונו', 'info');
   }
   refreshBudgetComputedViews();
 }
@@ -7191,8 +8132,8 @@ function appendBudgetAllocRow(alloc) {
     <td><input type="text" class="bal-name" value="${esc(alloc.name||'')}"
          placeholder="שם ייעוד..." style="min-width:140px"
          oninput="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()"></td>
-    <td><select class="bal-source" onchange="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${srcOpts}</select></td>
-    <td><select class="bal-btype" onchange="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${btypeOpts}</select></td>
+    <td><select class="bal-source" onchange="onBudgetAllocationMetaChange(this); markDirty()">${srcOpts}</select></td>
+    <td><select class="bal-btype" onchange="onBudgetAllocationMetaChange(this); markDirty()">${btypeOpts}</select></td>
     <td><input type="number" class="bal-planned" value="${alloc.planned||0}" min="0" step="0.01"
          style="width:90px;direction:ltr;text-align:left"
          oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
@@ -7251,6 +8192,50 @@ function refreshAllocActuals() {
     }
     if (lbl) lbl.textContent = Math.round(pct) + '%';
   });
+}
+
+function syncBudgetLinkedTransactions(allocationId = '') {
+  let changed = 0;
+  document.querySelectorAll('#budgetTxBody tr[data-rid]').forEach(tr => {
+    const allocSel = tr.querySelector('.btx-alloc');
+    const aid = allocSel?.value || '';
+    if (!aid || (allocationId && aid !== allocationId)) return;
+    const alloc = _getBudgetAllocationById(aid);
+    if (!alloc) return;
+    const sourceSel = tr.querySelector('.btx-source');
+    const btypeSel = tr.querySelector('.btx-btype');
+    const synced = _syncBudgetTxMetaValues({
+      source: sourceSel?.value || '',
+      budgetType: btypeSel?.value || ''
+    }, alloc);
+    let rowChanged = false;
+    if (sourceSel && sourceSel.value !== synced.source) {
+      sourceSel.value = synced.source;
+      rowChanged = true;
+    }
+    if (btypeSel && btypeSel.value !== synced.budgetType) {
+      btypeSel.value = synced.budgetType;
+      rowChanged = true;
+    }
+    if (rowChanged) {
+      changed += 1;
+      const tx = (appData.budget?.transactions || []).find(t => t.id === tr.dataset.rid);
+      if (tx) {
+        tx.source = synced.source;
+        tx.budgetType = synced.budgetType;
+      }
+    }
+  });
+  return changed;
+}
+
+// שינוי מקור/סוג בתוך ייעוד מעדכן מיד את כל התנועות שכבר משויכות אליו.
+function onBudgetAllocationMetaChange(sel) {
+  const tr = sel.closest('tr');
+  const aid = tr?.dataset.aid || '';
+  updateBudgetAllocDropdown();
+  syncBudgetLinkedTransactions(aid);
+  refreshBudgetComputedViews();
 }
 
 // ── Collect from DOM ──────────────────────────────────────────
@@ -7365,8 +8350,10 @@ function updateBudgetAllocDropdown() {
   const domAllocs = Array.from(
     document.querySelectorAll('#budgetAllocBody tr[data-aid]')
   ).map(tr => ({
-    id:   tr.dataset.aid,
-    name: tr.querySelector('.bal-name')?.value || ''
+    id:         tr.dataset.aid,
+    name:       tr.querySelector('.bal-name')?.value || '',
+    source:     tr.querySelector('.bal-source')?.value || '',
+    budgetType: tr.querySelector('.bal-btype')?.value || ''
   }));
   // גיבוי ל-appData אם DOM ריק
   const source = domAllocs.length ? domAllocs : (appData.budget?.allocations || []);
@@ -7386,7 +8373,7 @@ function updateBudgetAllocDropdown() {
     source.forEach(a => {
       const opt = document.createElement('option');
       opt.value = a.id;
-      opt.textContent = a.name || '(ללא שם)';
+      opt.textContent = _budgetAllocationOptionLabel(a);
       if (a.id === cur) opt.selected = true;
       filterSel.appendChild(opt);
     });
@@ -7990,6 +8977,173 @@ function printBudget() {
 }
 
 // =============================================================
+const RESIZABLE_TEXT_INPUT_SELECTOR = [
+  'input:not([type])',
+  'input[type="text"]',
+  'input[type="email"]',
+  'input[type="tel"]',
+  'input[type="url"]',
+  'input[type="search"]',
+].join(',');
+
+const RESIZABLE_TEXT_FIELD_SELECTOR = `${RESIZABLE_TEXT_INPUT_SELECTOR}, textarea`;
+const RESIZABLE_FIELD_MIN_WIDTH = 80;
+const RESIZABLE_FIELD_MIN_HEIGHT = 32;
+const RESIZABLE_FIELD_MAX_WIDTH = 5000;
+const RESIZABLE_FIELD_MAX_HEIGHT = 3000;
+
+function getResizableFieldToken(field) {
+  const explicit = field.dataset.resizeKey || field.name || '';
+  const classes = Array.from(field.classList || [])
+    .filter(className => className !== 'resizable-input-shell')
+    .sort()
+    .join('.');
+  return explicit || classes || field.getAttribute('placeholder') || field.tagName.toLowerCase();
+}
+
+function getResizableFieldKey(field) {
+  if (!field) return '';
+  if (field.id) return `id:${field.id}`;
+
+  let owner = field.parentElement;
+  while (owner && owner !== document.body) {
+    const dataEntries = Object.entries(owner.dataset || {})
+      .filter(([key, value]) => key !== 'resizePersistenceReady' && value !== '')
+      .sort(([left], [right]) => left.localeCompare(right));
+    if (dataEntries.length > 0) {
+      const containerId = owner.closest('[id]')?.id || field.closest('.section[id]')?.id || 'page';
+      const ownerKey = dataEntries
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&');
+      const ownerFields = Array.from(owner.querySelectorAll(RESIZABLE_TEXT_FIELD_SELECTOR));
+      const fieldIndex = Math.max(0, ownerFields.indexOf(field));
+      return `row:${encodeURIComponent(containerId)}:${ownerKey}:${encodeURIComponent(getResizableFieldToken(field))}:${fieldIndex}`;
+    }
+    owner = owner.parentElement;
+  }
+
+  const scope = field.closest('.section[id], form[id], [id]');
+  if (!scope) return '';
+  const scopeFields = Array.from(scope.querySelectorAll(RESIZABLE_TEXT_FIELD_SELECTOR));
+  const fieldIndex = Math.max(0, scopeFields.indexOf(field));
+  return `scope:${encodeURIComponent(scope.id)}:${encodeURIComponent(getResizableFieldToken(field))}:${fieldIndex}`;
+}
+
+function normalizeResizableFieldSize(size) {
+  if (!size || typeof size !== 'object') return null;
+  const width = Math.round(Number(size.width));
+  const height = Math.round(Number(size.height));
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+  return {
+    width: Math.min(RESIZABLE_FIELD_MAX_WIDTH, Math.max(RESIZABLE_FIELD_MIN_WIDTH, width)),
+    height: Math.min(RESIZABLE_FIELD_MAX_HEIGHT, Math.max(RESIZABLE_FIELD_MIN_HEIGHT, height)),
+  };
+}
+
+function applySavedResizableFieldSize(field, target) {
+  const key = getResizableFieldKey(field);
+  const size = normalizeResizableFieldSize(appData.fieldSizes?.[key]);
+  if (!key || !size) return;
+  target.style.width = `${size.width}px`;
+  target.style.height = `${size.height}px`;
+}
+
+function saveResizableFieldSize(field, target, rect = target.getBoundingClientRect()) {
+  const key = getResizableFieldKey(field);
+  const size = normalizeResizableFieldSize(rect);
+  if (!key || !size) return;
+  if (!appData.fieldSizes || typeof appData.fieldSizes !== 'object' || Array.isArray(appData.fieldSizes)) {
+    appData.fieldSizes = {};
+  }
+  const previous = normalizeResizableFieldSize(appData.fieldSizes[key]);
+  if (previous?.width === size.width && previous?.height === size.height) return;
+  appData.fieldSizes[key] = size;
+  target.style.width = `${size.width}px`;
+  target.style.height = `${size.height}px`;
+  markDirty();
+}
+
+function beginResizableFieldTracking(event, field, target) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  const pointerId = event.pointerId;
+  const startRect = target.getBoundingClientRect();
+
+  const cleanup = () => {
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+  };
+  const finish = endEvent => {
+    if (endEvent.pointerId !== pointerId) return;
+    cleanup();
+    requestAnimationFrame(() => {
+      if (!target.isConnected) return;
+      const endRect = target.getBoundingClientRect();
+      const changed = Math.abs(endRect.width - startRect.width) >= 1
+        || Math.abs(endRect.height - startRect.height) >= 1;
+      if (changed) saveResizableFieldSize(field, target, endRect);
+    });
+  };
+  const cancel = endEvent => {
+    if (endEvent.pointerId !== pointerId) return;
+    cleanup();
+  };
+
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+}
+
+function registerResizableField(field, target) {
+  applySavedResizableFieldSize(field, target);
+  if (field.dataset.resizePersistenceReady === '1') return;
+  field.dataset.resizePersistenceReady = '1';
+  target.addEventListener('pointerdown', event => beginResizableFieldTracking(event, field, target));
+}
+
+function enhanceResizableTextFields(root = document) {
+  const candidates = [];
+  if (root.nodeType === Node.ELEMENT_NODE && root.matches?.(RESIZABLE_TEXT_INPUT_SELECTOR)) {
+    candidates.push(root);
+  }
+  root.querySelectorAll?.(RESIZABLE_TEXT_INPUT_SELECTOR).forEach(input => candidates.push(input));
+  candidates.forEach(input => {
+    let shell = input.closest('.resizable-input-shell');
+    if (!shell) {
+      shell = document.createElement('span');
+      shell.className = 'resizable-input-shell';
+      shell.title = 'גררו את הפינה כדי להרחיב את השדה';
+      input.before(shell);
+      shell.appendChild(input);
+    }
+    registerResizableField(input, shell);
+  });
+
+  const textareas = [];
+  if (root.nodeType === Node.ELEMENT_NODE && root.matches?.('textarea')) textareas.push(root);
+  root.querySelectorAll?.('textarea').forEach(textarea => textareas.push(textarea));
+  textareas.forEach(textarea => registerResizableField(textarea, textarea));
+}
+
+function applyAllSavedFieldSizes() {
+  document.querySelectorAll('.resizable-input-shell > input').forEach(input => {
+    applySavedResizableFieldSize(input, input.closest('.resizable-input-shell'));
+  });
+  document.querySelectorAll('textarea').forEach(textarea => {
+    applySavedResizableFieldSize(textarea, textarea);
+  });
+}
+
+function initResizableTextFields() {
+  enhanceResizableTextFields(document);
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType === Node.ELEMENT_NODE) enhanceResizableTextFields(node);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   buildStaticUI();
   _domReady = true;
@@ -8006,6 +9160,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const levelEl = document.getElementById('gi_level');
   if (levelEl) levelEl.addEventListener('change', updateBackgroundDataFields);
   updateBackgroundDataFields();
+  initResizableTextFields();
+  initGoalTextLayout();
 
   // שיבוץ מקצועות: מאזין קבוע (delegation) על מיכל הטבלה עצמו — לא על
   // כל תא בנפרד — כדי שסה"כ השעות/הפרש מהתקן יתעדכנו תמיד בזמן אמת,
@@ -8021,6 +9177,10 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeTeacherScheduleSummary();
+  });
 
   if (_pendingPayload) {
     _applyLoadedData(_pendingPayload);
@@ -8520,7 +9680,7 @@ Object.assign(window, {
   renderPathwayView, updateBackgroundDataFields,
   addRoleHolderRow, removeRoleHolderRow,
   addHoursRow, removeHoursRow,
-  calcRowTotal, updateHoursSummary,
+  calcRowTotal, onRoleHoursChange, onRoleSourceChange, updateHoursSummary,
   addBasketRow, removeBasketRow, addCommonBaskets,
   onBasketFieldChange, onBaseBasketToggle,
   openTeacherBasketModal, closeTeacherBasketModal,
@@ -8534,6 +9694,7 @@ Object.assign(window, {
   addAbsenceRow, removeAbsenceRow,
   onAbsenceReasonChange, onAbsenceSubChange,
   buildScheduleGrid, onScheduleCellChange,
+  openTeacherScheduleSummary, closeTeacherScheduleSummary,
   onNormHoursChange, computeScheduleTotals, onScheduleConfigFieldChange,
   onHomeroomChange,
   onTeacherColorPick, resetTeacherColor,
@@ -8545,7 +9706,8 @@ Object.assign(window, {
   // Budget module
   addBudgetTransaction, addBudgetAllocation,
   removeBudgetTx, removeBudgetAlloc,
-  onBudgetTxTypeChange, onBudgetTxAllocChange, switchBudgetTab,
+  onBudgetTxTypeChange, onBudgetTxAllocChange, onBudgetTxMetaChange,
+  onBudgetAllocationMetaChange, switchBudgetTab,
   filterBudgetTx, exportBudgetCSV, printBudget,
   refreshBudgetTotals, refreshAllocActuals,
   updateBudgetAllocDropdown, refreshBudgetComputedViews,
@@ -8555,7 +9717,7 @@ Object.assign(window, {
   collectDefectsFromDOM, updateDefectsSummary,
   filterDefects, exportDefectsCSV,
   // Unified print/CSV system
-  preparePrintHeader, printSection, exportSectionCSV,
+  preparePrintHeader, printSection, printScheduleGridOnly, exportSectionCSV,
   exportDefectsWord, exportDefectsExcel,
   exportInventoryWord, exportInventoryExcel,
 });

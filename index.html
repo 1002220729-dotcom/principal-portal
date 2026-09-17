@@ -9,6 +9,9 @@
 <title>פורטל ניהול בית ספר</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#1a3a5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="נעם רז">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -100,6 +103,30 @@ body{
   cursor:pointer;transition:background .15s;margin-bottom:10px;
 }
 .login-submit-btn:hover{background:#015e63;}
+.login-install-btn{
+  display:none;width:100%;min-height:44px;margin-top:12px;padding:10px 14px;
+  border:1.5px solid #cbd5e1;border-radius:10px;background:#fff;color:var(--primary);
+  font-family:var(--font);font-size:.88rem;font-weight:700;cursor:pointer;
+}
+.login-install-btn.show{display:block;}
+.login-install-btn:hover{background:#f8fafc;border-color:var(--teal);color:var(--teal);}
+
+/* PWA installation instructions (used on iPhone/iPad and as a safe fallback). */
+.pwa-help-overlay{
+  position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.62);
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.pwa-help-card{
+  width:min(390px,100%);max-height:calc(100dvh - 32px);overflow:auto;
+  background:#fff;border-radius:18px;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+  text-align:right;color:#1e293b;
+}
+.pwa-help-title{font-size:1.15rem;font-weight:800;color:var(--primary);margin-bottom:10px;text-align:center;}
+.pwa-help-text{font-size:.9rem;line-height:1.75;color:#475569;margin-bottom:18px;}
+.pwa-help-close{
+  width:100%;min-height:44px;border:0;border-radius:9px;background:var(--teal);color:#fff;
+  font-family:var(--font);font-size:.93rem;font-weight:700;cursor:pointer;
+}
 
 /* Change password modal */
 .chpwd-overlay{
@@ -123,6 +150,7 @@ body{
   border-radius:9px;font-family:var(--font);font-size:0.93rem;font-weight:700;
   cursor:pointer;margin-bottom:8px;
 }
+.chpwd-btn:disabled{opacity:.65;cursor:wait;}
 .chpwd-err{color:#dc2626;font-size:0.82rem;margin-top:4px;display:none;}
 
 /* Staff Auth Admin Panel */
@@ -449,7 +477,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 @media(max-width:767px){
 
   /* Show hamburger */
-  #menuToggleBtn{display:flex;align-items:center;justify-content:center;}
+  #menuToggleBtn{display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;}
 
   /* Compact header */
   #portalHeader{gap:6px;padding:0 10px;}
@@ -460,8 +488,17 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
   #userName{display:none;}                   /* keep avatar, hide name */
   #userRoleLabel{display:none;}
   #userBadge{padding:3px 6px;gap:4px;}
-  .btn-logout{font-size:0.65rem;padding:3px 7px;}
-  #headerSaveBtn{font-size:0.65rem;padding:3px 8px;}
+  .btn-logout{font-size:0.68rem;padding:4px 8px;min-height:36px;}
+  #headerSaveBtn{font-size:0.68rem;padding:4px 9px;min-height:36px;}
+  #pwaInstallBtn{font-size:0.68rem;padding:4px 9px;min-height:36px;}
+  .login-card{width:calc(100% - 32px);padding:32px 22px;max-height:calc(100dvh - 32px);overflow:auto;}
+  .login-role-btn,.login-method-tab,.login-back{min-height:44px;}
+  .login-input-field,.chpwd-input,.sa-add-input{font-size:16px;}
+  .chpwd-overlay,.sup-modal-overlay{padding:10px;}
+  .chpwd-card{width:100%;padding:28px 20px;max-height:calc(100dvh - 20px);overflow:auto;}
+  .sup-modal{max-height:calc(100dvh - 20px);border-radius:12px;}
+  .sup-modal-header,.sup-modal-body{padding:14px 12px;}
+  .sa-table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 
   /* Sidebar: hidden by default, slides in as overlay */
   #sideNav{
@@ -535,7 +572,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
       <button class="login-back" onclick="backToRoles()">← חזרה לבחירת תפקיד</button>
     </div>
 
-    <div id="loginError"></div>
+    <div id="loginStatus" role="status" aria-live="polite" style="font-size:0.85rem;color:#475569;margin-top:12px;display:none"></div>
+    <div id="loginError" role="alert"></div>
+    <button type="button" id="loginPwaInstallBtn" class="login-install-btn" onclick="handlePwaInstallClick()">⬇️ התקנת האפליקציה בטלפון</button>
   </div>
 </div>
 
@@ -688,7 +727,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbPlan"></div>
         📋 תכנית עבודה — מנהל בית ספר
       </div>
-      <iframe id="planFrame" src="tknyt.html"
+      <iframe id="planFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="תכנית עבודה"></iframe>
     </div>
@@ -698,7 +737,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbGantt"></div>
         📅 לוח גאנט שנתי
       </div>
-      <iframe id="ganttFrame" src="gantt.html"
+      <iframe id="ganttFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="גאנט שנתי"></iframe>
     </div>
@@ -708,7 +747,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbMtss"></div>
         🎯 מודל MTSS
       </div>
-      <iframe id="mtssFrame" src="mtss.html"
+      <iframe id="mtssFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="MTSS"></iframe>
     </div>
@@ -718,7 +757,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div class="fb-dot" id="fbCalendar"></div>
         🗓️ יומן מנהל
       </div>
-      <iframe id="calendarFrame" src="calendar.html"
+      <iframe id="calendarFrame" src="about:blank"
         sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads"
         title="יומן מנהל"></iframe>
     </div>
@@ -842,7 +881,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
               <input class="sa-add-input" id="saNewRole" placeholder="תפקיד">
             </div>
             <div class="sa-row">
-              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 8 תווים)" type="password" autocomplete="new-password">
+              <input class="sa-add-input" id="saNewPassword" placeholder="סיסמא ראשונית (מינ. 12 תווים)" type="password" autocomplete="new-password" minlength="12" aria-describedby="saAddError">
               <label style="display:flex;align-items:center;gap:6px;font-size:.83rem;color:#475569;white-space:nowrap;">
                 <input type="checkbox" id="saNewMustChange" checked> דרוש החלפה בכניסה ראשונה
               </label>
@@ -890,11 +929,20 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div class="chpwd-title" id="chpwdTitle">החלפת סיסמא</div>
     <div class="chpwd-sub" id="chpwdSub">הזן/י את הסיסמא הנוכחית והחדשה</div>
     <input type="password" id="chpwdCurrent" class="chpwd-input" placeholder="סיסמא נוכחית" autocomplete="current-password">
-    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
-    <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password">
-    <div id="chpwdError" class="chpwd-err"></div>
+    <input type="password" id="chpwdNew1" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password" minlength="12" aria-describedby="chpwdError">
+    <input type="password" id="chpwdNew2" class="chpwd-input" placeholder="אישור סיסמא חדשה" autocomplete="new-password" minlength="12" aria-describedby="chpwdError">
+    <div id="chpwdError" class="chpwd-err" role="alert" aria-live="polite"></div>
     <button class="chpwd-btn" onclick="submitPasswordChange()">שמור סיסמא חדשה</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" id="chpwdCancelBtn" onclick="document.getElementById('changePasswordModal').style.display='none'">ביטול</button>
+  </div>
+</div>
+
+<!-- INSTALLATION HELP MODAL -->
+<div id="pwaInstallHelp" class="pwa-help-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="pwaHelpTitle" onclick="if(event.target===this)closePwaInstallHelp()">
+  <div class="pwa-help-card">
+    <div class="pwa-help-title" id="pwaHelpTitle">התקנת האפליקציה בטלפון</div>
+    <div class="pwa-help-text" id="pwaHelpText"></div>
+    <button type="button" class="pwa-help-close" onclick="closePwaInstallHelp()">הבנתי</button>
   </div>
 </div>
 
@@ -904,9 +952,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
     <div style="font-size:2rem;margin-bottom:10px;">🔐</div>
     <div class="chpwd-title">איפוס סיסמא</div>
     <div class="chpwd-sub" id="adminResetPwdSub">הגדר סיסמא חדשה למשתמש</div>
-    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 8 תווים)" autocomplete="new-password">
-    <div id="adminResetPwdError" class="chpwd-err"></div>
-    <button class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
+    <input type="password" id="adminResetPwdNew" class="chpwd-input" placeholder="סיסמא חדשה (מינ. 12 תווים)" autocomplete="new-password" minlength="12" aria-describedby="adminResetPwdError">
+    <div id="adminResetPwdError" class="chpwd-err" role="alert" aria-live="polite"></div>
+    <button type="button" id="adminResetPwdSubmit" class="chpwd-btn" onclick="submitAdminResetPassword()">שמור סיסמא</button>
     <button style="background:none;border:none;color:#94a3b8;font-family:var(--font);cursor:pointer;font-size:.84rem;" onclick="document.getElementById('adminResetPwdModal').style.display='none'">ביטול</button>
   </div>
 </div>
@@ -1070,7 +1118,13 @@ function getPortalSession() {
   try { return JSON.parse(sessionStorage.getItem(PORTAL_SESSION_KEY)); } catch { return null; }
 }
 function setPortalSession(data) {
-  try { sessionStorage.setItem(PORTAL_SESSION_KEY, JSON.stringify(data)); } catch {}
+  try {
+    const serialized = JSON.stringify(data);
+    sessionStorage.setItem(PORTAL_SESSION_KEY, serialized);
+    if (sessionStorage.getItem(PORTAL_SESSION_KEY) !== serialized) throw new Error('storage-check');
+  } catch {
+    throw new Error('לא ניתן לשמור את ההתחברות במכשיר. יש לאפשר אחסון לאתר בדפדפן. [S1]');
+  }
 }
 function clearPortalSession() {
   try {
@@ -1096,6 +1150,8 @@ function getSessionToken() {
 
 async function authFetch(url, options = {}) {
   const token = getSessionToken();
+  // Do not launch anonymous background requests while Google is signing in.
+  if (!token) throw new Error('unauthorized');
   const headers = { ...(options.headers || {}) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
@@ -1107,10 +1163,11 @@ async function authFetch(url, options = {}) {
     throw networkErr; // let caller's existing try/catch show the network error as before
   }
 
+  // A response belongs to the session that sent it, not a subsequent login.
+  // Discard stale successes too, so data from another session cannot be applied.
+  if (getSessionToken() !== token) throw new Error('stale-session');
   if (res.status === 401) {
-    clearPortalSession();
-    toast('פג תוקף ההתחברות. יש להתחבר מחדש.', 'warn');
-    applyRoleUI(null, null);
+    expirePortalSession();
     throw new Error('unauthorized');
   }
   if (res.status === 403) {
@@ -1120,12 +1177,106 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
+function expirePortalSession() {
+  clearPortalSession();
+  PS._initDone = false;
+  PS._dataLoadStarted = false;
+  PS._planLoadSent = false;
+  PS._pendingIframeReady.length = 0;
+  for (const name of ['plan', 'gantt', 'mtss', 'calendar', 'teachers']) {
+    PS[name + 'Data'] = null;
+    PS[name + 'Ready'] = false;
+    const frame = document.getElementById(name + 'Frame');
+    if (frame) frame.src = 'about:blank';
+  }
+  applyRoleUI(null, null);
+  showLoginError('השרת לא אישר את החיבור הנוכחי. יש להתחבר מחדש. [S2]');
+}
+
+let _sessionRecheck = null;
+function recheckSessionFromFrame() {
+  // Never let a queued child message invalidate a newer login. Ask the server
+  // about the CURRENT session; authFetch also guards changes during this check.
+  if (!getSessionToken() || _sessionRecheck) return;
+  _sessionRecheck = authFetch(`${WORKER_URL_AUTH}/api/auth/role`, { cache: 'no-store' })
+    .catch(() => {})
+    .finally(() => { _sessionRecheck = null; });
+}
+
 // ═══════════════════════════════════════════════════════
 //  AUTH — LOGIN FLOW
 // ═══════════════════════════════════════════════════════
 let _pendingRole = null;
 let _staffLoginUsername = null; // for password change flow
 let _pendingPasswordChangeToken = null; // restricted session; kept in memory only
+let _googleIdentityInitialized = false;
+let _googleLoginInFlight = false;
+let _googleWaitTimer = null;
+
+function setLoginStatus(message) {
+  const el = document.getElementById('loginStatus');
+  el.textContent = message;
+  el.style.display = message ? 'block' : 'none';
+}
+
+function onGoogleLoginClick() {
+  if (_googleLoginInFlight) return;
+  document.getElementById('loginError').style.display = 'none';
+  clearTimeout(_googleWaitTimer);
+  setLoginStatus('ממתין לבחירת החשבון ולאישור Google… [G1]');
+  _googleWaitTimer = setTimeout(() => {
+    setLoginStatus('טרם התקבל אישור מ־Google. אם כבר בחרת חשבון וחזרת לכאן, צלם/י את ההודעה הזו. [G1]');
+  }, 45000);
+}
+
+// Google recommends initializing Identity Services only once per page.  More
+// importantly for the installed Android app, FedCM keeps the account chooser
+// inside the browser-managed sign-in flow instead of depending on a popup
+// window being able to call back into the standalone PWA window.
+function initializeGoogleIdentity() {
+  if (_googleIdentityInitialized) return true;
+  if (!window.google || !google.accounts?.id) return false;
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    use_fedcm_for_button: true,
+    button_auto_select: false,
+  });
+  _googleIdentityInitialized = true;
+  return true;
+}
+
+function resetGoogleButton(container) {
+  if (!container) return;
+  container.innerHTML = '';
+  delete container.dataset.googleButtonRendered;
+}
+
+function renderGoogleLoginButton(container, attempt = 0) {
+  if (!container || container.dataset.googleButtonRendered === 'true') return;
+
+  if (!initializeGoogleIdentity()) {
+    if (attempt < 20) {
+      container.textContent = 'טוען כניסה באמצעות Google...';
+      setTimeout(() => renderGoogleLoginButton(container, attempt + 1), 250);
+    } else {
+      container.innerHTML = '<div style="color:#dc2626;font-size:0.84rem;">לא הצלחנו לטעון את הכניסה באמצעות Google. בדוק/י חיבור לאינטרנט ונסה/י שוב.</div>';
+    }
+    return;
+  }
+
+  resetGoogleButton(container);
+  google.accounts.id.renderButton(container, {
+    theme: 'outline',
+    size: 'large',
+    locale: 'he',
+    width: 290,
+    click_listener: onGoogleLoginClick,
+  });
+  container.dataset.googleButtonRendered = 'true';
+}
 
 function switchLoginMethod(method, btn) {
   document.querySelectorAll('.login-method-tab').forEach(b => b.classList.remove('active'));
@@ -1134,11 +1285,8 @@ function switchLoginMethod(method, btn) {
   document.getElementById('loginGoogleBtnAlt').style.display = isPassword ? 'none' : '';
   document.getElementById('loginPasswordForm').style.display  = isPassword ? '' : 'none';
   if (!isPassword) {
-    // Re-render Google button in alt container if needed
     const container = document.getElementById('loginGoogleBtnAlt');
-    if (!container.innerHTML.trim() && window.google && google.accounts) {
-      google.accounts.id.renderButton(container, { theme:'outline', size:'large', locale:'he', width:290 });
-    }
+    renderGoogleLoginButton(container);
   } else {
     setTimeout(() => document.getElementById('loginUsername')?.focus(), 80);
   }
@@ -1329,15 +1477,15 @@ function selectRole(role, btn) {
   document.getElementById('loginRoleLabel').textContent = `כניסה כ${roleNames[role]||role}`;
   document.getElementById('loginError').style.display = 'none';
   document.getElementById('loginError').textContent = '';
+  _pendingRole = role;
 
   const btnContainer = document.getElementById('loginGoogleBtn');
-  btnContainer.innerHTML = '';
+  resetGoogleButton(btnContainer);
 
   // For staffmember: show password login section with tabs
-  if (role === 'staffmember' || role === 'staffmember') {
-    _pendingRole = 'staffmember';
+  if (role === 'staffmember') {
     const altContainer = document.getElementById('loginGoogleBtnAlt');
-    altContainer.innerHTML = '';
+    resetGoogleButton(altContainer);
     document.getElementById('loginPasswordSection').style.display = 'block';
     document.getElementById('loginGoogleSection').style.display   = 'none';
     document.getElementById('roleButtons').style.display = 'none';
@@ -1345,35 +1493,21 @@ function selectRole(role, btn) {
     // Default to password tab for staff, but also render Google button for alt tab
     switchLoginMethod('password', document.getElementById('tabPassword'));
     setTimeout(() => {
-      if (window.google && google.accounts) {
-        google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleCredential, auto_select: false });
-        if (altContainer && !altContainer.innerHTML.trim()) {
-          google.accounts.id.renderButton(altContainer, { theme:'outline', size:'large', locale:'he', width:290 });
-        }
-      }
+      renderGoogleLoginButton(altContainer);
     }, 250);
     return;
   }
 
   setTimeout(() => {
-    if (window.google && google.accounts) {
-      google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-        auto_select: false,
-      });
-      google.accounts.id.renderButton(btnContainer, {
-        theme: 'outline', size: 'large', locale: 'he', width: 290,
-      });
-    } else {
-      btnContainer.innerHTML = '<div style="color:#dc2626;font-size:0.84rem;">טוען Google Sign-In... רענן את הדף</div>';
-    }
+    renderGoogleLoginButton(btnContainer);
     document.getElementById('loginGoogleSection').style.display = 'block';
     document.getElementById('roleButtons').style.display = 'none';
   }, 250);
 }
 
 function backToRoles() {
+  clearTimeout(_googleWaitTimer);
+  setLoginStatus('');
   _pendingRole = null;
   document.getElementById('loginGoogleSection').style.display  = 'none';
   document.getElementById('loginPasswordSection').style.display = 'none';
@@ -1392,6 +1526,12 @@ async function handleGoogleCredential(response) {
   // the JWT itself and sent the resulting email as a plain query param
   // to GET /api/auth/role — anyone who knew/guessed an email could
   // impersonate that person with no credential at all. Fixed.)
+  if (_googleLoginInFlight) return;
+  clearTimeout(_googleWaitTimer);
+  if (!response?.credential) {
+    showLoginError('הכניסה באמצעות Google לא הושלמה. נסה/י שוב.');
+    return;
+  }
   const payload = (() => { try { return parseJwt(response.credential); } catch { return {}; } })();
   const role    = _pendingRole;
   const errEl   = document.getElementById('loginError');
@@ -1401,9 +1541,14 @@ async function handleGoogleCredential(response) {
   // כי localStorage הוא פר-מכשיר ולא קיים במכשיר חדש (ראו הסבר למעלה).
   const { school: hintSchool, year: hintYear } = getUrlSchoolYearHint();
 
+  _googleLoginInFlight = true;
+  setLoginStatus('התקבל אישור מ־Google. מאמת את ההתחברות באתר… [G2]');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25000);
   try {
     const res = await fetch(`${WORKER_URL_AUTH}/api/auth/google-login`, {
       method: 'POST',
+      signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         idToken: response.credential,
@@ -1420,6 +1565,10 @@ async function handleGoogleCredential(response) {
     }
 
     const srv = data.session || {};
+    if (!data.token || !srv.role) {
+      showLoginError('השרת לא החזיר חיבור תקין. נסה/י שוב. [G3]');
+      return;
+    }
 
     // Verify selected role matches the server-resolved role
     if (role === 'principal' && !['principal', 'systemadmin'].includes(srv.role)) {
@@ -1462,7 +1611,13 @@ async function handleGoogleCredential(response) {
     loadPortalDataAndNotifyFrames();
 
   } catch(e) {
-    showLoginError('שגיאת רשת: ' + e.message);
+    showLoginError(e.name === 'AbortError'
+      ? 'שרת האתר לא השיב בזמן לאחר אישור Google. בדוק/י את חיבור האינטרנט ונסה/י שוב. [G2]'
+      : 'הכניסה לא הושלמה: ' + e.message);
+  } finally {
+    clearTimeout(timeout);
+    _googleLoginInFlight = false;
+    setLoginStatus('');
   }
 }
 
@@ -1860,6 +2015,16 @@ function bindUI() {
       smBadgeClick();
     });
   }
+
+  const adminResetPwdInput = document.getElementById('adminResetPwdNew');
+  if (adminResetPwdInput) {
+    adminResetPwdInput.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitAdminResetPassword();
+      }
+    });
+  }
 }
 
 // ── Expose all inline-handler functions globally (fixes Babel/module scope) ──
@@ -2217,10 +2382,14 @@ async function toggleSaEditPerms(username) {
     );
     const list = await res.json();
     if (Array.isArray(list)) {
-      const emailKey = (
-        document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`)?.dataset.saEmailVal || username
+      const contactEmail = (
+        document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`)?.dataset.saEmailVal || ''
       ).toLowerCase();
-      const match = list.find(p => (p.email||'').toLowerCase() === emailKey);
+      // Password accounts are keyed by username. The email fallback only
+      // imports permissions saved by older releases; the next save migrates
+      // them to the stable username key used during password login.
+      const match = list.find(p => (p.email || '').toLowerCase() === username.toLowerCase()) ||
+        (contactEmail && list.find(p => (p.email || '').toLowerCase() === contactEmail));
       if (match) perms = match.permissions || {};
     }
   } catch(_) {}
@@ -2265,14 +2434,12 @@ async function saveSaEditPerms(username) {
   const school  = PS.school || session?.school || '';
   const year    = PS.year   || session?.year   || '';
   const perms   = _saEditPerms[username] || {};
-  // Derive email from the rendered table row (data attribute)
-  const emailEl = document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`);
-  const email   = emailEl ? emailEl.dataset.saEmailVal || username : username;
+  const permissionKey = username;
 
   try {
     const res = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, school, year, permissions: perms }),
+      body: JSON.stringify({ email: permissionKey, school, year, permissions: perms }),
     });
     if (res.ok) {
       toast(`✅ הרשאות ${username} נשמרו`, 'ok');
@@ -2413,16 +2580,14 @@ async function addStaffAuth() {
       return;
     }
 
-    // 2. Save permissions to staffPermissions using username as the email key
-    //    (so the permission system works uniformly for both login types)
-    // תיקון: חייב להיות תואם בדיוק לברירת המחדל בשרת (email || `${username}@local`),
-    // אחרת חיפוש ההרשאות בכניסה לא ימצא את השורה הזו לעולם.
-    const permEmail = email || `${username}@local`; // prefer real email; fall back to server's default
+    // 2. Password sessions load permissions by username. Email remains optional
+    //    contact metadata and must not become the authorization key.
+    const permissionKey = username;
     const permRes = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: permEmail,
+        email: permissionKey,
         name: name || username,
         roleTitle: roleTitle || '',
         school, year,
@@ -2444,21 +2609,48 @@ async function addStaffAuth() {
   }
 }
 
+function setAdminResetPwdError(message) {
+  const errEl = document.getElementById('adminResetPwdError');
+  if (!errEl) return;
+  errEl.textContent = message || '';
+  // .chpwd-err is display:none in the stylesheet, so assigning an empty
+  // inline value leaves the error hidden. Use an explicit display value.
+  errEl.style.display = message ? 'block' : 'none';
+}
+
+function setAdminResetPwdBusy(isBusy) {
+  const button = document.getElementById('adminResetPwdSubmit');
+  if (!button) return;
+  button.disabled = isBusy;
+  button.textContent = isBusy ? 'שומר…' : 'שמור סיסמא';
+  button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+}
+
 function openAdminResetPwd(username) {
   _saResetUsername = username;
   document.getElementById('adminResetPwdSub').textContent = `איפוס סיסמא עבור: ${username}`;
-  document.getElementById('adminResetPwdNew').value = '';
-  document.getElementById('adminResetPwdError').style.display = 'none';
+  const input = document.getElementById('adminResetPwdNew');
+  input.value = '';
+  setAdminResetPwdError('');
+  setAdminResetPwdBusy(false);
   document.getElementById('adminResetPwdModal').style.display = 'flex';
+  setTimeout(() => input.focus(), 0);
 }
 
 async function submitAdminResetPassword() {
-  const newPwd = document.getElementById('adminResetPwdNew')?.value;
-  const errEl  = document.getElementById('adminResetPwdError');
+  const input  = document.getElementById('adminResetPwdNew');
+  const newPwd = input?.value;
   if (!newPwd || newPwd.length < 12) {
-    errEl.textContent = 'הסיסמא חייבת להכיל לפחות 12 תווים'; errEl.style.display = '';
+    setAdminResetPwdError('הסיסמא חייבת להכיל לפחות 12 תווים');
+    input?.focus();
     return;
   }
+  if (!_saResetUsername) {
+    setAdminResetPwdError('לא נבחר משתמש לאיפוס. סגור את החלון ונסה שוב.');
+    return;
+  }
+  setAdminResetPwdError('');
+  setAdminResetPwdBusy(true);
   try {
     const res = await authFetch(`${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(_saResetUsername)}/reset-password`, {
       method: 'PUT',
@@ -2466,12 +2658,17 @@ async function submitAdminResetPassword() {
       body: JSON.stringify({ newPassword: newPwd }),
     });
     const data = await res.json();
-    if (!data.ok) { errEl.textContent = data.error||'שגיאה'; errEl.style.display=''; return; }
+    if (!res.ok || !data.ok) {
+      setAdminResetPwdError(data.error || 'איפוס הסיסמא נכשל');
+      return;
+    }
     document.getElementById('adminResetPwdModal').style.display = 'none';
     toast(`✅ סיסמא אופסה עבור ${_saResetUsername}`, 'ok');
     loadStaffAuth();
   } catch(e) {
-    errEl.textContent = 'שגיאת רשת: ' + e.message; errEl.style.display = '';
+    setAdminResetPwdError('שגיאת רשת: ' + e.message);
+  } finally {
+    setAdminResetPwdBusy(false);
   }
 }
 
@@ -2542,9 +2739,7 @@ async function deleteStaffAuth(username) {
   const school  = PS.school || session?.school || '';
   const year    = PS.year   || session?.year   || '';
 
-  // Resolve email from the rendered table row before deleting
-  const emailEl = document.querySelector(`[data-sa-email="${CSS.escape(username)}"]`);
-  const email   = emailEl ? (emailEl.dataset.saEmailVal || username) : username;
+  const permissionKey = username;
 
   const res = await authFetch(
     `${WORKER_URL_AUTH}/api/admin/staff-auth/${encodeURIComponent(username)}`,
@@ -2555,7 +2750,7 @@ async function deleteStaffAuth(username) {
     // Also remove from staffpermissions so the user disappears from the permissions table
     try {
       await authFetch(
-        `${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(email)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+        `${WORKER_URL_AUTH}/api/staff?email=${encodeURIComponent(permissionKey)}&school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
         { method: 'DELETE' }
       );
     } catch(_) {}
@@ -2811,15 +3006,12 @@ window.addEventListener('message', async (e) => {
   const fromCalendar  = e.source===calendarWin;
   const fromTeachers  = e.source===teachersWin;
   if (!fromPlan&&!fromGantt&&!fromMtss&&!fromCalendar&&!fromTeachers) return;
+  if (!getSessionToken() && e.data.type !== 'iframe-ready') return;
 
   switch(e.data.type) {
 
     case 'session-expired':
-      // A child iframe's Worker call got a 401. Only the top-level shell
-      // can show the login screen, so tear the session down here.
-      clearPortalSession();
-      toast('פג תוקף ההתחברות. יש להתחבר מחדש.', 'warn');
-      applyRoleUI(null, null);
+      recheckSessionFromFrame();
       break;
 
     case 'iframe-ready':
@@ -3153,7 +3345,10 @@ async function init() {
   updateBadges(); updateStatus();
 
   const session = getPortalSession();
-  if (session && session.portalRole && session.email) {
+  // Google sessions use an email address while password-based staff sessions
+  // use a username.  The old email-only check discarded a perfectly valid
+  // password session whenever the installed app was resumed or reloaded.
+  if (session && session.portalRole && session.token && (session.email || session.username)) {
     applyRoleUI(session.portalRole, session);
   } else {
     applyRoleUI(null, null);
@@ -3180,13 +3375,15 @@ async function init() {
 //  מיד, בלי צורך ברענון.
 // ═══════════════════════════════════════════════════════
 async function loadPortalDataAndNotifyFrames() {
+  const loadingToken = getSessionToken();
+  if (!loadingToken) return;
   if (PS._dataLoadStarted) return; // מונע טעינה כפולה אם נקרא יותר מפעם אחת
-  PS._dataLoadStarted = true;
 
   // טעינת נתוני פורטל מ-D1
   const school = PS.school || '';
   const year   = PS.year   || '';
   if (!school && !year) return;
+  PS._dataLoadStarted = true;
 
   async function dbLoad(type) {
     const t0 = performance.now();
@@ -3204,6 +3401,7 @@ async function loadPortalDataAndNotifyFrames() {
 
   const _initT0 = performance.now();
   const [sp, sg, sm, sc, st] = await Promise.all([dbLoad('plan'), dbLoad('gantt'), dbLoad('mtss'), dbLoad('calendar'), dbLoad('teachers')]);
+  if (getSessionToken() !== loadingToken) return;
   console.log(`[timing] all 5 dbLoad calls together took ${(performance.now()-_initT0).toFixed(0)}ms`);
   if(sp){ PS.planData=sp;  PS.school=sp.schoolName||PS.school; PS.year=sp.year||PS.year; }
   if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
@@ -3312,6 +3510,7 @@ console.log('portal script loaded');
 // ═══════════════════════════════════════════════════════
 function reloadFrameData() {
   // אם עדיין לא עברו לוגין — לא לעשות כלום
+  if (!getSessionToken() || !PS._initDone) return;
   if (!PS.school && !PS.year) return;
   console.log('[portal] reloadFrameData triggered | school:', PS.school, '| planData exists:', !!PS.planData);
 
@@ -3381,30 +3580,62 @@ function isRunningStandalone() {
     || window.navigator.standalone === true; // iOS Safari
 }
 
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function setPwaInstallButtonsVisible(visible) {
+  ['pwaInstallBtn', 'loginPwaInstallBtn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.classList.toggle('show', visible && !isRunningStandalone());
+  });
+}
+
+function openPwaInstallHelp() {
+  const modal = document.getElementById('pwaInstallHelp');
+  const text = document.getElementById('pwaHelpText');
+  if (!modal || !text) return;
+  text.innerHTML = isIosDevice()
+    ? 'פתח/י את האתר ב־Safari, לחצ/י על כפתור <strong>שיתוף</strong> ובחר/י <strong>הוספה למסך הבית</strong>. לאחר מכן אשר/י את ההוספה.'
+    : 'פתח/י את תפריט הדפדפן ובחר/י <strong>התקנת אפליקציה</strong> או <strong>הוספה למסך הבית</strong>.';
+  modal.style.display = 'flex';
+  modal.querySelector('button')?.focus();
+}
+
+function closePwaInstallHelp() {
+  const modal = document.getElementById('pwaInstallHelp');
+  if (modal) modal.style.display = 'none';
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  if (!isRunningStandalone()) {
-    const btn = document.getElementById('pwaInstallBtn');
-    if (btn) btn.classList.add('show');
-  }
+  setPwaInstallButtonsVisible(true);
 });
 
 function handlePwaInstallClick() {
-  const btn = document.getElementById('pwaInstallBtn');
-  if (!deferredInstallPrompt) return;
+  if (!deferredInstallPrompt) {
+    openPwaInstallHelp();
+    return;
+  }
   deferredInstallPrompt.prompt();
   deferredInstallPrompt.userChoice.finally(() => {
     deferredInstallPrompt = null;
-    if (btn) btn.classList.remove('show');
+    setPwaInstallButtonsVisible(false);
   });
 }
 
 window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
-  const btn = document.getElementById('pwaInstallBtn');
-  if (btn) btn.classList.remove('show');
+  setPwaInstallButtonsVisible(false);
 });
+
+// iOS does not fire beforeinstallprompt. On every phone-sized screen we keep a
+// manual path visible as well, so installation never depends on a silent event.
+if ((isIosDevice() || window.matchMedia('(max-width: 767px)').matches) && !isRunningStandalone()) {
+  setPwaInstallButtonsVisible(true);
+}
 </script>
 </body>
 </html>
