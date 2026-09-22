@@ -2988,6 +2988,7 @@ function _ensureTeachersLoaded() {
   }
 }
 
+let _privateCalendarConnectInFlight = false;
 window.addEventListener('message', async (e) => {
   // SECURITY: silently reject messages not from the trusted, exact origin.
   if (e.origin !== PORTAL_ORIGIN) return;
@@ -3009,6 +3010,54 @@ window.addEventListener('message', async (e) => {
   if (!getSessionToken() && e.data.type !== 'iframe-ready') return;
 
   switch(e.data.type) {
+
+    case 'private-google-calendar-connect': {
+      if (!fromCalendar || typeof e.data.requestId !== 'string' ||
+          !/^[a-z0-9:]{1,80}$/.test(e.data.requestId) ||
+          !['https://principal-portal.pages.dev', 'https://staging.principal-portal.pages.dev'].includes(PORTAL_ORIGIN)) break;
+      const requestId = e.data.requestId;
+      const connectToken = getSessionToken();
+      const stillCurrent = () => getSessionToken() === connectToken &&
+        document.getElementById('calendarFrame')?.contentWindow === calendarWin;
+      const reply = (ok, error) => {
+        if (stillCurrent()) calendarWin.postMessage({ type:'private-google-calendar-connect-result', requestId, ok, ...(error ? { error } : {}) }, PORTAL_ORIGIN);
+      };
+      if (_privateCalendarConnectInFlight) { reply(false, 'calendar_unavailable'); break; }
+      _privateCalendarConnectInFlight = true;
+      const abort = new AbortController();
+      const timeout = setTimeout(() => abort.abort(), 30000);
+      try {
+        // Fetch in the top-level page: no child-supplied destination or token.
+        const response = await authFetch(`${WORKER_URL_AUTH}/api/private-google-calendar/connect`, {
+          method:'POST', body:'{}', cache:'no-store', credentials:'omit', signal:abort.signal,
+        });
+        const data = await response.json();
+        if (!stillCurrent()) break;
+        if (!response.ok) {
+          const safeErrors = ['not_configured', 'too_many_connections', 'session_expired', 'private_calendar_forbidden'];
+          reply(false, safeErrors.includes(data.error) ? data.error : 'calendar_unavailable');
+          break;
+        }
+        const url = new URL(data.authorizationUrl);
+        const parameter = name => url.searchParams.getAll(name).length === 1 ? url.searchParams.get(name) : null;
+        if (url.origin !== 'https://accounts.google.com' || url.pathname !== '/o/oauth2/v2/auth' ||
+            url.username || url.password || url.hash || parameter('client_id') !== GOOGLE_CLIENT_ID ||
+            parameter('redirect_uri') !== `${WORKER_URL_AUTH}/api/private-google-calendar/callback` ||
+            parameter('response_type') !== 'code' || parameter('code_challenge_method') !== 'S256' ||
+            !/^[a-f0-9]{64}$/.test(parameter('state') || '') ||
+            !/^[A-Za-z0-9_-]{43}$/.test(parameter('code_challenge') || '')) throw new Error('invalid_redirect');
+        // This message handler runs in the unsandboxed parent. Keep the iframe
+        // sandbox intact and never automatically retry the OAuth operation.
+        window.location.assign(url.href);
+        reply(true);
+      } catch {
+        reply(false, 'calendar_unavailable');
+      } finally {
+        clearTimeout(timeout);
+        _privateCalendarConnectInFlight = false;
+      }
+      break;
+    }
 
     case 'session-expired':
       recheckSessionFromFrame();
