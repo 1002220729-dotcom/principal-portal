@@ -8,9 +8,11 @@ const WINDOW_MS = 10 * 60 * 1000;
 const IDLE_MS = 10 * 60 * 60 * 1000;
 
 class CalendarError extends Error {
-  constructor(status, code) { super(code); this.status = status; this.code = code; }
+  constructor(status, code, diagnosticReason = code) {
+    super(code); this.status = status; this.code = code; this.diagnosticReason = diagnosticReason;
+  }
 }
-function fail(status, code) { throw new CalendarError(status, code); }
+function fail(status, code, diagnosticReason) { throw new CalendarError(status, code, diagnosticReason); }
 function bytesHex(bytes) { return [...bytes].map(b => b.toString(16).padStart(2, '0')).join(''); }
 function randomHex() { return bytesHex(crypto.getRandomValues(new Uint8Array(32))); }
 async function digest(value) { return new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(value))); }
@@ -111,7 +113,14 @@ async function boundedJson(response, maxBytes = 524288) {
 }
 async function googleFetch(fetcher, url, options = {}) {
   try {
-    return await fetcher(url, { ...options, redirect: 'error', signal: AbortSignal.timeout(15000) });
+    // Workers supports manual redirects; reject them before reading any body
+    // so credentials are never forwarded to an upstream redirect destination.
+    const response = await fetcher(url, { ...options, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      fail(502, 'google_unavailable');
+    }
+    return response;
   } catch { fail(502, 'google_unavailable'); }
 }
 async function exchange(fetcher, env, fields) {
@@ -122,8 +131,9 @@ async function exchange(fetcher, env, fields) {
   });
   const result = await boundedJson(response, 32768);
   if (!response.ok) {
-    if (result.error === 'invalid_grant') fail(409, 'reconnect_required');
-    fail(502, 'google_unavailable');
+    if (result.error === 'invalid_grant') fail(409, 'reconnect_required', 'invalid_grant');
+    if (result.error === 'invalid_client') fail(502, 'google_unavailable', 'invalid_client');
+    fail(502, 'google_unavailable', 'token_rejected');
   }
   if (typeof result.access_token !== 'string' || result.access_token.length > 8192 || !result.access_token) fail(502, 'google_unavailable');
   return result;
@@ -144,15 +154,36 @@ async function getConnection(env, owner) {
   return env.DB.prepare('SELECT owner, google_sub, refresh_cipher, version FROM private_google_calendar_connections WHERE owner = ?')
     .bind(owner).first();
 }
-function returnToPortal(config, outcome, session) {
+const CALLBACK_STAGES = new Set(['state', 'state_claim', 'state_validation', 'session', 'code',
+  'decrypt', 'token', 'scope', 'identity', 'refresh_token', 'session_recheck', 'encrypt', 'save', 'save_result']);
+const CALLBACK_REASONS = new Set(['invalid_state', 'session_expired', 'private_calendar_forbidden',
+  'invalid_code', 'connection_unavailable', 'not_configured', 'google_unavailable', 'google_response_too_large',
+  'reconnect_required', 'connection_changed', 'invalid_client', 'invalid_grant', 'token_rejected']);
+function callbackDiagnostic(env, config, stage, error) {
+  if (env.GOOGLE_CALENDAR_DIAGNOSTICS !== 'true' ||
+      config.portal !== 'https://staging.principal-portal.pages.dev') return undefined;
+  // Only fixed labels leave this function: never exception text, upstream data,
+  // callback parameters, identities, hashes, or credentials. No diagnostic logs.
+  return {
+    stage: CALLBACK_STAGES.has(stage) ? stage : 'callback',
+    reason: error instanceof CalendarError && CALLBACK_REASONS.has(error.diagnosticReason)
+      ? error.diagnosticReason : 'internal',
+  };
+}
+function returnToPortal(config, outcome, session, diagnostic) {
   const target = new URL(config.portal + '/');
   target.searchParams.set('gcal', outcome);
+  if (outcome === 'failed' && diagnostic) {
+    target.searchParams.set('gcal_stage', diagnostic.stage);
+    target.searchParams.set('gcal_reason', diagnostic.reason);
+  }
   if (session?.school) target.searchParams.set('school', session.school);
   if (session?.year) target.searchParams.set('year', session.year);
   return new Response(null, { status: 303, headers: { ...headers(), Location: target.href } });
 }
 async function callback(request, env, config, fetcher) {
   let session, stateHash, claimed = false;
+  let stage = 'state';
   try {
     const url = new URL(request.url);
     const state = url.searchParams.get('state');
@@ -160,24 +191,36 @@ async function callback(request, env, config, fetcher) {
     stateHash = await hash(state);
     // Atomic single-use claim prevents replay, while retaining a cancellation
     // marker until the credential write. Disconnect also cancels in-flight OAuth.
+    stage = 'state_claim';
     const pending = await env.DB.prepare(`UPDATE private_google_calendar_states SET claimed_at = ?
       WHERE state_hash = ? AND claimed_at IS NULL RETURNING owner, session_hash, verifier_cipher, expires_at`)
       .bind(new Date().toISOString(), stateHash).first();
     claimed = !!pending;
+    stage = 'state_validation';
     if (!pending || pending.owner !== config.owner || !Number.isFinite(Date.parse(pending.expires_at)) ||
         Date.parse(pending.expires_at) <= Date.now()) fail(400, 'invalid_state');
+    stage = 'session';
     session = await sessionByHash(env, pending.session_hash, config.owner);
     if (url.searchParams.has('error')) return returnToPortal(config, 'denied', session);
+    stage = 'code';
     const code = url.searchParams.get('code');
     if (!code || code.length > 4096) fail(400, 'invalid_code');
+    stage = 'decrypt';
     const verifier = await unseal(env, pending.verifier_cipher, 'state:' + stateHash);
+    stage = 'token';
     const tokens = await exchange(fetcher, env, { code, code_verifier: verifier,
       grant_type: 'authorization_code', redirect_uri: config.callback });
+    stage = 'scope';
     requireScope(tokens);
+    stage = 'identity';
     const sub = await identity(fetcher, tokens.access_token, config.owner);
+    stage = 'refresh_token';
     if (typeof tokens.refresh_token !== 'string' || !tokens.refresh_token || tokens.refresh_token.length > 8192) fail(409, 'reconnect_required');
+    stage = 'session_recheck';
     await sessionByHash(env, pending.session_hash, config.owner);
+    stage = 'encrypt';
     const encrypted = await seal(env, tokens.refresh_token, 'refresh:' + config.owner);
+    stage = 'save';
     const now = new Date().toISOString();
     const saved = await env.DB.prepare(`INSERT INTO private_google_calendar_connections (owner, google_sub, refresh_cipher, version, connected_at)
       SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM private_google_calendar_states
@@ -188,13 +231,15 @@ async function callback(request, env, config, fetcher) {
       refresh_cipher = excluded.refresh_cipher, version = excluded.version, connected_at = excluded.connected_at`)
       .bind(config.owner, sub, encrypted, crypto.randomUUID(), now, stateHash, config.owner, now,
         pending.session_hash, config.owner, now, new Date(Date.now() - IDLE_MS).toISOString()).run();
+    stage = 'save_result';
     if (saved.meta?.changes !== 1) fail(409, 'connection_changed');
     return returnToPortal(config, 'connected', session);
   } catch (error) {
     const outcome = error instanceof CalendarError && ['account_mismatch', 'calendar_permission_missing'].includes(error.code)
       ? error.code : 'failed';
     // Never log callback URLs, codes, tokens, private event data, or upstream errors.
-    return returnToPortal(config, outcome, session);
+    return returnToPortal(config, outcome, session,
+      outcome === 'failed' ? callbackDiagnostic(env, config, stage, error) : undefined);
   } finally {
     if (claimed && stateHash) {
       try { await env.DB.prepare('DELETE FROM private_google_calendar_states WHERE state_hash = ?').bind(stateHash).run(); }
