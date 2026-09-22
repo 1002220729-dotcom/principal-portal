@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
 const html = readFileSync(new URL('./calendar.html', import.meta.url), 'utf8');
+const adapter = readFileSync(new URL('./google-calendar-shared.js', import.meta.url), 'utf8');
 const start = html.lastIndexOf('<script>') + '<script>'.length;
 const source = html.slice(start, html.indexOf('</script>', start));
 const privateMarker = 'PRIVATE-GOOGLE-EVENT-MUST-NOT-EXPORT';
@@ -43,11 +44,12 @@ function fixture(events, filters = {}) {
     parent:{postMessage:message=>messages.push(message)},
     matchMedia:()=>({matches:false,addEventListener(){}}), addEventListener(){},
   };
-  const context = vm.createContext({ window, document, Blob, Date, Intl, console,
+  const context = vm.createContext({ window, document, Blob, Date, Intl, TextEncoder, console,
     URL:{createObjectURL(blob){capturedBlob=blob;return 'blob:synthetic-export';},
       revokeObjectURL(url){revoked.push(url);}},
     setTimeout(callback){timers.push(callback);return timers.length;},clearTimeout(){},
   });
+  vm.runInContext(adapter, context);
   vm.runInContext(source, context);
   context.testEvents = events;
   vm.runInContext('appData.meetings.events = testEvents;', context);
@@ -57,6 +59,18 @@ function fixture(events, filters = {}) {
 const meeting = (overrides={}) => ({ date:'2026-09-25',timeStart:'09:00',timeEnd:'10:00',
   title:'פגישה משותפת',type:'meeting',status:'upcoming',priority:'medium',location:'חדר צוות',
   attendees:'צוות בית הספר',agenda:'נושא ראשון\nנושא שני',summary:'',...overrides });
+
+test('published professional Google appointments appear in actual CSV and escaped print artifacts',async()=>{
+  const f=fixture([meeting()]);
+  f.context.sharedGoogle={owner:'owner@example.edu',months:{'2026-09':{fetchedAt:'2026-09-22T10:00:00Z',events:[{
+    id:'published-google',title:'Google מקצועי <script>bad</script>',start:'2026-09-24T09:00:00+03:00',end:'2026-09-24T10:00:00+03:00',allDay:false,location:'חדר צוות',link:''}]}}};
+  vm.runInContext('appData.meetings.googleCalendar=sharedGoogle;',f.context);
+  f.context.exportMeetingsCSV();const rows=parseCsv((await f.blob().text()).replace(/^\uFEFF/,''));
+  assert.equal(rows.length,3);assert.match(rows[1][3],/Google מקצועי/);
+  f.context.printMeetings();const report=f.frames.at(-1).srcdoc;
+  assert.match(report,/Google מקצועי &lt;script&gt;bad&lt;\/script&gt;/);
+  assert.doesNotMatch(report,/<script>bad/);assert.doesNotMatch(report,new RegExp(privateMarker));
+});
 
 // Parse the resulting artifact independently, including embedded quotes/newlines.
 function parseCsv(text) {

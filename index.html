@@ -3175,9 +3175,9 @@ window.addEventListener('message', async (e) => {
           calendarWin.postMessage({type:'load-data',payload:PS.calendarData},PORTAL_ORIGIN);
         } else if (PS.school||PS.year) {
           authFetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`,{cache:'no-store'})
-            .then(r=>r.json()).then(sc=>{
-              if(sc){PS.calendarData=sc;calendarWin.postMessage({type:'load-data',payload:sc},PORTAL_ORIGIN);}
-              else calendarWin.postMessage({type:'school-data-update',schoolName:PS.school,year:PS.year},PORTAL_ORIGIN);
+            .then(r=>{if(!r.ok)throw new Error('calendar_load_failed');return r.json();}).then(sc=>{
+              if(sc===null)sc={school:PS.school,year:PS.year,meetings:{events:[],settings:{}}};
+              if(sc&&typeof sc==='object'&&!Array.isArray(sc)){PS.calendarData=sc;calendarWin.postMessage({type:'load-data',payload:sc},PORTAL_ORIGIN);}
             }).catch(()=>{});
         }
         break;
@@ -3433,6 +3433,7 @@ async function loadPortalDataAndNotifyFrames() {
   const year   = PS.year   || '';
   if (!school && !year) return;
   PS._dataLoadStarted = true;
+  let calendarLoadedEmpty = false;
 
   async function dbLoad(type) {
     const t0 = performance.now();
@@ -3444,7 +3445,13 @@ async function loadPortalDataAndNotifyFrames() {
       if (!res.ok) { console.log(`[timing] dbLoad(${type}) FAILED status=${res.status} after ${(performance.now()-t0).toFixed(0)}ms`); return null; }
       const text = await res.text();
       console.log(`[timing] dbLoad(${type}) took ${(performance.now()-t0).toFixed(0)}ms, payload size=${text.length} bytes`);
-      try { return JSON.parse(text); } catch { return null; }
+      try {
+        const payload = JSON.parse(text);
+        // A successful null means no saved calendar yet. A failed/forbidden
+        // request must never be converted into an editable empty calendar.
+        if (type === 'calendar' && payload === null) calendarLoadedEmpty = true;
+        return payload;
+      } catch { return null; }
     } catch (e) { console.log(`[timing] dbLoad(${type}) ERROR after ${(performance.now()-t0).toFixed(0)}ms:`, e.message); return null; }
   }
 
@@ -3456,6 +3463,9 @@ async function loadPortalDataAndNotifyFrames() {
   if(sg){ PS.ganttData=sg; if(!PS.school) PS.school=sg.schoolName||''; if(!PS.year) PS.year=sg.year||''; }
   if(sm){ PS.mtssData=sm;  if(!PS.school) PS.school=sm.schoolName||''; }
   if(sc){ PS.calendarData=sc; }
+  else if (calendarLoadedEmpty) {
+    PS.calendarData = {school, year, meetings:{events:[], settings:{}}};
+  }
   if(st){ PS.teachersData=st; }
   updateBadges(); updateStatus();
 
@@ -3583,7 +3593,8 @@ function reloadFrameData() {
   const teachersFrameElR = document.getElementById('teachersFrame');
   if ((PS.school || PS.year) && PS.calendarReady && calWin) {
     authFetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
-      .then(r => r.json()).then(sc => {
+      .then(r => {if(!r.ok)throw new Error('calendar_load_failed');return r.json();}).then(sc => {
+        if(sc===null)sc={school:PS.school,year:PS.year,meetings:{events:[],settings:{}}};
         if (sc) { PS.calendarData = sc; calWin.postMessage({ type: 'load-data', payload: sc },PORTAL_ORIGIN); }
       }).catch(() => {});
   }
