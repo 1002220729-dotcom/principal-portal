@@ -171,6 +171,20 @@ body {
 #meetingCalGrid {
   direction: rtl;
 }
+.meeting-cal-gridwrap{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;user-select:none}
+.meeting-cal-heading{text-align:center;font-weight:700;color:var(--text-muted);padding:8px 0;min-width:0}
+.meeting-cal-day{height:142px;min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:6px;padding:5px;background:var(--card);display:flex;flex-direction:column;gap:3px}
+.meeting-cal-day.weekend{background:#f7f9fc}.meeting-cal-day.today{border:2px solid var(--primary);background:var(--primary-soft)}
+.meeting-cal-date{display:flex;justify-content:center;align-items:baseline;gap:5px;border:0;background:transparent;color:var(--primary);font:inherit;font-weight:700;cursor:pointer;min-height:26px;flex:none}
+.meeting-cal-date small{font-size:11px;font-weight:500;color:var(--text-muted)}
+.meeting-cal-event{display:block;width:100%;min-width:0;max-width:100%;flex:none;height:24px;border:0;border-radius:4px;padding:3px 5px;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#fff;font:inherit;font-size:11px;font-weight:600;cursor:pointer}
+.meeting-cal-more{min-width:0;max-width:100%;height:23px;border:0;background:transparent;color:var(--primary);font:inherit;font-size:11px;font-weight:700;cursor:pointer;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meeting-day-panel{margin-top:14px;padding:16px;max-height:55vh;overflow:auto}.meeting-day-panel[hidden]{display:none}
+.meeting-day-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}.meeting-day-header h3{flex:1;font-size:1rem}
+.meeting-day-entry{display:flex;align-items:start;gap:10px;width:100%;padding:12px;margin:6px 0;border:1px solid var(--border);border-inline-start:4px solid var(--primary);border-radius:6px;background:var(--card);color:var(--text);font:inherit;text-align:right;cursor:pointer}
+.meeting-day-entry strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere}.meeting-day-entry span{min-width:0}.meeting-day-entry time{flex:none;min-width:48px}
+.meeting-google-badge{display:inline-block;font-size:11px;padding:2px 6px;border-radius:8px;background:#e0f1ef;color:#08676c;font-weight:600}
+@media(min-width:481px) and (max-width:760px){.meeting-cal-day{padding:3px}.meeting-cal-event{font-size:10px}}
 
 /* Period compact table */
 .meeting-period-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
@@ -425,6 +439,7 @@ body.readonly-mode #meetingModal textarea {
     <div class="card" style="padding:16px">
       <div id="meetingCalGrid"></div>
     </div>
+    <section id="meetingDayPanel" class="card meeting-day-panel" aria-label="פגישות ביום הנבחר" hidden></section>
   </div>
 
   <!-- PANEL: LIST VIEW -->
@@ -580,6 +595,7 @@ body.readonly-mode #meetingModal textarea {
         onclick="deleteMeeting(document.getElementById('meetModalId').value)">
         🗑️ מחק
       </button>
+      <a id="meetGoogleLink" class="btn btn-outline" target="_blank" rel="noopener noreferrer" hidden>פתיחה ב־Google Calendar</a>
       <button class="btn btn-outline" onclick="closeMeetingModal()"
         style="border-color:var(--border);color:var(--text-muted)">
         ביטול
@@ -602,6 +618,7 @@ body.readonly-mode #meetingModal textarea {
      future direct Worker call here must go through
      PortalAuth.authFetch(). -->
 <script src="auth-shared.js"></script>
+<script src="google-calendar-shared.js"></script>
 
 <!-- ══════════════════════════════════════════════════════
      [MEETINGS JS] — PASTE INTO MANAGEMENT FILE'S <script>
@@ -689,6 +706,67 @@ let _meetingViewYear    = new Date().getFullYear();
 let _meetingViewMonth   = new Date().getMonth(); // 0-based
 let _meetingCurrentTab  = 'month';
 let _waitingForGanttSync = false;
+let _meetingSelectedDay = '';
+
+function allCalendarMeetings() {
+  const native = appData.meetings.events || [];
+  return window.GoogleCalendarShared?.mergeMeetings(native, appData.meetings.googleCalendar) || native;
+}
+
+function calendarMeetingCount(events) {
+  return events.filter(e=>!e.isFromGoogle).length + new Set(events.filter(e=>e.isFromGoogle).map(e=>e.googleEventId)).size;
+}
+
+function getGoogleCalendarContext() {
+  return { ready:_dataLoadedFromServer && !!_portalSchool && !!_portalYear,
+    school:_portalSchool, year:_portalYear,
+    month:`${_meetingViewYear}-${String(_meetingViewMonth + 1).padStart(2,'0')}` };
+}
+
+function applyGoogleCalendarSnapshot(result) {
+  const context = getGoogleCalendarContext();
+  if (!context.ready || result.school !== context.school || result.year !== context.year ||
+      result.month !== context.month || !Array.isArray(result.snapshot?.events) ||
+      !Number.isFinite(Date.parse(result.snapshot.fetchedAt))) return false;
+  const previous = appData.meetings.googleCalendar || {};
+  const previousMonth = previous.months?.[result.month];
+  if (previousMonth && Date.parse(previousMonth.fetchedAt) > Date.parse(result.snapshot.fetchedAt)) return false;
+  appData.meetings.googleCalendar = { ...previous, owner:result.owner,
+    months:{...previous.months, [result.month]:result.snapshot} };
+  // The owner sync endpoint already saved this field atomically. Never send a
+  // whole calendar save here: it could overwrite another user's manual edits.
+  renderMeetingsCalendar();
+  return true;
+}
+
+function notifyCalendarMonth() {
+  if (typeof document.dispatchEvent === 'function' && typeof CustomEvent === 'function')
+    document.dispatchEvent(new CustomEvent('calendar-month-change', {detail:{month:getGoogleCalendarContext().month}}));
+}
+
+function closeMeetingDay() {
+  _meetingSelectedDay = '';
+  const panel = document.getElementById('meetingDayPanel');
+  if (panel) { panel.hidden = true; panel.innerHTML = ''; }
+}
+
+function openMeetingDay(date, focus = true) {
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(date)) return;
+  const panel = document.getElementById('meetingDayPanel');
+  if (!panel) return;
+  _meetingSelectedDay = date;
+  const meetings = allCalendarMeetings().filter(e=>e.date === date)
+    .sort((a,b)=>(a.timeStart || '').localeCompare(b.timeStart || ''));
+  panel.innerHTML = `<div class="meeting-day-header"><h3 tabindex="-1">${esc(formatDate(date))} · ${meetings.length} פגישות</h3>
+    ${!_isReadOnly ? `<button class="btn btn-outline" onclick="openMeetingModal(null,'${date}')">➕ פגישה חדשה</button>` : ''}
+    <button class="btn-icon" onclick="closeMeetingDay()" aria-label="סגירת פירוט היום">✕</button></div>` +
+    (meetings.length ? meetings.map(evt=>`<button class="meeting-day-entry" style="border-inline-start-color:${safeMeetingColor(evt.color)}" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">
+      <time>${esc(evt.timeStart || 'כל היום')}</time><span><strong>${esc(evt.title)}</strong>
+      ${evt.isFromGoogle ? '<span class="meeting-google-badge">Google</span>' : ''}
+      ${evt.location ? `<span> · ${esc(evt.location)}</span>` : ''}</span></button>`).join('') : '<p>אין פגישות ביום הזה.</p>');
+  panel.hidden = false;
+  if (focus) { panel.querySelector('h3')?.focus(); panel.scrollIntoView?.({block:'nearest',behavior:'smooth'}); }
+}
 
 // ════════════════════════════════════════════════════════════
 // ── HELPER LABEL FUNCTIONS ──
@@ -739,9 +817,10 @@ function _fmtDateShort(iso) {
 function renderMeetingsCalendar() {
   updateMeetingKpi();
   if (_meetingCurrentTab === 'month')       renderMeetingMonthView();
-  else if (_meetingCurrentTab === 'list')   renderMeetingList(appData.meetings.events);
+  else if (_meetingCurrentTab === 'list')   renderMeetingList(allCalendarMeetings());
   else if (_meetingCurrentTab === 'period') renderMeetingByPeriod();
   updateLastSyncLabel();
+  if (_meetingSelectedDay) openMeetingDay(_meetingSelectedDay, false);
 }
 
 // ── TAB SWITCHING ──
@@ -762,18 +841,18 @@ function switchMeetingTab(tab, el) {
 function updateMeetingKpi() {
   const grid = document.getElementById('meetingKpiGrid');
   if (!grid) return;
-  const events   = appData.meetings.events || [];
+  const events   = allCalendarMeetings();
   const now      = new Date();
   const thisYear = now.getFullYear();
   const thisMon  = now.getMonth();
-  const total    = events.length;
-  const upcoming = events.filter(e => e.status === 'upcoming').length;
-  const done     = events.filter(e => e.status === 'done').length;
-  const thisMonth = events.filter(e => {
+  const total    = calendarMeetingCount(events);
+  const upcoming = calendarMeetingCount(events.filter(e => e.status === 'upcoming'));
+  const done     = calendarMeetingCount(events.filter(e => e.status === 'done'));
+  const thisMonth = calendarMeetingCount(events.filter(e => {
     if (!e.date) return false;
     const d = new Date(e.date + 'T12:00:00');
     return d.getFullYear() === thisYear && d.getMonth() === thisMon;
-  }).length;
+  }));
 
   grid.innerHTML = `
     <div class="dash-card">
@@ -814,7 +893,8 @@ function updateLastSyncLabel() {
  */
 function hebrewDayLetters(n) {
   const ones = ['','א','ב','ג','ד','ה','ו','ז','ח','ט'];
-  const tens = ['','י','כ'];
+  const tens = ['','י','כ','ל'];
+  if (!Number.isInteger(n) || n < 1 || n > 30) return '';
   if (n === 15) return 'ט״ו';
   if (n === 16) return 'ט״ז';
   const t = Math.floor(n / 10);
@@ -871,6 +951,7 @@ function renderMeetingMonthView() {
   // ≤480px: render a daily agenda list instead of the 7-column grid
   if (_isMeetingCalMobile()) {
     renderMeetingAgendaView(grid);
+    notifyCalendarMonth();
     return;
   }
 
@@ -880,8 +961,9 @@ function renderMeetingMonthView() {
   const daysInMon  = new Date(_meetingViewYear, _meetingViewMonth + 1, 0).getDate();
   const firstDow   = firstDay.getDay(); // 0=Sun
   const todayStr   = now.toISOString().slice(0, 10);
+  const calendarEvents = allCalendarMeetings();
 
-  let html = `<div class="meeting-cal-gridwrap" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;user-select:none">`;
+  let html = `<div class="meeting-cal-gridwrap">`;
 
   // Day headers
   DAY_NAMES.forEach((n, i) => {
@@ -894,7 +976,7 @@ function renderMeetingMonthView() {
 
   // Empty cells before month start
   for (let i = 0; i < firstDow; i++) {
-    html += `<div style="min-height:80px"></div>`;
+    html += `<div class="meeting-cal-blank" aria-hidden="true"></div>`;
   }
 
   // Day cells
@@ -903,53 +985,40 @@ function renderMeetingMonthView() {
     const dateStr  = `${_meetingViewYear}-${String(_meetingViewMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday  = dateStr === todayStr;
     const isWeekend= dow === 5 || dow === 6;
-    const dayEvts  = (appData.meetings.events || []).filter(e => e.date === dateStr);
-
-    const bgColor  = isToday   ? 'var(--primary-soft)'
-                   : isWeekend ? 'rgba(0,0,0,0.018)'
-                   : 'var(--card)';
-    const numColor = isToday ? 'var(--primary)' : 'var(--text-muted)';
-    const border   = isToday ? '1.5px solid var(--primary)' : '1px solid var(--border)';
+    const dayEvts  = calendarEvents.filter(e => e.date === dateStr)
+      .sort((a,b)=>(a.timeStart || '').localeCompare(b.timeStart || ''));
 
     let evtsHtml = '';
     const MAX_SHOW = 3;
     dayEvts.slice(0, MAX_SHOW).forEach(evt => {
       const opacity = evt.status === 'cancelled' ? '0.45' : '1';
-      evtsHtml += `<div
-        style="background:${safeMeetingColor(evt.color)};color:#fff;border-radius:4px;
-               padding:2px 5px;font-size:10px;font-weight:600;margin-bottom:2px;
-               cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
-               opacity:${opacity}"
+      evtsHtml += `<button type="button" class="meeting-cal-event"
+        style="background:${safeMeetingColor(evt.color)};opacity:${opacity}"
         title="${esc(evt.title)} ${esc(safeMeetingTime(evt.timeStart))}"
-        onclick="event.stopPropagation();openMeetingModal('${safeMeetingId(evt.id)}',null)">
-        ${safeMeetingTime(evt.timeStart) ? esc(safeMeetingTime(evt.timeStart)) + ' ' : ''}${esc(evt.title)}
-      </div>`;
+        onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">
+        ${evt.isFromGoogle ? 'G · ' : ''}${safeMeetingTime(evt.timeStart) ? esc(safeMeetingTime(evt.timeStart)) + ' ' : ''}${esc(evt.title)}
+      </button>`;
     });
     if (dayEvts.length > MAX_SHOW) {
       const remaining = dayEvts.length - MAX_SHOW;
-      evtsHtml += `<div
-        style="font-size:9px;color:var(--primary);cursor:pointer;font-weight:600"
-        onclick="event.stopPropagation();switchMeetingTab('list',document.querySelector('.arena-tab[data-tab=list]'))">
-        +${remaining} נוספות
-      </div>`;
+      evtsHtml += `<button type="button" class="meeting-cal-more" onclick="openMeetingDay('${dateStr}')">
+        +${remaining} פגישות נוספות
+      </button>`;
     }
 
     const hebDay = gregDayToHebrewLetters(_meetingViewYear, _meetingViewMonth, d);
 
-    html += `<div
-      style="min-height:80px;border:${border};border-radius:6px;padding:4px;
-             background:${bgColor};cursor:pointer"
-      onclick="openMeetingModal(null,'${dateStr}')">
-      <div style="display:flex;align-items:baseline;justify-content:center;gap:5px;margin-bottom:4px">
-        <span style="font-size:0.75rem;font-weight:700;color:${numColor}">${d}</span>
-        <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);opacity:0.75">${hebDay}</span>
-      </div>
+    html += `<div class="meeting-cal-day${isToday ? ' today' : ''}${isWeekend ? ' weekend' : ''}" data-date="${dateStr}">
+      <button type="button" class="meeting-cal-date" aria-label="פגישות בתאריך ${dateStr}" onclick="openMeetingDay('${dateStr}')">
+        <span>${d}</span><small>${hebDay}</small>
+      </button>
       ${evtsHtml}
     </div>`;
   }
 
   html += `</div>`;
   grid.innerHTML = html;
+  notifyCalendarMonth();
 }
 
 // ── MOBILE BREAKPOINT HELPER ──
@@ -967,6 +1036,7 @@ function renderMeetingAgendaView(grid) {
   const now       = new Date();
   const todayStr  = now.toISOString().slice(0, 10);
   const daysInMon = new Date(_meetingViewYear, _meetingViewMonth + 1, 0).getDate();
+  const calendarEvents = allCalendarMeetings();
 
   let html = '';
   for (let d = 1; d <= daysInMon; d++) {
@@ -974,7 +1044,7 @@ function renderMeetingAgendaView(grid) {
     const dateStr  = `${_meetingViewYear}-${String(_meetingViewMonth + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const isToday  = dateStr === todayStr;
     const hebDay   = gregDayToHebrewLetters(_meetingViewYear, _meetingViewMonth, d);
-    const dayEvts  = (appData.meetings.events || [])
+    const dayEvts  = calendarEvents
       .filter(e => e.date === dateStr)
       .sort((a, b) => (a.timeStart || '').localeCompare(b.timeStart || ''));
 
@@ -1010,6 +1080,7 @@ function renderMeetingAgendaView(grid) {
 }
 
 function navigateMeetingMonth(delta) {
+  closeMeetingDay();
   _meetingViewMonth += delta;
   if (_meetingViewMonth > 11) { _meetingViewMonth = 0;  _meetingViewYear++; }
   if (_meetingViewMonth < 0)  { _meetingViewMonth = 11; _meetingViewYear--; }
@@ -1023,7 +1094,7 @@ function renderMeetingList(events) {
   const container = document.getElementById('meetingListContainer');
   if (!container) return;
 
-  const sorted = [...(events || appData.meetings.events || [])]
+  const sorted = [...(events || allCalendarMeetings())]
     .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
   if (!sorted.length) {
@@ -1053,7 +1124,7 @@ function renderMeetingList(events) {
       ? `<div style="font-size:0.8rem;color:var(--success);font-weight:600;margin-top:4px">
            📝 ${esc(evt.summary)}
          </div>` : '';
-    const ganttBadge = evt.isFromGantt
+    const ganttBadge = evt.isFromGoogle ? '<span class="meeting-google-badge">Google</span>' : evt.isFromGantt
       ? `<span style="font-size:0.7rem;background:#e8f0fb;color:var(--primary-light);
                       padding:2px 6px;border-radius:10px;font-weight:600">🔄 גאנט</span>` : '';
 
@@ -1084,9 +1155,9 @@ function renderMeetingList(events) {
         </div>
         <!-- Actions -->
         <div style="display:flex;flex-direction:column;gap:6px">
-          <button class="btn-icon" title="ערוך" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">✏️</button>
-          <button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${safeMeetingId(evt.id)}')">📋</button>
-          <button class="btn-icon" title="מחק"  onclick="deleteMeeting('${safeMeetingId(evt.id)}')">🗑️</button>
+          <button class="btn-icon" title="${evt.isFromGoogle ? 'פרטי פגישה מ־Google' : 'ערוך'}" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)">${evt.isFromGoogle ? '↗' : '✏️'}</button>
+          ${!evt.isFromGoogle ? `<button class="btn-icon" title="שכפל" onclick="duplicateMeeting('${safeMeetingId(evt.id)}')">📋</button>
+          <button class="btn-icon" title="מחק" onclick="deleteMeeting('${safeMeetingId(evt.id)}')">🗑️</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -1099,7 +1170,7 @@ function filteredSharedMeetings() {
   const prio   = document.getElementById('meetFilterPriority')?.value || '';
   const srch   = (document.getElementById('meetSearch')?.value || '').toLowerCase();
 
-  return (appData.meetings.events || []).filter(e =>
+  return allCalendarMeetings().filter(e =>
     (!type   || e.type     === type)   &&
     (!status || e.status   === status) &&
     (!prio   || e.priority === prio)   &&
@@ -1112,8 +1183,8 @@ function filterMeetingList() {
   renderMeetingList(filteredSharedMeetings());
 }
 
-// Export only the shared data model. Never collect text or clone the calendar
-// DOM: the separate private Google Calendar panel lives in that same document.
+// Export the shared model, including published Google snapshots. Never clone
+// the DOM or read a connected owner's unsynchronised/private panel content.
 function sharedMeetingsForExport() {
   return [...filteredSharedMeetings()].sort((a, b) =>
     String(a.date || '').localeCompare(String(b.date || '')) ||
@@ -1189,7 +1260,7 @@ function renderMeetingByPeriod() {
   const container = document.getElementById('meetingByPeriodContainer');
   if (!container) return;
 
-  const events = [...(appData.meetings.events || [])]
+  const events = [...allCalendarMeetings()]
     .filter(e => e.date)
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -1233,8 +1304,8 @@ function renderMeetingByPeriod() {
         <td><span style="font-size:0.72rem">${_meetTypeIcon(evt.type)} ${_meetTypeLabel(evt.type)}</span></td>
         <td><span class="status-badge status-${_statusClass(evt.status)}">${_statusLabel(evt.status)}</span></td>
         <td>
-          <button class="btn-icon" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)" title="ערוך">✏️</button>
-          <button class="btn-icon" onclick="deleteMeeting('${safeMeetingId(evt.id)}')" title="מחק">🗑️</button>
+          <button class="btn-icon" onclick="openMeetingModal('${safeMeetingId(evt.id)}',null)" title="פרטי פגישה">${evt.isFromGoogle ? '↗ Google' : '✏️'}</button>
+          ${!evt.isFromGoogle ? `<button class="btn-icon" onclick="deleteMeeting('${safeMeetingId(evt.id)}')" title="מחק">🗑️</button>` : ''}
         </td>
       </tr>`).join('');
 
@@ -1275,7 +1346,7 @@ function openMeetingModal(id, dateStr) {
     return;
   }
 
-  const evt = id ? (appData.meetings.events || []).find(e => e.id === id) : null;
+  const evt = id ? allCalendarMeetings().find(e => e.id === id) : null;
 
   document.getElementById('meetModalId').value           = id || '';
   document.getElementById('meetModalTitleInput').value   = evt?.title      || '';
@@ -1295,7 +1366,10 @@ function openMeetingModal(id, dateStr) {
 
   const modal = document.getElementById('meetingModal');
   modal.style.display = 'flex';
-  applyMeetingModalReadOnlyState(_isReadOnly);
+  const googleLink = document.getElementById('meetGoogleLink');
+  googleLink.hidden = !evt?.googleLink;
+  if (evt?.googleLink) googleLink.href = evt.googleLink; else googleLink.removeAttribute('href');
+  applyMeetingModalReadOnlyState(_isReadOnly || !!evt?.isFromGoogle);
   // Trap focus
   setTimeout(() => document.getElementById('meetModalTitleInput').focus(), 80);
 }
@@ -1303,6 +1377,9 @@ function openMeetingModal(id, dateStr) {
 // משביתה/מפעילה את שדות המודאל וכפתור השמירה לפי הרשאת העריכה הנוכחית.
 // נקראת גם בפתיחת המודאל וגם מיידית אם ההרשאה מתעדכנת תוך כדי שהמודאל פתוח.
 function applyMeetingModalReadOnlyState(readOnly) {
+  const activeId = document.getElementById('meetModalId')?.value;
+  const isGoogle = allCalendarMeetings().some(e=>e.id === activeId && e.isFromGoogle);
+  readOnly = readOnly || isGoogle;
   const fieldIds = [
     'meetModalTitleInput','meetModalDate','meetModalTimeStart','meetModalTimeEnd',
     'meetModalType','meetModalPriority','meetModalStatus','meetModalLocation',
@@ -1318,7 +1395,7 @@ function applyMeetingModalReadOnlyState(readOnly) {
   const titleEl = document.getElementById('meetModalTitle');
   if (titleEl) {
     const id = document.getElementById('meetModalId')?.value;
-    titleEl.textContent = readOnly
+    titleEl.textContent = isGoogle ? 'פגישה מ־Google — עריכה ביומן המקורי' : readOnly
       ? 'פרטי פגישה (צפייה בלבד)'
       : (id ? 'עריכת פגישה' : 'פגישה חדשה');
   }
@@ -1334,6 +1411,7 @@ function closeMeetingModal() {
 function saveMeetingModal() {
   if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
   const id    = document.getElementById('meetModalId').value;
+  if (allCalendarMeetings().some(e=>e.id === id && e.isFromGoogle)) return;
   const title = document.getElementById('meetModalTitleInput').value.trim();
   const date  = document.getElementById('meetModalDate').value;
 
@@ -1384,6 +1462,7 @@ function saveMeetingModal() {
 function deleteMeeting(id) {
   if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
   if (!id) return;
+  if (allCalendarMeetings().some(e=>e.id === id && e.isFromGoogle)) return;
   if (!confirm('למחוק פגישה זו?')) return;
   appData.meetings.events = (appData.meetings.events || []).filter(e => e.id !== id);
   markDirty();
@@ -1600,16 +1679,30 @@ function saveToPortal() {
 
 function _applyPortalData(payload) {
   if (!payload) return;
+  const sameScope = _portalSchool && _portalYear &&
+    (payload.school || _portalSchool) === _portalSchool && (payload.year || _portalYear) === _portalYear;
+  const previousGoogle = sameScope ? appData.meetings.googleCalendar : null;
   if (payload.meetings && typeof payload.meetings === 'object') {
-    appData.meetings = payload.meetings;
+    appData.meetings = { ...payload.meetings };
     if (!Array.isArray(appData.meetings.events)) appData.meetings.events = [];
     if (!appData.meetings.settings) appData.meetings.settings = { syncedFromGantt: false, lastSyncAt: '' };
+    const incomingGoogle = appData.meetings.googleCalendar;
+    if (previousGoogle?.owner && (!incomingGoogle || incomingGoogle.owner === previousGoogle.owner)) {
+      const months = { ...incomingGoogle?.months };
+      for (const [month, snapshot] of Object.entries(previousGoogle.months || {})) {
+        if (!months[month] || Date.parse(snapshot.fetchedAt) > Date.parse(months[month].fetchedAt)) months[month] = snapshot;
+      }
+      appData.meetings.googleCalendar = { ...previousGoogle, ...incomingGoogle, months };
+    }
   }
+  if (!sameScope) closeMeetingDay();
   if (payload.school) _portalSchool = payload.school;
   if (payload.year)   _portalYear   = payload.year;
   // ← מסמן שנתונים הגיעו מהשרת — עכשיו בטוח לשמור
   _dataLoadedFromServer = true;
   renderMeetingsCalendar();
+  if (typeof document.dispatchEvent === 'function' && typeof CustomEvent === 'function')
+    document.dispatchEvent(new CustomEvent('calendar-context-ready'));
   showToast('\u2705 \u05e0\u05ea\u05d5\u05e0\u05d9 \u05d9\u05d5\u05de\u05df \u05e0\u05d8\u05e2\u05e0\u05d5');
 }
 
@@ -1631,8 +1724,17 @@ window.addEventListener('message', e => {
   if (msg.type === 'trigger-save' || msg.type === 'request-data') { saveToPortal(); return; }
   if (msg.type === 'save-confirm')                          { showToast(msg.message || '\u2705 \u05e0\u05e9\u05de\u05e8'); return; }
   if (msg.type === 'school-data-update') {
+    const changed = (msg.schoolName && msg.schoolName !== _portalSchool) || (msg.year && msg.year !== _portalYear);
     if (msg.schoolName) _portalSchool = msg.schoolName;
     if (msg.year)       _portalYear   = msg.year;
+    if (changed) {
+      _dataLoadedFromServer = false;
+      appData.meetings = {events:[],settings:{}};
+      closeMeetingDay();
+      renderMeetingsCalendar();
+      if (typeof document.dispatchEvent === 'function' && typeof CustomEvent === 'function')
+        document.dispatchEvent(new CustomEvent('calendar-context-ready'));
+    }
     return;
   }
   // ── הרשאות: זהה בפורמט למנגנון שבקובץ הראשי (תוכנית עבודה) ──

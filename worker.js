@@ -1575,9 +1575,29 @@ export default {
         requirePermission(session, cleanType, 'edit');
 
         const now = new Date().toISOString();
-        const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload || {});
+        let payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload || {});
         if (payloadStr.length > 5_000_000) return err('payload too large', 400, cors);
-        await env.DB.prepare(`
+        if (cleanType === 'calendar') {
+          let calendar;
+          try { calendar = JSON.parse(payloadStr); } catch { return err('invalid calendar payload', 400, cors); }
+          if (!calendar || typeof calendar !== 'object' || Array.isArray(calendar) ||
+              (calendar.meetings !== undefined && (!calendar.meetings || typeof calendar.meetings !== 'object' || Array.isArray(calendar.meetings))))
+            return err('invalid calendar payload', 400, cors);
+          calendar.meetings = calendar.meetings || {};
+          // Google snapshots are server-owned. Old/stale clients cannot erase
+          // them and forged browser payloads cannot publish or replace them.
+          delete calendar.meetings.googleCalendar;
+          payloadStr = JSON.stringify(calendar);
+          const protectedPayload = `CASE WHEN json_type(portal_data.payload, '$.meetings.googleCalendar') = 'object'
+            THEN json_set(excluded.payload, '$.meetings.googleCalendar', json_extract(portal_data.payload, '$.meetings.googleCalendar'))
+            ELSE excluded.payload END`;
+          const saved = await env.DB.prepare(`INSERT INTO portal_data(type,school,year,payload,updated_at)
+            VALUES(?,?,?,?,?) ON CONFLICT(type,school,year) DO UPDATE
+            SET payload=${protectedPayload}, updated_at=excluded.updated_at
+            WHERE length(${protectedPayload}) <= 5000000`)
+            .bind(cleanType, cleanSchool, cleanYear, payloadStr, now).run();
+          if (saved.meta?.changes !== 1) return err('calendar payload too large', 400, cors);
+        } else await env.DB.prepare(`
           INSERT INTO portal_data (type, school, year, payload, updated_at)
           VALUES (?, ?, ?, ?, ?)
           ON CONFLICT(type, school, year) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at

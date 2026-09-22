@@ -112,7 +112,7 @@ test('staff role and revoked, malformed or expired sessions cannot connect', asy
 test('disabled configuration is safe and does not call Google',async()=>{
   const f=fixture(); delete f.env.GOOGLE_CALENDAR_CLIENT_SECRET;
   const r=await handle(f.request('/status'),f.env,f.fetcher);
-  assert.deepEqual(await r.json(),{available:false,connected:false});
+  assert.deepEqual(await r.json(),{available:false,connected:false,sharedEnabled:false});
   assert.equal((await handle(f.request('/connect','POST'),f.env,f.fetcher)).status,503);
   assert.equal(f.requests.length,0);
 });
@@ -339,7 +339,7 @@ test('wrapper leaves existing health route intact; new routes fail closed withou
   const privateResponse=await entry.fetch(new Request(base+'/status'),{},{});
   assert.equal(privateResponse.status,503);
 });
-test('UI keeps private data outside shared storage, renders text safely and hides on print',()=>{
+test('UI keeps tokens/private fallback outside shared saves; only shared server sync publishes snapshots',()=>{
   const source=readFileSync(new URL('./private-google-calendar.js',import.meta.url),'utf8').replace(/^\s*\/\/.*$/gm,'');
   assert.doesNotMatch(source,/localStorage\.|sessionStorage\.|appData\.|PS\.|saveToPortal\(/);
   assert.equal((source.match(/postMessage\(/g)||[]).length,1);
@@ -350,13 +350,18 @@ test('UI keeps private data outside shared storage, renders text safely and hide
   assert.match(source,/parentWindow\.getSessionToken\(\) === token/);
   assert.match(source,/epoch !== generation/);
   assert.match(source,/private_calendar_forbidden.*dispose\(\)/);
+  assert.match(source,/sharedEnabled/);
+  assert.match(source,/sync-shared\?month=/);
+  assert.match(source,/applyGoogleCalendarSnapshot/);
+  assert.doesNotMatch(source,/\/api\/data|\/data\?type=calendar/);
 });
 
-test('release enables the private extension with isolated resources and no diagnostics, logs or committed secrets',()=>{
+test('release enables owner connection and shared publication with isolated resources and no diagnostics, logs or committed secrets',()=>{
   const config=JSON.parse(readFileSync(new URL('./wrangler.jsonc',import.meta.url),'utf8'));
   for(const environment of [config,config.env.staging]) {
     assert.equal(environment.main,'worker-with-private-calendar.js');
     assert.equal(environment.vars.GOOGLE_CALENDAR_ENABLED,'true');
+    assert.equal(environment.vars.GOOGLE_CALENDAR_SHARED_ENABLED,'true');
     assert.equal(environment.vars.GOOGLE_CALENDAR_DIAGNOSTICS,'false');
     assert.equal(environment.vars.GOOGLE_CALENDAR_ALLOWED_EMAIL,'1002220729@educ.org.il');
     assert.equal(environment.vars.GOOGLE_CALENDAR_CLIENT_ID,'492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com');

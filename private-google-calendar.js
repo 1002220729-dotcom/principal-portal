@@ -1,4 +1,5 @@
-// Deliberately separate from appData, PS, postMessage save/export and localStorage.
+// Private events stay separate from shared data. Shared snapshots are published
+// by the server and applied through the calendar's dedicated in-memory adapter.
 // Load at the end of calendar.html. The parent remains the session authority.
 (() => {
   'use strict';
@@ -18,14 +19,15 @@
   let token = parentWindow.getSessionToken();
   if (!token) return;
   let generation = 0, controller, connected = false, available = false, disposed = false, busyOperation = false;
+  let sharedEnabled = false, owner = '', sharedContextKey = null, connectionOperation = false;
   const root = document.createElement('section');
   root.id = 'privateGoogleCalendar';
   root.className = 'card';
   root.dir = 'rtl';
   root.hidden = true;
   root.innerHTML = `
-    <h3>🔒 יומן Google שלי — פרטי</h3>
-    <p>מוצג רק בחשבון המחובר. אינו נכלל ביומן המשותף, בהדפסה או בייצוא שלו. קריאה בלבד.</p>
+    <h3 data-gcal-heading>🔒 יומן Google שלי — פרטי</h3>
+    <p data-gcal-description>מוצג רק בחשבון המחובר. אינו נכלל ביומן המשותף, בהדפסה או בייצוא שלו. קריאה בלבד.</p>
     <p data-gcal-email dir="ltr"></p>
     <div class="gcal-actions">
       <button type="button" data-gcal-connect>חיבור יומן Google</button>
@@ -52,6 +54,9 @@
     #privateGoogleCalendar li{padding:12px;border:1px solid #dce7ed;border-radius:8px;overflow-wrap:anywhere}
     #privateGoogleCalendar li strong,#privateGoogleCalendar li span{display:block;white-space:pre-wrap}
     #privateGoogleCalendar li a{display:inline-block;margin-top:6px;color:#006a79;text-decoration:underline}
+    #privateGoogleCalendar.gcal-shared{padding:12px 16px}
+    #privateGoogleCalendar.gcal-shared h3{font-size:1rem}
+    #privateGoogleCalendar.gcal-shared .gcal-actions{margin:8px 0}
     @media(max-width:480px){#privateGoogleCalendar{padding:12px}#privateGoogleCalendar .gcal-month>*{flex:1 1 120px}}
     @media print{#privateGoogleCalendar{display:none!important}}`;
   document.head.appendChild(style);
@@ -73,9 +78,11 @@
   }
   function dispose() {
     clearPrivate(); disposed = true; token = null; connected = false;
+    document.removeEventListener('calendar-month-change', sharedContextChanged);
+    document.removeEventListener('calendar-context-ready', sharedContextChanged);
     root.remove(); style.remove(); clearInterval(sessionGuard); clearInterval(refreshTimer);
   }
-  async function request(path, method = 'GET') {
+  async function request(path, method = 'GET', body = {}) {
     if (!stillCurrent()) throw new Error('stale_session');
     controller?.abort();
     const activeController = new AbortController(); controller = activeController;
@@ -83,7 +90,7 @@
     try {
       const response = await fetch(api + path, { method, cache:'no-store', credentials:'omit',
         headers: { Authorization:'Bearer ' + token, ...(method === 'POST' ? { 'Content-Type':'application/json' } : {}) },
-        ...(method === 'POST' ? { body:'{}' } : {}), signal:activeController.signal });
+        ...(method === 'POST' ? { body:JSON.stringify(body) } : {}), signal:activeController.signal });
       if (!stillCurrent()) throw new Error('stale_session');
       const data = await response.json();
       if (!stillCurrent()) throw new Error('stale_session');
@@ -101,13 +108,15 @@
       calendar_permission_missing:'Google לא אישרה קריאת יומן. ייתכן שנדרש אישור מנהל הארגון.',
       account_mismatch:'נבחר חשבון Google אחר. יש להתחבר עם החשבון שמחובר לאתר.',
       not_connected:'היומן אינו מחובר. לחץ על חיבור יומן Google.',
-      not_configured:'החיבור הפרטי עדיין בהגדרה.',
+      not_configured:sharedEnabled ? 'חיבור Google עדיין בהגדרה.' : 'החיבור הפרטי עדיין בהגדרה.',
       session_expired:'הכניסה לאתר פגה. יש להתחבר מחדש.',
       too_many_connections:'בוצעו מספר ניסיונות חיבור. אפשר לנסות שוב בעוד עשר דקות.',
       google_rate_limited:'Google הגבילה זמנית את הבקשות. אפשר לנסות שוב בהמשך.',
       too_many_events:'בחודש הזה יש יותר מדי פגישות לתצוגה. לא הוצגה רשימה חלקית.',
     };
-    return messages[error.message] || 'לא ניתן לטעון כרגע את היומן הפרטי. בדוק את החיבור ונסה רענון; היומן המשותף לא השתנה.';
+    return messages[error.message] || (sharedEnabled
+      ? 'לא ניתן לסנכרן כרגע מ־Google. הפגישות שכבר פורסמו נשארו ביומן; אפשר לנסות רענון.'
+      : 'לא ניתן לטעון כרגע את היומן הפרטי. בדוק את החיבור ונסה רענון; היומן המשותף לא השתנה.');
   }
   function buttons(busy = false) {
     busyOperation = busy;
@@ -116,8 +125,65 @@
     find('connect').hidden = !available;
     find('connect').textContent = connected ? 'חיבור מחדש ל־Google' : 'חיבור יומן Google';
     find('refresh').hidden = !connected;
+    find('refresh').textContent = sharedEnabled ? 'סנכרון החודש המוצג' : 'רענון פגישות';
     find('disconnect').hidden = !connected;
-    controls.hidden = !connected;
+    controls.hidden = sharedEnabled || !connected;
+    list.hidden = sharedEnabled;
+  }
+  function displayMode() {
+    root.classList.toggle('gcal-shared', sharedEnabled);
+    find('heading').textContent = sharedEnabled ? 'יומן Google — סנכרון ליומן המנהל' : '🔒 יומן Google שלי — פרטי';
+    find('description').textContent = sharedEnabled
+      ? 'פגישות Google מוצגות ביומן הרגיל למורשי הגישה ליומן, ונכללות בהדפסה וב־CSV. השינויים בפגישות נעשים ב־Google בלבד.'
+      : 'מוצג רק בחשבון המחובר. אינו נכלל ביומן המשותף, בהדפסה או בייצוא שלו. קריאה בלבד.';
+    if (sharedEnabled) list.replaceChildren();
+    buttons();
+  }
+  function sharedContext() {
+    try {
+      const value = window.getGoogleCalendarContext?.();
+      if (!value || value.ready !== true || typeof value.school !== 'string' || !value.school.trim() ||
+          typeof value.year !== 'string' || !value.year.trim() || !/^20\d{2}-(0[1-9]|1[0-2])$/.test(value.month)) return null;
+      return { school:value.school, year:value.year, month:value.month };
+    } catch { return null; }
+  }
+  const contextKey = context => context ? JSON.stringify([context.school, context.year, context.month]) : null;
+  function sharedContextChanged() {
+    if (!sharedEnabled || !stillCurrent()) return;
+    const context = sharedContext(), nextKey = contextKey(context);
+    // Rendering the applied snapshot emits another month event. It must not
+    // trigger a second sync for the same school, year and month.
+    if (nextKey === sharedContextKey) return;
+    sharedContextKey = nextKey;
+    if (connectionOperation) return;
+    clearPrivate();
+    if (connected) void refreshShared();
+  }
+  async function refreshShared() {
+    if (!stillCurrent() || !connected || connectionOperation) return;
+    const context = sharedContext(), key = contextKey(context);
+    sharedContextKey = key;
+    clearPrivate(); const epoch = generation;
+    if (!context) { buttons(); status.textContent = 'ממתין לטעינת בית הספר ושנת הלימודים לפני הסנכרון.'; return; }
+    buttons(true); status.textContent = 'מסנכרן את החודש המוצג מ־Google ליומן המנהל…';
+    const isCurrent = () => epoch === generation && stillCurrent() && sharedEnabled && connected &&
+      contextKey(sharedContext()) === key;
+    try {
+      const data = await request('/sync-shared?month=' + encodeURIComponent(context.month), 'POST',
+        { school:context.school, year:context.year });
+      if (!isCurrent()) return;
+      if (data.ok !== true || data.school !== context.school || data.year !== context.year || data.month !== context.month ||
+          !data.snapshot || !Array.isArray(data.snapshot.events) || !Number.isFinite(Date.parse(data.snapshot.fetchedAt)) ||
+          typeof window.applyGoogleCalendarSnapshot !== 'function') throw new Error('calendar_unavailable');
+      // The server already persisted this snapshot. Never call the ordinary
+      // calendar save path, which could overwrite unrelated school events.
+      const applied = window.applyGoogleCalendarSnapshot({ ...context, snapshot:data.snapshot, owner });
+      if (!isCurrent() || applied === false) return;
+      status.textContent = 'החודש המוצג סונכרן מ־Google ב־' +
+        new Intl.DateTimeFormat('he-IL', { hour:'2-digit', minute:'2-digit' }).format(new Date(data.snapshot.fetchedAt)) +
+        '. הפגישות זמינות למורשי הגישה ליומן ונכללות בהדפסה וב־CSV.';
+    } catch (error) { if (isCurrent()) status.textContent = message(error); }
+    finally { if (epoch === generation && stillCurrent()) buttons(); }
   }
   function humanDate(value, allDay) {
     return new Intl.DateTimeFormat('he-IL', { timeZone:allDay ? 'UTC' : 'Asia/Jerusalem', dateStyle:'medium',
@@ -157,6 +223,7 @@
   }
   async function refresh() {
     if (!stillCurrent() || !connected) return;
+    if (sharedEnabled) return refreshShared();
     clearPrivate(); const epoch = generation; buttons(true); status.textContent = 'טוען פגישות פרטיות מ־Google…';
     try {
       const data = await request('/events?month=' + encodeURIComponent(month.value));
@@ -168,6 +235,7 @@
     } finally { if (epoch === generation && stillCurrent()) buttons(); }
   }
   find('connect').addEventListener('click', async () => {
+    connectionOperation = true;
     clearPrivate(); buttons(true);
     try {
       if (!stillCurrent()) throw new Error('stale_session');
@@ -191,17 +259,22 @@
         try { parentWindow.postMessage({ type:'private-google-calendar-connect', requestId }, location.origin); }
         catch (error) { finish(error); }
       });
-    } catch (error) { if (stillCurrent()) { status.textContent = message(error); buttons(); } }
+    } catch (error) { connectionOperation = false; if (stillCurrent()) { status.textContent = message(error); buttons(); } }
   });
   find('disconnect').addEventListener('click', async () => {
-    if (!window.confirm('לנתק את היומן הפרטי מהאתר? הפגישות ב־Google לא יימחקו.')) return;
+    if (!window.confirm(sharedEnabled
+      ? 'להפסיק את הסנכרון מ־Google? הפגישות שכבר פורסמו יישארו ביומן המנהל. הפגישות ב־Google לא יימחקו.'
+      : 'לנתק את היומן הפרטי מהאתר? הפגישות ב־Google לא יימחקו.')) return;
+    connectionOperation = true;
     clearPrivate(); buttons(true);
     try {
       await request('/connection', 'DELETE');
       if (!stillCurrent()) return;
-      connected = false; status.textContent = 'היומן נותק מהאתר והרשאת החיבור השמורה נמחקה. ניתן לבטל את הרשאת Google גם בהגדרות חשבון Google.';
+      connected = false; status.textContent = sharedEnabled
+        ? 'הסנכרון מ־Google הופסק והרשאת החיבור השמורה נמחקה. הפגישות שכבר פורסמו נשארו ביומן המנהל.'
+        : 'היומן נותק מהאתר והרשאת החיבור השמורה נמחקה. ניתן לבטל את הרשאת Google גם בהגדרות חשבון Google.';
     } catch (error) { if (stillCurrent()) status.textContent = message(error); }
-    finally { if (stillCurrent()) buttons(); }
+    finally { connectionOperation = false; if (stillCurrent()) buttons(); }
   });
   find('refresh').addEventListener('click', refresh);
   month.addEventListener('change', () => { if (/^20\d{2}-(0[1-9]|1[0-2])$/.test(month.value)) void refresh(); });
@@ -210,7 +283,9 @@
     month.value = new Date(Date.UTC(year, index - 1 + delta, 1)).toISOString().slice(0, 7);
     void refresh();
   });
-  const sessionGuard = setInterval(() => { if (!stillCurrent()) dispose(); }, 500);
+  document.addEventListener('calendar-month-change', sharedContextChanged);
+  document.addEventListener('calendar-context-ready', sharedContextChanged);
+  const sessionGuard = setInterval(() => { if (!stillCurrent()) dispose(); else sharedContextChanged(); }, 500);
   const visible = () => !document.hidden && !!window.frameElement?.getClientRects().length;
   const refreshTimer = setInterval(() => { if (visible() && !busyOperation) void refresh(); }, 300000);
   // Clear private text before bfcache/navigation; recheck the connection on return.
@@ -224,9 +299,11 @@
       const data = await request('/status');
       if (!stillCurrent()) return;
       available = !!data.available; connected = !!data.connected; root.hidden = false;
-      find('email').textContent = data.email || '';
-      buttons();
-      if (!available) { status.textContent = 'חיבור היומן הפרטי עדיין בהגדרה.'; return; }
+      sharedEnabled = data.sharedEnabled === true; owner = data.email || '';
+      connectionOperation = false;
+      find('email').textContent = owner;
+      displayMode();
+      if (!available) { status.textContent = sharedEnabled ? 'חיבור Google עדיין בהגדרה.' : 'חיבור היומן הפרטי עדיין בהגדרה.'; return; }
       const params = new URL(parentWindow.location.href);
       const result = params.searchParams.get('gcal');
       if (result) { params.searchParams.delete('gcal'); parentWindow.history.replaceState(null, '', params.href); }

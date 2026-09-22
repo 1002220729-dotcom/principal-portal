@@ -9,6 +9,7 @@
   },
   "vars": {
     "GOOGLE_CALENDAR_ENABLED": "true",
+    "GOOGLE_CALENDAR_SHARED_ENABLED": "true",
     "GOOGLE_CALENDAR_DIAGNOSTICS": "false",
     "GOOGLE_CALENDAR_ALLOWED_EMAIL": "1002220729@educ.org.il",
     "GOOGLE_CALENDAR_CLIENT_ID": "492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com"
@@ -38,6 +39,7 @@
       },
       "vars": {
         "GOOGLE_CALENDAR_ENABLED": "true",
+        "GOOGLE_CALENDAR_SHARED_ENABLED": "true",
         "GOOGLE_CALENDAR_DIAGNOSTICS": "false",
         "GOOGLE_CALENDAR_ALLOWED_EMAIL": "1002220729@educ.org.il",
         "GOOGLE_CALENDAR_CLIENT_ID": "492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com"

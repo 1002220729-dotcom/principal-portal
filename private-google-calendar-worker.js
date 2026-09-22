@@ -1,4 +1,5 @@
-// Private Google Calendar bridge. No event is persisted in portal_data.
+// Owner Google Calendar bridge. Shared publication is separately gated and
+// writes only the protected Google snapshot field in the selected calendar.
 // Deploy only after the additive migration and runtime secrets are installed.
 export const CALENDAR_PREFIX = '/api/private-google-calendar';
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned.readonly';
@@ -271,9 +272,22 @@ function cleanEvent(event) {
   return { id: String(event.id || '').slice(0, 256), title: String(event.summary || 'פגישה ללא כותרת').slice(0, 500),
     location: String(event.location || '').slice(0, 500), start, end, allDay, link };
 }
-async function events(request, env, session, config, fetcher) {
+function completeSharedEvent(item) {
+  if (item?.status === 'cancelled') return null;
+  const event = cleanEvent(item);
+  if (!event || typeof item.id !== 'string' || !item.id || item.id.length > 256 ||
+      Date.parse(event.end) <= Date.parse(event.start)) fail(502, 'incomplete_google_snapshot');
+  const validDay = value => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    new Date(value).toISOString().slice(0, 10) === value;
+  const validTime = value => validDay(value.slice(0, 10)) &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value);
+  if (event.allDay ? !validDay(event.start) || !validDay(event.end)
+    : !validTime(event.start) || !validTime(event.end)) fail(502, 'incomplete_google_snapshot');
+  return event;
+}
+async function events(request, env, session, config, fetcher, options = {}) {
   const range = eventRange(new URL(request.url));
-  const connection = await getConnection(env, config.owner);
+  const connection = options.connection || await getConnection(env, config.owner);
   if (!connection) fail(409, 'not_connected');
   const refresh = await unseal(env, connection.refresh_cipher, 'refresh:' + config.owner);
   const tokens = await exchange(fetcher, env, { grant_type: 'refresh_token', refresh_token: refresh });
@@ -292,8 +306,18 @@ async function events(request, env, session, config, fetcher) {
     if (response.status === 401) fail(409, 'reconnect_required');
     if (response.status === 403) fail(409, 'calendar_permission_missing');
     if (response.status === 429) fail(429, 'google_rate_limited');
-    if (!response.ok || (data.items !== undefined && !Array.isArray(data.items))) fail(502, 'google_unavailable');
-    for (const item of data.items || []) { const event = cleanEvent(item); if (event?.id) found.set(event.id, event); }
+    if (!response.ok || !data || typeof data !== 'object' || Array.isArray(data) ||
+        (data.items !== undefined && !Array.isArray(data.items))) fail(502, 'google_unavailable');
+    if (options.shared && data.nextPageToken !== undefined && typeof data.nextPageToken !== 'string')
+      fail(502, 'incomplete_google_snapshot');
+    for (const item of data.items || []) {
+      const event = options.shared ? completeSharedEvent(item) : cleanEvent(item);
+      if (!event?.id) continue;
+      if (options.shared && found.has(event.id) && JSON.stringify(found.get(event.id)) !== JSON.stringify(event))
+        fail(502, 'incomplete_google_snapshot');
+      found.set(event.id, event);
+      if (options.shared && found.size > 1000) fail(422, 'too_many_events');
+    }
     next = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
     if (!next) break;
     if (next.length > 4096) fail(502, 'google_unavailable');
@@ -302,6 +326,92 @@ async function events(request, env, session, config, fetcher) {
   await sessionByHash(env, session.tokenHash, config.owner);
   if ((await getConnection(env, config.owner))?.version !== connection.version) fail(409, 'connection_changed');
   return { events: [...found.values()], month: range.month, timeZone: 'Asia/Jerusalem', fetchedAt: new Date().toISOString() };
+}
+
+const SHARED_PATH = '$.meetings.googleCalendar';
+const SHARED_MONTH_LIMIT = 36;
+const SHARED_SIZE_LIMIT = 2000000;
+function sharedTarget(value, session) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      Object.keys(value).some(key => !['school', 'year'].includes(key))) fail(400, 'invalid_shared_target');
+  for (const [key, limit] of [['school', 120], ['year', 20]]) {
+    const part = value[key];
+    if (typeof part !== 'string' || !part || part !== part.trim() || part.length > limit ||
+        /[\u0000-\u001f\u007f]/.test(part)) fail(400, 'invalid_shared_target');
+  }
+  // No system-admin override: publication is bound to this exact session tenant.
+  if (value.school !== session.school || value.year !== session.year) fail(403, 'shared_target_forbidden');
+  return {school:value.school, year:value.year};
+}
+async function syncShared(request, env, session, config, fetcher) {
+  if (env.GOOGLE_CALENDAR_SHARED_ENABLED !== 'true') fail(503, 'shared_calendar_disabled');
+  if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') fail(415, 'json_required');
+  let body;
+  try { body = await boundedJson(request, 4096); } catch { fail(400, 'invalid_shared_target'); }
+  const target = sharedTarget(body, session);
+  const {month} = eventRange(new URL(request.url));
+  const startedAt = new Date().toISOString();
+  const monthPath = SHARED_PATH + '.months."' + month + '"';
+  const stored = await env.DB.prepare("SELECT payload FROM portal_data WHERE type='calendar' AND school=? AND year=?")
+    .bind(target.school, target.year).first();
+  let prior = {};
+  if (stored) {
+    try { prior = JSON.parse(stored.payload); } catch { fail(409, 'invalid_shared_calendar'); }
+  }
+  if (!prior || typeof prior !== 'object' || Array.isArray(prior) ||
+      (prior.meetings !== undefined && (!prior.meetings || typeof prior.meetings !== 'object' || Array.isArray(prior.meetings))))
+    fail(409, 'invalid_shared_calendar');
+  const previous = prior.meetings?.googleCalendar;
+  if (previous !== undefined && (!previous || typeof previous !== 'object' || Array.isArray(previous) ||
+      previous.owner !== config.owner || !previous.months || typeof previous.months !== 'object' || Array.isArray(previous.months)))
+    fail(409, 'invalid_shared_calendar');
+  const previousSnapshot = previous?.months?.[month];
+  if (previousSnapshot !== undefined && (!previousSnapshot || typeof previousSnapshot.revision !== 'string'))
+    fail(409, 'invalid_shared_calendar');
+  const previousRevision = previousSnapshot?.revision ?? null;
+  if (previous && Object.keys(previous.months).length >= SHARED_MONTH_LIMIT && previousSnapshot === undefined)
+    fail(422, 'shared_calendar_limit');
+  const connection = await getConnection(env, config.owner);
+  if (!connection) fail(409, 'not_connected');
+  const data = await events(request, env, session, config, fetcher, {shared:true, connection});
+  const currentSession = await sessionByHash(env, session.tokenHash, config.owner);
+  sharedTarget(target, currentSession);
+  if ((await getConnection(env, config.owner))?.version !== connection.version) fail(409, 'connection_changed');
+  const snapshot = {events:data.events, fetchedAt:data.fetchedAt};
+  const storedSnapshot = JSON.stringify({...snapshot, startedAt, revision:crypto.randomUUID()});
+  if (encoder.encode(storedSnapshot).byteLength > SHARED_SIZE_LIMIT) fail(422, 'shared_calendar_limit');
+  const initial = JSON.stringify({docType:'calendar', ...target, meetings:{events:[], settings:{}}});
+  const now = new Date().toISOString();
+  // One SQL statement reads the latest calendar and modifies only its protected
+  // snapshot field. Per-month CAS rejects out-of-order responses; manual saves
+  // and other months never become stale read/modify/write replacements.
+  const saved = await env.DB.prepare(`WITH current AS (
+      SELECT COALESCE((SELECT payload FROM portal_data WHERE type='calendar' AND school=? AND year=?), ?) AS payload
+    ), candidate AS (
+      SELECT payload AS previous, json_set(payload,
+        '$.meetings.googleCalendar.owner', ?, '$.meetings.googleCalendar.calendar', 'primary',
+        '$.meetings.googleCalendar.timeZone', 'Asia/Jerusalem', ?, json(?)) AS payload FROM current
+    ) INSERT INTO portal_data(type,school,year,payload,updated_at)
+      SELECT 'calendar', ?, ?, payload, ? FROM candidate
+      WHERE json_extract(previous, ?) IS ?
+        AND (json_extract(previous, ?) IS NULL OR json_extract(previous, ?) <= ?)
+        AND (json_type(previous, '$.meetings.googleCalendar') IS NULL
+          OR json_extract(previous, '$.meetings.googleCalendar.owner') = ?)
+        AND json_type(payload, '$.meetings.googleCalendar.months') = 'object'
+        AND (SELECT count(*) FROM json_each(payload, '$.meetings.googleCalendar.months')) <= ?
+        AND length(CAST(json_extract(payload, '$.meetings.googleCalendar') AS BLOB)) <= ?
+        AND length(CAST(payload AS BLOB)) <= 2000000
+        AND EXISTS (SELECT 1 FROM private_google_calendar_connections WHERE owner=? AND version=?)
+        AND EXISTS (SELECT 1 FROM staffsessions WHERE token_hash=? AND username=? AND school=? AND year=?
+          AND role IN ('principal','systemadmin') AND revoked_at IS NULL AND expires_at > ? AND last_seen_at > ?)
+      ON CONFLICT(type,school,year) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at`)
+    .bind(target.school, target.year, initial, config.owner, monthPath, storedSnapshot,
+      target.school, target.year, now, monthPath+'.revision', previousRevision,
+      monthPath+'.startedAt', monthPath+'.startedAt', startedAt, config.owner, SHARED_MONTH_LIMIT, SHARED_SIZE_LIMIT,
+      config.owner, connection.version, session.tokenHash, config.owner, target.school, target.year,
+      now, new Date(Date.now()-IDLE_MS).toISOString()).run();
+  if (saved.meta?.changes !== 1) fail(409, 'shared_sync_conflict');
+  return {ok:true, month, ...target, snapshot};
 }
 
 export async function handlePrivateGoogleCalendar(request, env, fetcher = fetch) {
@@ -318,10 +428,13 @@ export async function handlePrivateGoogleCalendar(request, env, fetcher = fetch)
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: headers(origin) });
     const session = await sessionFor(request, env, config.owner);
     if (path === CALENDAR_PREFIX + '/status' && request.method === 'GET') {
-      if (!configured(env)) return json({ available: false, connected: false }, 200, origin);
-      return json({ available: true, connected: !!(await getConnection(env, config.owner)), email: config.owner }, 200, origin);
+      if (!configured(env)) return json({ available: false, connected: false, sharedEnabled:false }, 200, origin);
+      return json({ available: true, connected: !!(await getConnection(env, config.owner)), email: config.owner,
+        sharedEnabled:env.GOOGLE_CALENDAR_SHARED_ENABLED === 'true' }, 200, origin);
     }
     if (!configured(env)) fail(503, 'not_configured');
+    if (path === CALENDAR_PREFIX + '/sync-shared' && request.method === 'POST')
+      return json(await syncShared(request, env, session, config, fetcher), 200, origin);
     if (path === CALENDAR_PREFIX + '/connect' && request.method === 'POST') {
       if (!request.headers.get('Content-Type')?.startsWith('application/json')) fail(415, 'json_required');
       const now = new Date().toISOString();
