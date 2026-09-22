@@ -1093,20 +1093,93 @@ function renderMeetingList(events) {
   }).join('');
 }
 
-function filterMeetingList() {
+function filteredSharedMeetings() {
   const type   = document.getElementById('meetFilterType')?.value     || '';
   const status = document.getElementById('meetFilterStatus')?.value   || '';
   const prio   = document.getElementById('meetFilterPriority')?.value || '';
   const srch   = (document.getElementById('meetSearch')?.value || '').toLowerCase();
 
-  const filtered = (appData.meetings.events || []).filter(e =>
+  return (appData.meetings.events || []).filter(e =>
     (!type   || e.type     === type)   &&
     (!status || e.status   === status) &&
     (!prio   || e.priority === prio)   &&
-    (!srch   || (e.title     || '').toLowerCase().includes(srch) ||
-                (e.attendees || '').toLowerCase().includes(srch))
+    (!srch   || String(e.title || '').toLowerCase().includes(srch) ||
+                String(e.attendees || '').toLowerCase().includes(srch))
   );
-  renderMeetingList(filtered);
+}
+
+function filterMeetingList() {
+  renderMeetingList(filteredSharedMeetings());
+}
+
+// Export only the shared data model. Never collect text or clone the calendar
+// DOM: the separate private Google Calendar panel lives in that same document.
+function sharedMeetingsForExport() {
+  return [...filteredSharedMeetings()].sort((a, b) =>
+    String(a.date || '').localeCompare(String(b.date || '')) ||
+    String(a.timeStart || '').localeCompare(String(b.timeStart || '')));
+}
+
+function meetingCsvCell(value) {
+  let text = String(value ?? '');
+  // Quoting alone does not prevent spreadsheet formula evaluation.
+  if (/^[\s\uFEFF]*[=+\-@]|^[\t\r\n]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+function exportMeetingsCSV() {
+  const rows = [['תאריך', 'שעת התחלה', 'שעת סיום', 'כותרת', 'סוג', 'סטטוס', 'עדיפות',
+    'מיקום', 'משתתפים', 'סדר יום', 'סיכום'],
+    ...sharedMeetingsForExport().map(event => [event.date, event.timeStart, event.timeEnd, event.title,
+      _meetTypeLabel(event.type), _statusLabel(event.status), _priorityLabel(event.priority),
+      event.location, event.attendees, event.agenda, event.summary])];
+  const csv = rows.map(row => row.map(meetingCsvCell).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type:'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'shared-calendar-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(link);
+  try { link.click(); }
+  finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+
+function printMeetings() {
+  const meetings = sharedMeetingsForExport();
+  const content = meetings.map(event => {
+    const details = [['סוג', _meetTypeLabel(event.type)], ['סטטוס', _statusLabel(event.status)],
+      ['עדיפות', _priorityLabel(event.priority)], ['מיקום', event.location],
+      ['משתתפים', event.attendees], ['סדר יום', event.agenda], ['סיכום', event.summary]];
+    return `<article><h2>${esc(event.title)}</h2>
+      <p dir="ltr" class="when">${esc(event.date)} ${esc(event.timeStart)}${event.timeEnd ? ' – ' + esc(event.timeEnd) : ''}</p>
+      <dl>${details.filter(([, value]) => value != null && value !== '').map(([label, value]) =>
+        `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></article>`;
+  }).join('');
+  const report = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">
+    <title>יומן פגישות משותף</title><style>
+    @page{size:A4;margin:14mm}body{font:14px Arial,sans-serif;color:#1a3a5c;margin:0}
+    h1{font-size:22px}h2{font-size:17px;margin:0 0 6px;white-space:pre-wrap;overflow-wrap:anywhere}
+    article{border:1px solid #cbd5e1;border-right:4px solid #1a3a5c;padding:12px;margin:14px 0;break-inside:avoid}
+    .when{text-align:right;color:#475569}dl{margin:0}dl div{display:flex;gap:8px;margin:5px 0}
+    dt{font-weight:bold;flex:0 0 65px}dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+    </style></head><body><h1>יומן פגישות משותף</h1>
+    <p>${esc([_portalSchool, _portalYear].filter(Boolean).join(' · '))}</p>
+    ${content || '<p>אין פגישות להצגה.</p>'}</body></html>`;
+  document.getElementById('sharedMeetingPrintFrame')?.remove();
+  const frame = document.createElement('iframe');
+  frame.id = 'sharedMeetingPrintFrame';
+  frame.title = 'הדפסת יומן פגישות משותף';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.setAttribute('sandbox', 'allow-same-origin allow-modals');
+  frame.style.cssText = 'position:fixed;width:1px;height:1px;bottom:0;left:0;border:0;opacity:0;pointer-events:none';
+  frame.addEventListener('load', () => {
+    const printWindow = frame.contentWindow;
+    if (!printWindow) { frame.remove(); return; }
+    printWindow.addEventListener('afterprint', () => frame.remove(), { once:true });
+    try { printWindow.focus(); printWindow.print(); }
+    catch { frame.remove(); showToast('לא ניתן לפתוח הדפסה כרגע. אפשר לנסות שוב.', 'error'); }
+  }, { once:true });
+  frame.srcdoc = report;
+  document.body.appendChild(frame);
 }
 
 // ════════════════════════════════════════════════════════════

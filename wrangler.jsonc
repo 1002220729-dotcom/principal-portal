@@ -1,8 +1,18 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "principal-api",
-  "main": "worker.js",
+  "main": "worker-with-private-calendar.js",
   "compatibility_date": "2026-06-12",
+  "logpush": false,
+  "observability": {
+    "enabled": false
+  },
+  "vars": {
+    "GOOGLE_CALENDAR_ENABLED": "true",
+    "GOOGLE_CALENDAR_DIAGNOSTICS": "false",
+    "GOOGLE_CALENDAR_ALLOWED_EMAIL": "1002220729@educ.org.il",
+    "GOOGLE_CALENDAR_CLIENT_ID": "492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com"
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -22,8 +32,13 @@
       "name": "principal-api-staging",
       "main": "worker-with-private-calendar.js",
       "compatibility_date": "2026-09-16",
+      "logpush": false,
+      "observability": {
+        "enabled": false
+      },
       "vars": {
-        "GOOGLE_CALENDAR_ENABLED": "false",
+        "GOOGLE_CALENDAR_ENABLED": "true",
+        "GOOGLE_CALENDAR_DIAGNOSTICS": "false",
         "GOOGLE_CALENDAR_ALLOWED_EMAIL": "1002220729@educ.org.il",
         "GOOGLE_CALENDAR_CLIENT_ID": "492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com"
       },

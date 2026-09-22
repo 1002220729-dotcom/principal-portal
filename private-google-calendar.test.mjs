@@ -352,15 +352,30 @@ test('UI keeps private data outside shared storage, renders text safely and hide
   assert.match(source,/private_calendar_forbidden.*dispose\(\)/);
 });
 
-test('release wiring stages the extension disabled without changing the production entrypoint',()=>{
+test('release enables the private extension with isolated resources and no diagnostics, logs or committed secrets',()=>{
   const config=JSON.parse(readFileSync(new URL('./wrangler.jsonc',import.meta.url),'utf8'));
-  assert.equal(config.main,'worker.js');
-  assert.equal(config.env.staging.main,'worker-with-private-calendar.js');
-  assert.equal(config.env.staging.vars.GOOGLE_CALENDAR_ENABLED,'false');
-  assert.equal(config.env.staging.vars.GOOGLE_CALENDAR_ALLOWED_EMAIL,'1002220729@educ.org.il');
-  assert.notEqual(config.d1_databases[0].database_id,config.env.staging.d1_databases[0].database_id);
-  assert.equal(config.env.staging.vars.GOOGLE_CALENDAR_CLIENT_SECRET,undefined);
-  assert.equal(config.env.staging.vars.GOOGLE_CALENDAR_ENCRYPTION_KEY,undefined);
+  for(const environment of [config,config.env.staging]) {
+    assert.equal(environment.main,'worker-with-private-calendar.js');
+    assert.equal(environment.vars.GOOGLE_CALENDAR_ENABLED,'true');
+    assert.equal(environment.vars.GOOGLE_CALENDAR_DIAGNOSTICS,'false');
+    assert.equal(environment.vars.GOOGLE_CALENDAR_ALLOWED_EMAIL,'1002220729@educ.org.il');
+    assert.equal(environment.vars.GOOGLE_CALENDAR_CLIENT_ID,'492239820935-ov9bvrgcf05jejdsnburactcnpm9d5qb.apps.googleusercontent.com');
+    assert.equal(environment.vars.GOOGLE_CALENDAR_CLIENT_SECRET,undefined);
+    assert.equal(environment.vars.GOOGLE_CALENDAR_ENCRYPTION_KEY,undefined);
+    assert.equal(environment.logpush,false);
+    assert.equal(environment.observability.enabled,false);
+    assert.equal(environment.d1_databases[0].binding,'DB');
+    assert.equal(environment.d1_databases[0].migrations_dir,'migrations');
+    assert.equal(environment.kv_namespaces[0].binding,'SESSIONS_KV');
+  }
+  assert.equal(config.name,'principal-api');
+  assert.equal(config.env.staging.name,'principal-api-staging');
+  assert.equal(config.compatibility_date,'2026-06-12');
+  assert.equal(config.env.staging.compatibility_date,'2026-09-16');
+  assert.equal(config.d1_databases[0].database_id,'9163c862-90be-4f57-9238-3b5338db463e');
+  assert.equal(config.env.staging.d1_databases[0].database_id,'4538ca32-dda4-4fc0-a365-12b6e25331cb');
+  assert.equal(config.kv_namespaces[0].id,'8baeccb704df45d38cbdb29fc8f9b9d5');
+  assert.equal(config.env.staging.kv_namespaces[0].id,'25cfddf274eb4cdc8fe24239b54144c7');
   const html=readFileSync(new URL('./calendar.html',import.meta.url),'utf8');
   assert.equal((html.match(/<script src="private-google-calendar\.js"><\/script>/g)||[]).length,1);
   assert.ok(html.lastIndexOf('private-google-calendar.js')>html.lastIndexOf('function demoInit'));
