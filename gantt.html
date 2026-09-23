@@ -924,6 +924,8 @@ body.readonly-mode #editModal textarea {
   pointer-events: none; background: var(--color-surface-2); opacity: 0.75;
 }
 </style>
+<link rel="stylesheet" href="multiline-fields.css">
+<script src="multiline-fields.js" defer></script>
 </head>
 <body>
 
@@ -1076,7 +1078,7 @@ body.readonly-mode #editModal textarea {
       <input type="hidden" id="editEventId">
       <div class="form-group">
         <label>כותרת האירוע *</label>
-        <input type="text" id="evtTitle" placeholder="לדוגמה: ישיבת הנהלה — סיכום מחצית">
+        <textarea rows="2" id="evtTitle" placeholder="לדוגמה: ישיבת הנהלה — סיכום מחצית"></textarea>
       </div>
       <div class="form-group">
         <label>תיאור</label>
@@ -1102,7 +1104,7 @@ body.readonly-mode #editModal textarea {
       </div>
       <div class="form-group" id="schoolFieldWrap" style="display:none;">
         <label>הערה / גורם אחראי</label>
-        <input type="text" id="evtSchool" placeholder="לדוגמה: מנהל, רכז שכבה, יועץ...">
+        <textarea rows="2" id="evtSchool" placeholder="לדוגמה: מנהל, רכז שכבה, יועץ..."></textarea>
       </div>
       <div class="form-group">
         <label>קטגוריה</label>

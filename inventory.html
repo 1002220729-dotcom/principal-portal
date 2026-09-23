@@ -144,6 +144,8 @@ body.readonly-mode [contenteditable]{pointer-events:none;opacity:.6;}
 }
 body.readonly-mode .readonly-banner{display:block;}
 </style>
+<link rel="stylesheet" href="multiline-fields.css">
+<script src="multiline-fields.js" defer></script>
 </head>
 <body>
 
@@ -307,14 +309,12 @@ function rowHTML(cat, r) {
   const condLabel = { good:'תקין', repair:'לתיקון', discard:'למחיקה' };
   const condClass = { good:'cond-good', repair:'cond-repair', discard:'cond-discard' };
   return `<tr data-id="${r.id||''}" data-cat="${esc(cat)}">
-    <td><span class="editable" contenteditable="true" data-field="itemName"
-      onblur="cellBlur(this)">${esc(r.itemName)}</span></td>
+    <td><textarea rows="2" class="editable" data-field="itemName" aria-label="שם פריט" oninput="cellBlur(this)">${esc(r.itemName)}</textarea></td>
     <td><span class="editable" contenteditable="true" data-field="quantity"
       onblur="cellBlur(this)" style="width:50px;">${esc(r.quantity)}</span></td>
     <td><span class="cond ${condClass[r.condition]||'cond-good'}" data-field="condition"
       onclick="cycleCondition(this)">${condLabel[r.condition]||'תקין'}</span></td>
-    <td><span class="editable" contenteditable="true" data-field="notes"
-      onblur="cellBlur(this)">${esc(r.notes||'')}</span></td>
+    <td><textarea rows="2" class="editable" data-field="notes" aria-label="הערות" oninput="cellBlur(this)">${esc(r.notes||'')}</textarea></td>
     <td><button class="btn-del-row" onclick="deleteRow(this)" title="מחק שורה">🗑</button></td>
   </tr>`;
 }
@@ -327,7 +327,7 @@ function cellBlur(span) {
   const cat = tr.dataset.cat;
   const id  = tr.dataset.id;
   const field = span.dataset.field;
-  const val = span.textContent.trim();
+  const val = (span.tagName === 'TEXTAREA' ? span.value : span.textContent).trim();
   const rows = STATE.categories[cat] || [];
   const row  = id ? rows.find(r => String(r.id) === id) : null;
   if (row) row[field] = val;
@@ -414,13 +414,13 @@ function updateSummary() {
 // ─── SAVE ──────────────────────────────────────────
 async function saveToPortal() {
   // Sync editable cells before saving
-  document.querySelectorAll('[contenteditable]').forEach(el => {
+  document.querySelectorAll('[contenteditable], textarea[data-field]').forEach(el => {
     const tr  = el.closest('tr');
     if (!tr) return;
     const cat   = tr.dataset.cat;
     const id    = tr.dataset.id;
     const field = el.dataset.field;
-    const val   = el.textContent.trim();
+    const val   = (el.tagName === 'TEXTAREA' ? el.value : el.textContent).trim();
     const rows  = STATE.categories[cat] || [];
     const row   = id ? rows.find(r => String(r.id) === id) : rows.find(r => !r.id);
     if (row && field) row[field] = val;

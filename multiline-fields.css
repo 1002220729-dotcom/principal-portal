@@ -1,0 +1,63 @@
+/* Shared text layout: prose grows downwards; dates, numbers and searches keep
+   their native controls. Calendar month chips deliberately remain compact. */
+textarea {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  resize: vertical !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.45;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  vertical-align: top;
+}
+.form-group, .form-grid > *, .detail-title-block { min-width: 0; }
+.resizable-input-shell {
+  width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+  height: auto !important; resize: none !important; overflow: visible;
+}
+.resizable-input-shell > input { max-width: 100% !important; }
+table.data-table { table-layout: fixed; }
+table.data-table th { white-space: normal; overflow-wrap: anywhere; }
+table.data-table td { vertical-align: top; overflow-wrap: anywhere; }
+table.data-table input, table.data-table select { min-width: 0; max-width: 100%; }
+.portal-text, .profile-notes, .notes-area, .journal-entry-name,
+.detail-title-block h2, .detail-body p, .datemodal-task-name,
+.meeting-agenda-evt .agenda-title, .alloc-name,
+td[data-label="תוכן"], td[data-label="תיאור"], td[data-label="סוג"] {
+  min-width: 0; white-space: pre-wrap !important; overflow-wrap: anywhere;
+  word-break: normal; text-overflow: clip; max-height: none;
+}
+.meeting-agenda-evt .agenda-title { overflow: visible; }
+.dynamic-event-card > div, .action-card > div, .journal-entry-body { min-width: 0; overflow-wrap: anywhere; }
+.dynamic-event-card > div > div { white-space: pre-line; }
+#meetingListContainer .portal-text { flex: 1; }
+.entries-table, .inv-table { table-layout: fixed; width: 100%; }
+.entries-table td, .inv-table td { overflow-wrap: anywhere; vertical-align: top; }
+.add-form-row textarea {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px;
+  font-family: var(--font); font-size: .8rem; background: #fff;
+}
+.inv-table textarea.editable {
+  border: 1px solid transparent; background: transparent; color: inherit;
+  font: inherit; line-height: 1.45; display: block;
+}
+.portal-print-text { display: none; }
+@media screen and (max-width: 760px) {
+  /* Wide numeric ledgers keep readable columns within their scroll containers. */
+  .table-wrap > table.data-table:not(#goalsTable) { min-width: 720px; }
+}
+@media print {
+  textarea { resize: none !important; overflow: visible !important; }
+  textarea.portal-print-source { display: none !important; }
+  .portal-print-text {
+    display: block; white-space: pre-wrap !important; overflow-wrap: anywhere;
+    font: inherit; color: inherit; min-width: 0;
+  }
+}
+
+[data-multiline-output="true"] { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
