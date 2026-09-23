@@ -1172,7 +1172,8 @@ export default {
 
       if (method === 'POST' && path === 'api/teacher-bonuses') {
         const session = await requireRole(request, env, ['principal', 'systemadmin']);
-        const { teacherId, bonusType, description, amount, bonusDate } = await body();
+        const { teacherId, bonusType, description, amount, bonusDate, bonusUnit = 'ILS' } = await body();
+        if (!['ILS', 'hours', 'units'].includes(bonusUnit)) return err('invalid bonusUnit', 400, cors);
         const cleanTeacherId = validId(teacherId);
         const cleanDate = validDate(bonusDate);
         if (!cleanTeacherId || !cleanDate) return err('teacherId, bonusDate required/invalid', 400, cors);
@@ -1185,9 +1186,9 @@ export default {
         const actor = session.username;
         const now = new Date().toISOString();
         const result = await env.DB.prepare(`
-          INSERT INTO teacher_bonuses (teacher_id, bonus_type, description, amount, bonus_date, status, created_at, updated_at, created_by, updated_by)
-          VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
-        `).bind(cleanTeacherId, reqStr(bonusType, 100) || '', reqStr(description, 1000) || '', cleanAmount, cleanDate, now, now, actor, actor).run();
+          INSERT INTO teacher_bonuses (teacher_id, bonus_type, description, amount, bonus_date, bonus_unit, status, created_at, updated_at, created_by, updated_by)
+          VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+        `).bind(cleanTeacherId, reqStr(bonusType, 100) || '', reqStr(description, 1000) || '', cleanAmount, cleanDate, bonusUnit, now, now, actor, actor).run();
         await audit(env, request, { session, action: 'create', resourceType: 'teacher_bonuses', resourceId: result.meta?.lastrowid, targetSchool: teacher.school, outcome: 'success' });
         return json({ ok: true, id: result.meta?.lastrowid }, 200, cors);
       }
@@ -1202,7 +1203,8 @@ export default {
         if (!record) return err('not found', 404, cors);
         requireSameSchool(session, record.school);
 
-        const { bonusType, description, amount, bonusDate } = await body();
+        const { bonusType, description, amount, bonusDate, bonusUnit } = await body();
+        if (bonusUnit !== undefined && !['ILS', 'hours', 'units'].includes(bonusUnit)) return err('invalid bonusUnit', 400, cors);
         const cleanDate = bonusDate !== undefined ? validDate(bonusDate) : null;
         if (bonusDate !== undefined && !cleanDate) return err('invalid bonusDate', 400, cors);
         const cleanAmount = amount !== undefined ? validAmount(amount) : null;
@@ -1212,10 +1214,10 @@ export default {
         const now = new Date().toISOString();
         await env.DB.prepare(`
           UPDATE teacher_bonuses SET bonus_type=COALESCE(?,bonus_type), description=COALESCE(?,description),
-            amount=COALESCE(?,amount), bonus_date=COALESCE(?,bonus_date), updated_at=?, updated_by=? WHERE id=?
+            amount=COALESCE(?,amount), bonus_date=COALESCE(?,bonus_date), bonus_unit=COALESCE(?,bonus_unit), updated_at=?, updated_by=? WHERE id=?
         `).bind(bonusType !== undefined ? (reqStr(bonusType, 100) || '') : null,
                 description !== undefined ? (reqStr(description, 1000) || '') : null,
-                cleanAmount, cleanDate, now, actor, bonusId).run();
+                cleanAmount, cleanDate, bonusUnit ?? null, now, actor, bonusId).run();
         await audit(env, request, { session, action: 'update', resourceType: 'teacher_bonuses', resourceId: bonusId, targetSchool: record.school, outcome: 'success' });
         return json({ ok: true }, 200, cors);
       }

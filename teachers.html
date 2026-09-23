@@ -670,7 +670,11 @@ body.readonly-mode .btn-modal-ok {
       <input id="abDate" type="date" class="modal-input">
     </div>
     <div class="modal-row">
-      <div class="modal-label">סכום</div>
+      <label class="modal-label" for="abUnit">יחידת תגמול</label>
+      <select id="abUnit" class="modal-input"><option value="ILS">ש״ח</option><option value="hours">שעות</option><option value="units">יחידות</option></select>
+    </div>
+    <div class="modal-row">
+      <label class="modal-label" for="abAmount">כמות / סכום</label>
       <input id="abAmount" type="number" class="modal-input" placeholder="0" min="0" step="0.01">
     </div>
     <div class="modal-row">
@@ -698,7 +702,11 @@ body.readonly-mode .btn-modal-ok {
       <input id="ebDate" type="date" class="modal-input">
     </div>
     <div class="modal-row">
-      <div class="modal-label">סכום</div>
+      <label class="modal-label" for="ebUnit">יחידת תגמול</label>
+      <select id="ebUnit" class="modal-input"><option value="ILS">ש״ח</option><option value="hours">שעות</option><option value="units">יחידות</option></select>
+    </div>
+    <div class="modal-row">
+      <label class="modal-label" for="ebAmount">כמות / סכום</label>
       <input id="ebAmount" type="number" class="modal-input" min="0" step="0.01">
     </div>
     <div class="modal-row">
@@ -1046,26 +1054,36 @@ async function loadBonuses(teacherId) {
   document.getElementById('sumBonuses').textContent = STATE.bonuses.length;
 }
 
+function rewardUnit(bonus) { return ['ILS','hours','units'].includes(bonus.bonus_unit) ? bonus.bonus_unit : 'ILS'; }
+function formatReward(amount, unit) {
+  const number = Number(amount) || 0;
+  return number.toLocaleString('he-IL', {maximumFractionDigits: 2}) + ' ' + ({ILS:'ש״ח',hours:'שעות',units:'יחידות'}[unit] || 'ש״ח');
+}
+function rewardTotals(bonuses) {
+  const totals = {};
+  for (const bonus of bonuses) { const unit = rewardUnit(bonus); totals[unit] = (totals[unit] || 0) + (Number(bonus.amount) || 0); }
+  return ['ILS','hours','units'].filter(unit => Object.hasOwn(totals, unit)).map(unit => formatReward(totals[unit], unit)).join(' · ');
+}
 function renderBonuses() {
   const c = document.getElementById('bonusesContainer');
   if (!STATE.bonuses.length) {
     c.innerHTML = '<div class="empty-state">אין בונוסים עדיין</div>'; return;
   }
-  const total = STATE.bonuses.reduce((s, b) => s + (Number(b.amount)||0), 0);
+  const total = rewardTotals(STATE.bonuses);
   c.innerHTML = `
     <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">
-      סה"כ תגמולים: <strong style="color:var(--green);">${fmtCurrency(total)}</strong>
+      סה"כ תגמולים: <strong style="color:var(--green);">${esc(total)}</strong>
     </div>
     <table class="hr-table">
       <thead><tr>
-        <th>סוג</th><th>תאריך</th><th>סכום</th><th>תיאור</th><th></th>
+        <th>סוג</th><th>תאריך</th><th>כמות / סכום</th><th>תיאור</th><th></th>
       </tr></thead>
       <tbody>
       ${STATE.bonuses.map(b => `
         <tr>
           <td data-label="סוג">${esc(b.bonus_type||'—')}</td>
           <td data-label="תאריך">${fmtDate(b.bonus_date)}</td>
-          <td data-label="סכום" class="bonus-amount">${fmtCurrency(b.amount)}</td>
+          <td data-label="כמות / סכום" class="bonus-amount">${esc(formatReward(b.amount, rewardUnit(b)))}</td>
           <td data-label="תיאור" style="max-width:200px;word-break:break-word;">${esc(b.description||'')}</td>
           <td data-label="פעולות" style="white-space:nowrap;">
             <button class="btn-sm write-action" onclick="openEditBonusModal(${b.id})">✏️</button>
@@ -1283,6 +1301,7 @@ function openAddBonusModal() {
   document.getElementById('abType').value   = '';
   document.getElementById('abDate').value   = new Date().toISOString().slice(0,10);
   document.getElementById('abAmount').value = '';
+  document.getElementById('abUnit').value = 'ILS';
   document.getElementById('abDesc').value   = '';
   hideErr('abErr');
   openModal('addBonusModal');
@@ -1292,14 +1311,16 @@ async function submitAddBonus() {
   if (STATE.readonly) return;
   const bonusType   = document.getElementById('abType').value.trim();
   const bonusDate   = document.getElementById('abDate').value;
-  const amount      = parseFloat(document.getElementById('abAmount').value) || 0;
+  const amount      = Number(document.getElementById('abAmount').value);
+  const bonusUnit   = document.getElementById('abUnit').value;
+  if (!Number.isFinite(amount) || amount < 0) { showErr('abErr','יש להזין כמות או סכום תקינים שאינם שליליים'); return; }
   const description = document.getElementById('abDesc').value.trim();
   if (!bonusDate) { showErr('abErr','יש להזין תאריך'); return; }
   try {
     const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-bonuses`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ teacherId: STATE.selectedId, bonusType, description, amount, bonusDate }),
+      body: JSON.stringify({ teacherId: STATE.selectedId, bonusType, description, amount, bonusDate, bonusUnit }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) { showErr('abErr', data.error || 'שגיאה'); return; }
@@ -1318,6 +1339,7 @@ function openEditBonusModal(id) {
   document.getElementById('ebDate').value   = (bonus.bonus_date || '').slice(0,10);
   document.getElementById('ebAmount').value = bonus.amount != null ? bonus.amount : '';
   document.getElementById('ebDesc').value   = bonus.description  || '';
+  document.getElementById('ebUnit').value = rewardUnit(bonus);
   hideErr('ebErr');
   openModal('editBonusModal');
 }
@@ -1326,13 +1348,15 @@ async function submitEditBonus() {
   if (STATE.readonly || !STATE._editBonusId) return;
   const bonusType   = document.getElementById('ebType').value.trim();
   const bonusDate   = document.getElementById('ebDate').value;
-  const amount      = parseFloat(document.getElementById('ebAmount').value) || 0;
+  const amount      = Number(document.getElementById('ebAmount').value);
+  const bonusUnit   = document.getElementById('ebUnit').value;
+  if (!Number.isFinite(amount) || amount < 0) { showErr('ebErr','יש להזין כמות או סכום תקינים שאינם שליליים'); return; }
   const description = document.getElementById('ebDesc').value.trim();
   try {
     const res = await PortalAuth.authFetch(`${WORKER}/api/teacher-bonuses/${STATE._editBonusId}`, {
       method: 'PUT',
       headers: authHeaders(),
-      body: JSON.stringify({ bonusType, description, amount, bonusDate }),
+      body: JSON.stringify({ bonusType, description, amount, bonusDate, bonusUnit }),
     });
     const data = await res.json();
     if (!res.ok || !data.ok) { showErr('ebErr', data.error || 'שגיאה'); return; }
