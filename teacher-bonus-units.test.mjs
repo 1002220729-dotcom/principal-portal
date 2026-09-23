@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import vm from 'node:vm';
+import worker from './worker.js';
+const html=readFileSync(new URL('./teachers.html',import.meta.url),'utf8');
+const token='a'.repeat(64),sha=s=>createHash('sha256').update(s).digest('hex');
+function setup(role='principal',school='school'){
+ const db=new DatabaseSync(':memory:');
+ db.exec(`CREATE TABLE teachers(id INTEGER PRIMARY KEY, school TEXT); INSERT INTO teachers VALUES(1,'school');
+ CREATE TABLE teacher_bonuses(id INTEGER PRIMARY KEY,teacher_id INTEGER,bonus_type TEXT,description TEXT,amount REAL,bonus_date TEXT,status TEXT,created_at TEXT,updated_at TEXT,created_by TEXT,updated_by TEXT);
+ INSERT INTO teacher_bonuses VALUES(1,1,'legacy','unchanged',50,'2026-10-08','active','','','','');
+ CREATE TABLE staffsessions(token_hash TEXT PRIMARY KEY,username TEXT,role TEXT,school TEXT,year TEXT,expires_at TEXT,last_seen_at TEXT,revoked_at TEXT);
+ CREATE TABLE staff_auth(username TEXT,must_change_password INTEGER,password_changed_at TEXT);
+ CREATE TABLE staff_permissions(email TEXT,school TEXT,year TEXT,permissions TEXT);
+ CREATE TABLE audit_log(occurred_at,request_id,actor_username,actor_role,actor_school,action,resource_type,resource_id,target_school,target_year,outcome,ip_hash,user_agent_hash,metadata_json);`);
+ db.exec(readFileSync(new URL('./teacher-bonus-units.sql',import.meta.url),'utf8'));
+ db.prepare('INSERT INTO staffsessions VALUES(?,?,?,?,?,?,?,NULL)').run(sha(token),'owner',role,school,'2026-2027',new Date(Date.now()+3600000).toISOString(),new Date().toISOString());
+ const env={DB:{prepare(sql){const st=db.prepare(sql);let args=[];return {bind(...v){args=v;return this},async first(){return st.get(...args)||null},async all(){return {results:st.all(...args)}},async run(){const r=st.run(...args);return {meta:{lastrowid:Number(r.lastInsertRowid),changes:r.changes}}}}}},SESSIONS_KV:{async get(){return null},async put(){}}};
+ return {db,call:(method,path,body,raw=token)=>worker.fetch(new Request('https://principal-api.1002220729.workers.dev/api/teacher-bonuses'+path,{method,headers:{Origin:'https://principal-portal.pages.dev',Authorization:'Bearer '+raw,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),env,{waitUntil(){}})};
+}
+test('migration preserves old amounts and defaults to ILS',()=>{const {db}=setup();assert.deepEqual({...db.prepare('SELECT amount,bonus_unit,description FROM teacher_bonuses').get()},{amount:50,bonus_unit:'ILS',description:'unchanged'});assert.throws(()=>db.prepare("UPDATE teacher_bonuses SET bonus_unit='invalid'").run());});
+for(const unit of ['ILS','hours','units'])test('create/read/edit round trip '+unit,async()=>{const {db,call}=setup();let r=await call('POST','',{teacherId:1,bonusDate:'2026-10-08',amount:40.5,bonusUnit:unit});assert.equal(r.status,200,await r.clone().text());const id=(await r.json()).id;assert.equal(db.prepare('SELECT bonus_unit FROM teacher_bonuses WHERE id=?').get(id).bonus_unit,unit);r=await call('PUT','/'+id,{description:'updated'});assert.equal(r.status,200);assert.equal(db.prepare('SELECT bonus_unit FROM teacher_bonuses WHERE id=?').get(id).bonus_unit,unit);r=await call('GET','?teacherId=1');assert.equal(r.status,200);assert.equal((await r.json()).find(x=>x.id===id).bonus_unit,unit);});
+test('edit unit only preserves amount',async()=>{const {db,call}=setup();assert.equal((await call('PUT','/1',{bonusUnit:'hours'})).status,200);assert.deepEqual({...db.prepare('SELECT amount,bonus_unit FROM teacher_bonuses WHERE id=1').get()},{amount:50,bonus_unit:'hours'});});
+test('legacy client creates currency; unknown units rejected without write',async()=>{const {db,call}=setup();assert.equal((await call('POST','',{teacherId:1,bonusDate:'2026-10-08',amount:1})).status,200);for(const bonusUnit of ['bad',null,0]){assert.equal((await call('POST','',{teacherId:1,bonusDate:'2026-10-08',amount:1,bonusUnit})).status,400);assert.equal((await call('PUT','/1',{bonusUnit})).status,400);}assert.equal(db.prepare('SELECT COUNT(*) n FROM teacher_bonuses').get().n,2);});
+test('cross-school and staff writes remain blocked',async()=>{for(const [role,school] of [['principal','other'],['staffmember','school']]){const {call,db}=setup(role,school);assert.equal((await call('PUT','/1',{bonusUnit:'hours'})).status,403);assert.equal(db.prepare('SELECT bonus_unit FROM teacher_bonuses WHERE id=1').get().bonus_unit,'ILS');}});
+test('mixed totals never add hours to money',()=>{const ctx=vm.createContext({});vm.runInContext(html.slice(html.indexOf('function rewardUnit'),html.indexOf('function renderBonuses')),ctx);assert.equal(ctx.rewardTotals([{amount:40,bonus_unit:'hours'},{amount:2.5,bonus_unit:'hours'},{amount:100},{amount:3,bonus_unit:'units'}]),'100 ש״ח · 42.5 שעות · 3 יחידות');assert.equal(ctx.formatReward(40,'hours'),'40 שעות');});
+test('add/edit controls and requests include unit',()=>{for(const id of ['abUnit','ebUnit'])assert.match(html,new RegExp('<select id="'+id+'"[^>]*>.*value="ILS".*value="hours".*value="units"'));assert.match(html,/bonusDate, bonusUnit \}/);new vm.Script([...html.matchAll(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/g)].map(x=>x[1]).join('\n'));});
