@@ -369,6 +369,8 @@ body.readonly-mode .btn-modal-ok {
   .cal-event{white-space:normal;margin-bottom:4px;}
 }
 </style>
+<link rel="stylesheet" href="multiline-fields.css">
+<script src="multiline-fields.js" defer></script>
 </head>
 <body>
 
@@ -536,7 +538,7 @@ body.readonly-mode .btn-modal-ok {
     <div class="modal-title">✏️ עריכת מורה</div>
     <div class="modal-row">
       <div class="modal-label">תחום / מקצוע</div>
-      <input id="etSubject" type="text" class="modal-input" placeholder="מקצוע הוראה">
+      <textarea rows="2" id="etSubject" class="modal-input" placeholder="מקצוע הוראה"></textarea>
     </div>
     <div class="modal-row">
       <div class="modal-label">הערות</div>
@@ -569,11 +571,11 @@ body.readonly-mode .btn-modal-ok {
       <div class="modal-row" style="display:flex;gap:8px;">
         <div style="flex:1;">
           <div class="modal-label">תפקיד</div>
-          <input id="smRoletitle" type="text" class="modal-input" placeholder="למשל: מורה, רכז/ת">
+          <textarea rows="2" id="smRoletitle" class="modal-input" placeholder="למשל: מורה, רכז/ת"></textarea>
         </div>
         <div style="flex:1;">
           <div class="modal-label">מקצוע</div>
-          <input id="smSubject" type="text" class="modal-input" placeholder="מקצוע הוראה">
+          <textarea rows="2" id="smSubject" class="modal-input" placeholder="מקצוע הוראה"></textarea>
         </div>
       </div>
       <div class="modal-row">
@@ -661,7 +663,7 @@ body.readonly-mode .btn-modal-ok {
     <div class="modal-title">＋ בונוס חדש</div>
     <div class="modal-row">
       <div class="modal-label">סוג בונוס</div>
-      <input id="abType" type="text" class="modal-input" placeholder="למשל: תמריץ, מצוינות, שעות נוספות">
+      <textarea rows="2" id="abType" class="modal-input" placeholder="למשל: תמריץ, מצוינות, שעות נוספות"></textarea>
     </div>
     <div class="modal-row">
       <div class="modal-label">תאריך *</div>
@@ -689,7 +691,7 @@ body.readonly-mode .btn-modal-ok {
     <div class="modal-title">✏️ עריכת בונוס</div>
     <div class="modal-row">
       <div class="modal-label">סוג בונוס</div>
-      <input id="ebType" type="text" class="modal-input">
+      <textarea rows="2" id="ebType" class="modal-input"></textarea>
     </div>
     <div class="modal-row">
       <div class="modal-label">תאריך</div>

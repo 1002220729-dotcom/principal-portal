@@ -1120,6 +1120,8 @@
 .btn-outline-print:hover { background: var(--primary-light); color: #fff; }
 @media print { .print-toolbar { display: none !important; } }
 </style>
+<link rel="stylesheet" href="multiline-fields.css">
+<script src="multiline-fields.js" defer></script>
 </head>
 <body>
 
@@ -1287,7 +1289,7 @@
           </div>
           <div class="form-group">
             <label>כיתות מיוחדות</label>
-            <input type="text" id="specialClasses" placeholder="" oninput="markDirty()">
+            <textarea rows="2" id="specialClasses" placeholder="" oninput="markDirty()"></textarea>
           </div>
           <div class="form-group">
             <label>סגן/סגנית</label>
@@ -1519,31 +1521,31 @@
                   <td>תואר ראשון (B.Ed / B.A)</td>
                   <td><input type="number" id="bgEdu_b1_count" min="0" placeholder="0" oninput="markDirty()"></td>
                   <td><input type="text"   id="bgEdu_b1_pct"   placeholder="%" oninput="markDirty()"></td>
-                  <td><input type="text"   id="bgEdu_b1_notes" placeholder="" oninput="markDirty()"></td>
+                  <td><textarea rows="2"   id="bgEdu_b1_notes" placeholder="" oninput="markDirty()"></textarea></td>
                 </tr>
                 <tr>
                   <td>תואר שני (M.Ed / M.A)</td>
                   <td><input type="number" id="bgEdu_b2_count" min="0" placeholder="0" oninput="markDirty()"></td>
                   <td><input type="text"   id="bgEdu_b2_pct"   placeholder="%" oninput="markDirty()"></td>
-                  <td><input type="text"   id="bgEdu_b2_notes" placeholder="" oninput="markDirty()"></td>
+                  <td><textarea rows="2"   id="bgEdu_b2_notes" placeholder="" oninput="markDirty()"></textarea></td>
                 </tr>
                 <tr>
                   <td>תואר שלישי (דוקטורט)</td>
                   <td><input type="number" id="bgEdu_b3_count" min="0" placeholder="0" oninput="markDirty()"></td>
                   <td><input type="text"   id="bgEdu_b3_pct"   placeholder="%" oninput="markDirty()"></td>
-                  <td><input type="text"   id="bgEdu_b3_notes" placeholder="" oninput="markDirty()"></td>
+                  <td><textarea rows="2"   id="bgEdu_b3_notes" placeholder="" oninput="markDirty()"></textarea></td>
                 </tr>
                 <tr>
                   <td>ללא תואר אקדמי</td>
                   <td><input type="number" id="bgEdu_none_count" min="0" placeholder="0" oninput="markDirty()"></td>
                   <td><input type="text"   id="bgEdu_none_pct"   placeholder="%" oninput="markDirty()"></td>
-                  <td><input type="text"   id="bgEdu_none_notes" placeholder="" oninput="markDirty()"></td>
+                  <td><textarea rows="2"   id="bgEdu_none_notes" placeholder="" oninput="markDirty()"></textarea></td>
                 </tr>
                 <tr>
                   <td>הכשרה / קורס (ללא תואר)</td>
                   <td><input type="number" id="bgEdu_cert_count" min="0" placeholder="0" oninput="markDirty()"></td>
                   <td><input type="text"   id="bgEdu_cert_pct"   placeholder="%" oninput="markDirty()"></td>
-                  <td><input type="text"   id="bgEdu_cert_notes" placeholder="" oninput="markDirty()"></td>
+                  <td><textarea rows="2"   id="bgEdu_cert_notes" placeholder="" oninput="markDirty()"></textarea></td>
                 </tr>
               </tbody>
             </table>
@@ -1753,7 +1755,7 @@
           </div>
           <div class="form-group">
             <label>זירה / תחום</label>
-            <input type="text" id="sum_area" placeholder="זירה רלוונטית">
+            <textarea rows="2" id="sum_area" placeholder="זירה רלוונטית"></textarea>
           </div>
           <div class="form-group">
             <label>כותב הסיכום</label>
@@ -2214,8 +2216,8 @@
           </div>
           <div class="form-group">
             <label>הערות כלליות לסייעות</label>
-            <input type="text" id="hanam_para_notes" placeholder="הערות..."
-              oninput="markDirty()">
+            <textarea rows="2" id="hanam_para_notes" placeholder="הערות..."
+              oninput="markDirty()"></textarea>
           </div>
         </div>
         <div class="table-wrap">
@@ -3723,7 +3725,7 @@ function collectFocusAreasFromDOM() {
   const items = document.querySelectorAll('#focusAreasContainer [data-fid]');
   appData.focusAreas = Array.from(items).map(div => ({
     id:   div.dataset.fid,
-    text: div.querySelector('input')?.value || ''
+    text: div.querySelector('textarea')?.value || ''
   }));
 }
 
@@ -4299,9 +4301,9 @@ function appendStaffRow(r) {
   const tr = document.createElement('tr');
   tr.dataset.rid = r.id;
   tr.innerHTML = `
-    <td><input class="sf_role"  value="${esc(r.role||'')}"           oninput="markDirty()"></td>
+    <td><textarea rows="2" class="sf_role"            oninput="markDirty()">${esc(r.role||'')}</textarea></td>
     <td><input class="sf_name"  value="${esc(r.name||'')}"           oninput="markDirty()"></td>
-    <td><input class="sf_resp"  value="${esc(r.responsibility||'')}" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="sf_resp"  oninput="markDirty()">${esc(r.responsibility||'')}</textarea></td>
     <td><input class="sf_email" value="${esc(r.email||'')}"          oninput="markDirty()"></td>
     <td><div class="ordered-row-actions">
       <span class="row-drag-handle" role="button" tabindex="0" title="גררו לשינוי סדר צוות ההנהלה" aria-label="גררו לשינוי סדר צוות ההנהלה">⠿</span>
@@ -4344,8 +4346,8 @@ function appendFocusArea(f) {
   div.dataset.fid = f.id;
   div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
   div.innerHTML = `
-    <input style="flex:1;border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--font);font-size:13px"
-      placeholder="תחום דגש..." value="${esc(f.text || '')}" oninput="markDirty()">
+    <textarea rows="2" style="flex:1;border:1.5px solid var(--border);border-radius:6px;padding:7px 10px;font-family:var(--font);font-size:13px"
+      placeholder="תחום דגש..." oninput="markDirty()">${esc(f.text || '')}</textarea>
     <button class="btn-icon" onclick="removeFocusArea('${f.id}')">🗑</button>
   `;
   document.getElementById('focusAreasContainer').appendChild(div);
@@ -4513,9 +4515,9 @@ function buildArenaUI() {
         <div class="card-title">
           <span class="icon">🗂️</span>
           ${a.id === 'custom'
-            ? `<input id="arena_label_${a.id}" type="text" value="${esc(a.label)}" placeholder="שם הזירה..."
+            ? `<textarea rows="2" id="arena_label_${a.id}" placeholder="שם הזירה..."
                 style="border:1.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:14px;font-weight:700;color:var(--primary);"
-                oninput="onArenaLabelChange('${a.id}', this)">`
+                oninput="onArenaLabelChange('${a.id}', this)">${esc(a.label)}</textarea>`
             : `<span>${a.label}</span>`}
         </div>
         <div class="table-wrap">
@@ -4631,10 +4633,10 @@ function appendArenaRowEl(aId, r) {
 
   tr.innerHTML = `
     <td><select class="ar_goal" onchange="markDirty()">${goalOptions}</select></td>
-    <td><input class="arsubgoal" value="${esc(r.subGoal || '')}" placeholder="תת-יעד..." oninput="markDirty()" style="min-width:100px"></td>
+    <td><textarea rows="2" class="arsubgoal" placeholder="תת-יעד..." oninput="markDirty()" style="min-width:100px">${esc(r.subGoal || '')}</textarea></td>
     <td><textarea class="ar_task" oninput="markDirty()"></textarea></td>
-    <td><input class="ar_metric" value="${esc(r.outputMetric || '')}" oninput="markDirty()"></td>
-    <td><input class="ar_owner"  value="${esc(r.owner        || '')}" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="ar_metric" oninput="markDirty()">${esc(r.outputMetric || '')}</textarea></td>
+    <td><textarea rows="2" class="ar_owner"  oninput="markDirty()">${esc(r.owner        || '')}</textarea></td>
     <td>
       <select class="ar_status" onchange="markDirty()">
         <option value="todo"       ${r.status === 'todo'        ? 'selected' : ''}>לביצוע</option>
@@ -4688,11 +4690,11 @@ function buildQuarterUI() {
         <div class="form-grid" style="margin-bottom:12px">
           <div class="form-group">
             <label>מיקוד רבעוני</label>
-            <input id="qfocus_${q.id}" type="text" placeholder="מה אנו מתמקדים ברבעון זה?" oninput="markDirty()">
+            <textarea rows="2" id="qfocus_${q.id}" placeholder="מה אנו מתמקדים ברבעון זה?" oninput="markDirty()"></textarea>
           </div>
           <div class="form-group">
             <label>הערות כלליות</label>
-            <input id="qnotes_${q.id}" type="text" placeholder="הערות..." oninput="markDirty()">
+            <textarea rows="2" id="qnotes_${q.id}" placeholder="הערות..." oninput="markDirty()"></textarea>
           </div>
         </div>
         <div class="table-wrap">
@@ -4741,7 +4743,7 @@ function appendQuarterRowEl(qId, r) {
   tr.innerHTML = `
     <td><select class="qr_goal" onchange="markDirty()">${goalOptions}</select></td>
     <td><textarea class="qr_task"  oninput="markDirty()"></textarea></td>
-    <td><input    class="qr_owner" value="${esc(r.owner || '')}" oninput="markDirty()"></td>
+    <td><textarea rows="2"    class="qr_owner" oninput="markDirty()">${esc(r.owner || '')}</textarea></td>
     <td>
       <select class="qr_status" onchange="markDirty()">
         <option value="todo"       ${r.status === 'todo'        ? 'selected' : ''}>לביצוע</option>
@@ -4795,12 +4797,12 @@ function appendRoutineRowEl(r) {
   const freqOpts = `<option value="" ${!r.frequency ? 'selected' : ''}>בחר</option>` +
     freqs.map(f => `<option value="${f}" ${r.frequency === f ? 'selected' : ''}>${f}</option>`).join('');
   tr.innerHTML = `
-    <td><input  class="rt_name"         value="${esc(r.name         || '')}" placeholder="שם השגרה" oninput="markDirty()"></td>
+    <td><textarea rows="2"  class="rt_name"         placeholder="שם השגרה" oninput="markDirty()">${esc(r.name         || '')}</textarea></td>
     <td><select class="rt_freq"         onchange="markDirty()">${freqOpts}</select></td>
-    <td><input  class="rt_participants" value="${esc(r.participants  || '')}" placeholder="משתתפים"  oninput="markDirty()"></td>
-    <td><input  class="rt_purpose"      value="${esc(r.purpose       || '')}" placeholder="מטרה"     oninput="markDirty()"></td>
-    <td><input  class="rt_daytime"      value="${esc(r.dayTime       || '')}" placeholder="יום ושעה" oninput="markDirty()"></td>
-    <td><input  class="rt_owner"        value="${esc(r.owner         || '')}" placeholder="אחראי"    oninput="markDirty()"></td>
+    <td><textarea rows="2"  class="rt_participants" placeholder="משתתפים"  oninput="markDirty()">${esc(r.participants  || '')}</textarea></td>
+    <td><textarea rows="2"  class="rt_purpose"      placeholder="מטרה"     oninput="markDirty()">${esc(r.purpose       || '')}</textarea></td>
+    <td><textarea rows="2"  class="rt_daytime"      placeholder="יום ושעה" oninput="markDirty()">${esc(r.dayTime       || '')}</textarea></td>
+    <td><textarea rows="2"  class="rt_owner"        placeholder="אחראי"    oninput="markDirty()">${esc(r.owner         || '')}</textarea></td>
     <td style="text-align:center"><input type="checkbox" class="rt_active" ${r.active ? 'checked' : ''} onchange="markDirty()"></td>
     <td><button class="btn-icon" onclick="removeRoutineRow('${r.id}')">🗑</button></td>
   `;
@@ -5490,7 +5492,7 @@ function appendHoursRow(r) {
     <td><input class="hr_tenure"   value="${esc(r.tenure   || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty()"></td>
     <td><input class="hr_total"    value="${esc(r.total    || '')}" type="number" min="0" placeholder="0" style="min-width:60px;font-weight:700;background:#f4f6f9;" readonly></td>
     <td><span class="hr-sync-val" id="hrSync__${r.id}">—</span></td>
-    <td><input class="hr_notes"    value="${esc(r.notes    || '')}" placeholder="הערות"       oninput="markDirty()"></td>
+    <td><textarea rows="2" class="hr_notes"    placeholder="הערות"       oninput="markDirty()">${esc(r.notes    || '')}</textarea></td>
     <td><button class="btn-icon" onclick="removeHoursRow('${r.id}')">🗑</button></td>
   `;
   tbody.appendChild(tr);
@@ -5623,7 +5625,7 @@ function appendAbsenceRow(r) {
     <td>${yesNo('ab_substituteOccurred', r.substituteOccurred, ' onAbsenceSubChange(this)')}</td>
     <td><input class="ab_substituteName" list="absenceStaffNamesList" value="${esc(r.substituteName || '')}" placeholder="שם ממלא המקום" oninput="markDirty()"></td>
     <td>${yesNo('ab_reportedOfakit', r.reportedOfakit)}</td>
-    <td><input class="ab_notes" value="${esc(r.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="ab_notes" placeholder="הערות" oninput="markDirty()">${esc(r.notes || '')}</textarea></td>
     <td><button class="btn-icon" onclick="removeAbsenceRow('${r.id}')">🗑</button></td>
   `;
   tbody.appendChild(tr);
@@ -5822,7 +5824,7 @@ function appendBasketRow(b) {
     <td><input class="bk_hours" type="number" min="0" value="${esc(b.hours ?? '')}" placeholder="0" style="min-width:70px" oninput="markDirty(); onBasketFieldChange()"></td>
     <td><span class="basket-used-val" id="bkUsed__${b.id}">0</span></td>
     <td><span class="basket-free-val" id="bkFree__${b.id}">0</span></td>
-    <td><input class="bk_notes" value="${esc(b.notes || '')}" placeholder="הערות" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="bk_notes" placeholder="הערות" oninput="markDirty()">${esc(b.notes || '')}</textarea></td>
     <td>
       <div class="ordered-row-actions">
         <span class="row-drag-handle" role="button" tabindex="0"
@@ -6199,8 +6201,8 @@ function appendHanamHoursRow(r) {
       </select>
     </td>
     <td><input class="hn_total" value="${esc(r.total || '')}" type="number" min="0" placeholder="0" style="min-width:55px;font-weight:700;background:#f4f6f9;" readonly></td>
-    <td><input class="hn_classes" value="${esc(r.classes || '')}" placeholder='א1, ב2...' oninput="markDirty()"></td>
-    <td><input class="hn_notes"   value="${esc(r.notes   || '')}" placeholder="הערות" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="hn_classes" placeholder='א1, ב2...' oninput="markDirty()">${esc(r.classes || '')}</textarea></td>
+    <td><textarea rows="2" class="hn_notes"   placeholder="הערות" oninput="markDirty()">${esc(r.notes   || '')}</textarea></td>
     <td><button class="btn-icon" onclick="removeHanamHoursRow('${r.id}')">🗑</button></td>
   `;
   tbody.appendChild(tr);
@@ -6321,7 +6323,7 @@ function appendHanamParaRow(r) {
   ).join('');
   tr.innerHTML = `
     <td><input class="pa_name"    value="${esc(r.name    || '')}" placeholder="שם הסייעת"    oninput="markDirty()"></td>
-    <td><input class="pa_student" value="${esc(r.student || '')}" placeholder='כיתה / שם תלמיד' oninput="markDirty()"></td>
+    <td><textarea rows="2" class="pa_student" placeholder='כיתה / שם תלמיד' oninput="markDirty()">${esc(r.student || '')}</textarea></td>
     <td>
       <select class="pa_type" onchange="markDirty()">
         <option value="">בחר סוג</option>${typeOpts}
@@ -6332,7 +6334,7 @@ function appendHanamParaRow(r) {
         <option value="">בחר מקור</option>${srcOpts}
       </select>
     </td>
-    <td><input class="pa_notes"   value="${esc(r.notes   || '')}" placeholder="הערות"          oninput="markDirty()"></td>
+    <td><textarea rows="2" class="pa_notes"   placeholder="הערות"          oninput="markDirty()">${esc(r.notes   || '')}</textarea></td>
     <td><button class="btn-icon" onclick="removeHanamParaRow('${r.id}')">🗑</button></td>
   `;
   tbody.appendChild(tr);
@@ -6405,14 +6407,14 @@ function appendHanamTherapyRow(r) {
       </select>
     </td>
     <td><input class="th_name"  value="${esc(r.name  || '')}" placeholder="שם מלא"         oninput="markDirty()"></td>
-    <td><input class="th_days"  value="${esc(r.days  || '')}" placeholder="ב', ד'..."       oninput="markDirty()"></td>
+    <td><textarea rows="2" class="th_days"  placeholder="ב', ד'..."       oninput="markDirty()">${esc(r.days  || '')}</textarea></td>
     <td><input class="th_hours" value="${esc(r.hours || '')}" type="number" min="0" placeholder="0" style="min-width:60px" oninput="markDirty()"></td>
     <td>
       <select class="th_source" onchange="markDirty()">
         <option value="">בחר מקור</option>${srcOpts}
       </select>
     </td>
-    <td><input class="th_notes" value="${esc(r.notes || '')}" placeholder="הערות"           oninput="markDirty()"></td>
+    <td><textarea rows="2" class="th_notes" placeholder="הערות"           oninput="markDirty()">${esc(r.notes || '')}</textarea></td>
     <td><button class="btn-icon" onclick="removeHanamTherapyRow('${r.id}')">🗑</button></td>
   `;
   tbody.appendChild(tr);
@@ -7144,7 +7146,7 @@ function appendInventoryRowEl(catId, row) {
   ].map(o => `<option value="${o.v}"${(row.priority||'low')===o.v?' selected':''}>${o.l}</option>`).join('');
 
   tr.innerHTML = `
-    <td><input class="inv-name" value="${esc(row.itemName||'')}" placeholder="שם פריט" oninput="markDirty()" style="min-width:120px"></td>
+    <td><textarea rows="2" class="inv-name" placeholder="שם פריט" oninput="markDirty()" style="min-width:120px">${esc(row.itemName||'')}</textarea></td>
     <td><input type="number" class="inv-qexist" value="${row.quantityExisting||0}" min="0"
                style="width:65px;text-align:center"
                oninput="recalcInvMissing(this); markDirty()"></td>
@@ -7153,13 +7155,13 @@ function appendInventoryRowEl(catId, row) {
                oninput="recalcInvMissing(this); markDirty()"></td>
     <td class="inv-missing-cell" style="color:${missColor};font-weight:${missWeight}">${missText}</td>
     <td><select class="inv-cond" onchange="markDirty()" style="width:100%">${condOptions}</select></td>
-    <td><input class="inv-location" value="${esc(row.location||'')}" placeholder='מעבדת מדעים...' oninput="markDirty()" style="min-width:110px"></td>
-    <td><input class="inv-responsible" value="${esc(row.responsible||'')}" placeholder="שם אחראי" oninput="markDirty()" style="min-width:100px"></td>
+    <td><textarea rows="2" class="inv-location" placeholder='מעבדת מדעים...' oninput="markDirty()" style="min-width:110px">${esc(row.location||'')}</textarea></td>
+    <td><textarea rows="2" class="inv-responsible" placeholder="שם אחראי" oninput="markDirty()" style="min-width:100px">${esc(row.responsible||'')}</textarea></td>
     <td><select class="inv-priority" onchange="markDirty()" style="width:100%">${priorityOptions}</select></td>
-    <td><input class="inv-funding" value="${esc(row.fundingSource||'')}" placeholder='ניהול עצמי...' oninput="markDirty()" style="min-width:100px"></td>
+    <td><textarea rows="2" class="inv-funding" placeholder='ניהול עצמי...' oninput="markDirty()" style="min-width:100px">${esc(row.fundingSource||'')}</textarea></td>
     <td><input type="date" class="inv-purchyear" value="${esc(String(row.purchaseYear||''))}"
                style="width:130px" oninput="markDirty()"></td>
-    <td><input class="inv-notes" value="${esc(row.notes||'')}" placeholder="הערות" oninput="markDirty()" style="min-width:90px"></td>
+    <td><textarea rows="2" class="inv-notes" placeholder="הערות" oninput="markDirty()" style="min-width:90px">${esc(row.notes||'')}</textarea></td>
     <td><button class="btn-icon" title="מחק שורה"
         onclick="removeInventoryRow('${catId}','${row.id}')">🗑</button></td>`;
   tbody.appendChild(tr);
@@ -7877,8 +7879,8 @@ function appendBudgetTxRow(tx) {
   tr.innerHTML = `
     <td><input type="date" class="btx-date" value="${esc(tx.date||'')}"
          oninput="markDirty()"></td>
-    <td><input type="text" class="btx-desc" value="${esc(tx.description||'')}"
-         placeholder="תיאור..." style="min-width:120px" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="btx-desc"
+         placeholder="תיאור..." style="min-width:120px" oninput="markDirty()">${esc(tx.description||'')}</textarea></td>
     <td><select class="btx-type" onchange="onBudgetTxTypeChange(this); markDirty()">
          ${typeOpts}</select></td>
     <td><select class="btx-source" onchange="onBudgetTxMetaChange(this); markDirty()">${srcOpts}</select></td>
@@ -7888,8 +7890,8 @@ function appendBudgetTxRow(tx) {
     <td><input type="number" class="btx-amount" value="${tx.amount||0}" min="0" step="0.01"
          style="width:90px;font-weight:700;direction:ltr;text-align:left"
          oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
-    <td><input type="text" class="btx-notes" value="${esc(tx.notes||'')}"
-         placeholder="הערות" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="btx-notes"
+         placeholder="הערות" oninput="markDirty()">${esc(tx.notes||'')}</textarea></td>
     <td><button class="btn-icon" title="מחק"
         onclick="removeBudgetTx('${tx.id}')">🗑️</button></td>`;
   tbody.appendChild(tr);
@@ -8062,8 +8064,8 @@ function renderBudgetStructure() {
            style="direction:ltr;text-align:left"
            oninput="if(this.value<0)this.value=0; refreshBudgetComputedViews(); markDirty()"></td>
       <td class="bstruct-total-cell" style="font-weight:700;direction:ltr;text-align:left">₪0.00</td>
-      <td><input type="text" class="bstruct-notes" value="${esc(c.notes || '')}"
-           placeholder="הערות" oninput="markDirty()"></td>`;
+      <td><textarea rows="2" class="bstruct-notes"
+           placeholder="הערות" oninput="markDirty()">${esc(c.notes || '')}</textarea></td>`;
     tbody.appendChild(tr);
   });
 
@@ -8129,9 +8131,9 @@ function appendBudgetAllocRow(alloc) {
   const btypeOpts = _buildBudgetTypeOptions(alloc.budgetType);
 
   tr.innerHTML = `
-    <td><input type="text" class="bal-name" value="${esc(alloc.name||'')}"
+    <td><textarea rows="2" class="bal-name"
          placeholder="שם ייעוד..." style="min-width:140px"
-         oninput="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()"></td>
+         oninput="updateBudgetAllocDropdown(); refreshBudgetComputedViews(); markDirty()">${esc(alloc.name||'')}</textarea></td>
     <td><select class="bal-source" onchange="onBudgetAllocationMetaChange(this); markDirty()">${srcOpts}</select></td>
     <td><select class="bal-btype" onchange="onBudgetAllocationMetaChange(this); markDirty()">${btypeOpts}</select></td>
     <td><input type="number" class="bal-planned" value="${alloc.planned||0}" min="0" step="0.01"
@@ -8147,8 +8149,8 @@ function appendBudgetAllocRow(alloc) {
         <span class="bal-pct-label" style="font-size:0.75rem;min-width:32px;text-align:left">0%</span>
       </div>
     </td>
-    <td><input type="text" class="bal-notes" value="${esc(alloc.notes||'')}"
-         placeholder="הערות" oninput="markDirty()"></td>
+    <td><textarea rows="2" class="bal-notes"
+         placeholder="הערות" oninput="markDirty()">${esc(alloc.notes||'')}</textarea></td>
     <td><button class="btn-icon" title="מחק ייעוד"
         onclick="removeBudgetAlloc('${alloc.id}')">🗑️</button></td>`;
   tbody.appendChild(tr);
@@ -9044,7 +9046,7 @@ function applySavedResizableFieldSize(field, target) {
   const key = getResizableFieldKey(field);
   const size = normalizeResizableFieldSize(appData.fieldSizes?.[key]);
   if (!key || !size) return;
-  target.style.width = `${size.width}px`;
+  target.style.width = '100%';
   target.style.height = `${size.height}px`;
 }
 
@@ -9058,12 +9060,16 @@ function saveResizableFieldSize(field, target, rect = target.getBoundingClientRe
   const previous = normalizeResizableFieldSize(appData.fieldSizes[key]);
   if (previous?.width === size.width && previous?.height === size.height) return;
   appData.fieldSizes[key] = size;
-  target.style.width = `${size.width}px`;
+  target.style.width = '100%';
   target.style.height = `${size.height}px`;
   markDirty();
 }
 
 function beginResizableFieldTracking(event, field, target) {
+  if (field.tagName !== 'TEXTAREA') return;
+  const corner = target.getBoundingClientRect();
+  const edge = getComputedStyle(target).direction === 'rtl' ? corner.left : corner.right;
+  if (Math.abs(event.clientX - edge) > 18 || corner.bottom - event.clientY > 18) return;
   if (event.pointerType === 'mouse' && event.button !== 0) return;
   const pointerId = event.pointerId;
   const startRect = target.getBoundingClientRect();
@@ -9244,7 +9250,7 @@ function _appendDefectRow(r, rowNum) {
   tr.innerHTML = `
     <td style="text-align:center;color:var(--text-muted);font-size:0.8rem">${rowNum}</td>
     <td><input class="df_date" type="date" value="${esc(r.date||'')}" oninput="markDirty()" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%"></td>
-    <td><input class="df_location" value="${esc(r.location||'')}" placeholder="חדר / חלל / מתקן" oninput="markDirty()" style="width:100%;border:none;background:transparent;font-family:var(--font);font-size:0.8rem"></td>
+    <td><textarea rows="2" class="df_location" placeholder="חדר / חלל / מתקן" oninput="markDirty()" style="width:100%;border:none;background:transparent;font-family:var(--font);font-size:0.8rem">${esc(r.location||'')}</textarea></td>
     <td><select class="df_type" onchange="markDirty()" style="border:none;background:transparent;font-family:var(--font);font-size:0.8rem;width:100%">
       <option value="">בחר סוג</option>${typeOpts}</select></td>
     <td><textarea class="df_desc" rows="1" placeholder="תיאור קצר..." oninput="markDirty()" style="width:100%;border:none;background:transparent;font-family:var(--font);font-size:0.8rem;resize:vertical">${esc(r.desc||'')}</textarea></td>
