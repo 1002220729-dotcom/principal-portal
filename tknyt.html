@@ -1122,7 +1122,21 @@
 </style>
 <link rel="stylesheet" href="multiline-fields.css">
 <script src="multiline-fields.js" defer></script>
-</head>
+<style>
+.budget-actual-trigger{font:inherit;font-weight:700;color:inherit;background:transparent;border:0;border-bottom:1px dotted currentColor;padding:4px;cursor:help;white-space:nowrap}
+.budget-actual-trigger:focus-visible{outline:2px solid #17839a;outline-offset:3px}
+#budgetTxTable{min-width:1150px}
+#budgetTxTable th:first-child{width:170px}
+#budgetTxTable .btx-date{direction:ltr;box-sizing:border-box;width:100%;min-width:138px;padding:6px 4px;font-size:14px}
+#budgetActualPopup{position:fixed;z-index:10000;width:360px;max-width:calc(100vw - 16px);max-height:min(360px,70vh);overflow:auto;box-sizing:border-box;background:#fff;color:#193955;border:1px solid #c6d5e5;border-radius:10px;padding:14px;box-shadow:0 8px 30px #10243f35;font-size:14px;text-align:right}
+#budgetActualPopup[hidden]{display:none}
+#budgetActualPopup ul{list-style:none;margin:10px 0;padding:0}
+#budgetActualPopup li{display:flex;gap:16px;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e3eaf1}
+#budgetActualPopup li span{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+#budgetActualPopup li b{white-space:nowrap;direction:ltr;flex-shrink:0}
+.budget-actual-total{font-weight:700;padding-top:8px}
+@media print{#budgetActualPopup{display:none!important}.budget-actual-trigger{border:0;padding:0}}
+</style></head>
 <body>
 
 <!-- SAVE BAR -->
@@ -2490,7 +2504,7 @@
           <table class="data-table" id="budgetTxTable">
             <thead>
               <tr>
-                <th style="width:110px">תאריך</th>
+                <th style="width:170px">תאריך</th>
                 <th>תיאור</th>
                 <th style="width:120px">סוג</th>
                 <th style="width:130px">מקור תקציבי</th>
@@ -7880,7 +7894,7 @@ function appendBudgetTxRow(tx) {
     <td><input type="date" class="btx-date" value="${esc(tx.date||'')}"
          oninput="markDirty()"></td>
     <td><textarea rows="2" class="btx-desc"
-         placeholder="תיאור..." style="min-width:120px" oninput="markDirty()">${esc(tx.description||'')}</textarea></td>
+         placeholder="תיאור..." style="min-width:120px" oninput="refreshAllocActuals(); markDirty()">${esc(tx.description||'')}</textarea></td>
     <td><select class="btx-type" onchange="onBudgetTxTypeChange(this); markDirty()">
          ${typeOpts}</select></td>
     <td><select class="btx-source" onchange="onBudgetTxMetaChange(this); markDirty()">${srcOpts}</select></td>
@@ -8156,24 +8170,68 @@ function appendBudgetAllocRow(alloc) {
   tbody.appendChild(tr);
 }
 
-function refreshAllocActuals() {
-  // בנה מפת actuals מה-DOM החי של עסקאות (כלל השורות, לא רק גלויות)
-  const txMap = {};
-  const domTxRows = document.querySelectorAll('#budgetTxBody tr[data-rid]');
-  if (domTxRows.length > 0) {
-    domTxRows.forEach(tr => {
-      const aid  = tr.querySelector('.btx-alloc')?.value  || '';
-      const type = tr.querySelector('.btx-type')?.value;
-      const amt  = parseFloat(tr.querySelector('.btx-amount')?.value) || 0;
-      if (aid && type === 'expense') txMap[aid] = (txMap[aid] || 0) + amt;
-    });
-  } else {
-    // fallback ל-appData כשה-DOM ריק (לפני render)
-    (appData.budget?.transactions || []).forEach(t => {
-      if (t.allocationId && t.type === 'expense')
-        txMap[t.allocationId] = (txMap[t.allocationId] || 0) + (parseFloat(t.amount) || 0);
-    });
+function readBudgetActualTransactions() {
+  const rows = document.querySelectorAll('#budgetTxBody tr[data-rid]');
+  return rows.length ? Array.from(rows, tr => ({
+    allocationId: tr.querySelector('.btx-alloc')?.value || '',
+    type: tr.querySelector('.btx-type')?.value,
+    amount: tr.querySelector('.btx-amount')?.value,
+    description: tr.querySelector('.btx-desc')?.value || ''
+  })) : (appData.budget?.transactions || []);
+}
+function budgetActualBreakdown(transactions) {
+  const result = Object.create(null);
+  for (const t of transactions) {
+    if (!t.allocationId || t.type !== 'expense') continue;
+    (result[t.allocationId] ||= []).push({name: String(t.description || '').trim() || 'תוכנית / הוצאה ללא שם', amount: parseFloat(t.amount) || 0});
   }
+  return result;
+}
+let budgetActualPopup, budgetActualAnchor, budgetActualHideTimer, budgetActualPinned = false;
+function hideBudgetActualDetails() {
+  budgetActualPinned = false;
+  clearTimeout(budgetActualHideTimer);
+  if (budgetActualPopup) budgetActualPopup.hidden = true;
+  if (budgetActualAnchor) budgetActualAnchor.removeAttribute('aria-describedby');
+  budgetActualAnchor = null;
+}
+function scheduleBudgetActualHide() { clearTimeout(budgetActualHideTimer); if (!budgetActualPinned) budgetActualHideTimer = setTimeout(hideBudgetActualDetails, 250); }
+function showBudgetActualDetails(anchor, rows, total) {
+  hideBudgetActualDetails();
+  if (!budgetActualPopup) {
+    budgetActualPopup = document.createElement('div');
+    budgetActualPopup.id = 'budgetActualPopup'; budgetActualPopup.setAttribute('role', 'tooltip');
+    budgetActualPopup.dir = 'rtl'; document.body.appendChild(budgetActualPopup);
+    budgetActualPopup.onmouseenter = () => clearTimeout(budgetActualHideTimer);
+    budgetActualPopup.onmouseleave = scheduleBudgetActualHide;
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') hideBudgetActualDetails(); });
+    document.addEventListener('pointerdown', e => { if (!budgetActualPopup.contains(e.target) && !e.target.closest('.budget-actual-trigger')) hideBudgetActualDetails(); });
+    window.addEventListener('resize', hideBudgetActualDetails);
+    document.addEventListener('scroll', e => { if (!budgetActualPopup.contains(e.target)) positionBudgetActualDetails(); }, true);
+  }
+  budgetActualPopup.replaceChildren();
+  const title = document.createElement('strong'); title.textContent = 'פירוט הביצוע בפועל'; budgetActualPopup.append(title);
+  const list = document.createElement('ul');
+  rows.forEach(row => { const item=document.createElement('li'),name=document.createElement('span'),amount=document.createElement('b'); name.textContent=row.name;amount.textContent=_fmtILS(row.amount); item.append(name,amount);list.append(item); });
+  if (rows.length) budgetActualPopup.append(list);
+  else { const empty=document.createElement('p');empty.textContent='אין הוצאות המשויכות לסכום זה';budgetActualPopup.append(empty); }
+  const sum=document.createElement('div');sum.className='budget-actual-total';sum.textContent='סה״כ: '+_fmtILS(total);budgetActualPopup.append(sum);
+  budgetActualAnchor=anchor;anchor.setAttribute('aria-describedby',budgetActualPopup.id);
+  budgetActualPopup.hidden=false;
+  positionBudgetActualDetails();
+}
+function positionBudgetActualDetails() {
+  if (!budgetActualAnchor || budgetActualPopup.hidden) return;
+  const rect=budgetActualAnchor.getBoundingClientRect(),box=budgetActualPopup.getBoundingClientRect();
+  if (!budgetActualAnchor.isConnected || rect.bottom < 0 || rect.top > window.innerHeight) { hideBudgetActualDetails(); return; }
+  budgetActualPopup.style.left=Math.max(8,Math.min(rect.right-box.width,window.innerWidth-box.width-8))+'px';
+  budgetActualPopup.style.top=Math.max(8,Math.min(rect.bottom+6,window.innerHeight-box.height-8))+'px';
+}
+
+function refreshAllocActuals() {
+  const details = budgetActualBreakdown(readBudgetActualTransactions());
+  const txMap = Object.fromEntries(Object.entries(details).map(([id, rows]) => [id, rows.reduce((sum, row) => sum + row.amount, 0)]));
+  hideBudgetActualDetails();
 
   document.querySelectorAll('#budgetAllocBody tr[data-aid]').forEach(tr => {
     const aid     = tr.dataset.aid;
@@ -8182,7 +8240,16 @@ function refreshAllocActuals() {
     const pct     = planned > 0 ? Math.min(100, (actual / planned) * 100) : 0;
 
     const actualCell = tr.querySelector('.bal-actual-cell');
-    if (actualCell) actualCell.textContent = _fmtILS(actual);
+    if (actualCell) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'budget-actual-trigger';
+      button.textContent = _fmtILS(actual);
+      button.setAttribute('aria-label', 'פירוט ביצוע בפועל: ' + _fmtILS(actual));
+      button.onmouseenter = button.onfocus = () => showBudgetActualDetails(button, details[aid] || [], actual);
+      button.onclick = () => { showBudgetActualDetails(button, details[aid] || [], actual); budgetActualPinned = true; };
+      button.onmouseleave = button.onblur = scheduleBudgetActualHide;
+      actualCell.replaceChildren(button);
+    }
 
     const bar = tr.querySelector('.bal-pct-bar');
     const lbl = tr.querySelector('.bal-pct-label');
