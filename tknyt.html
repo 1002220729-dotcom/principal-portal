@@ -1136,7 +1136,16 @@
 #budgetActualPopup li b{white-space:nowrap;direction:ltr;flex-shrink:0}
 .budget-actual-total{font-weight:700;padding-top:8px}
 @media print{#budgetActualPopup{display:none!important}.budget-actual-trigger{border:0;padding:0}}
-</style></head>
+</style><style>
+.hanam-class-details{display:grid;gap:10px;margin-top:12px}
+.hanam-class-details[hidden]{display:none}
+.hanam-class-row{display:grid;grid-template-columns:minmax(0,1fr) 95px;gap:8px;border-top:1px solid var(--border);padding-top:10px}
+.hanam-class-row label{font-size:.8rem;display:grid;gap:5px;min-width:0}
+.hanam-class-row input{width:100%;box-sizing:border-box;min-width:0;border:1px solid var(--border);border-radius:6px;padding:8px;font:inherit;background:white;color:var(--text)}
+.hanam-detail-note{font-size:.75rem;margin-top:8px;white-space:normal}
+@media print{.hanam-class-row{break-inside:avoid}.hanam-detail-note{display:none}}
+</style>
+</head>
 <body>
 
 <!-- SAVE BAR -->
@@ -1384,60 +1393,66 @@
             <!-- ל"ל -->
             <div style="border:1.5px solid var(--border);border-radius:8px;padding:14px;background:#f8fafd;">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--primary);margin-bottom:10px;">
-                <input type="checkbox" id="gi_hanam_ll" onchange="markDirty();recalcTotals();"
+                <input type="checkbox" id="gi_hanam_ll" onchange="renderHanamClassDetails('ll');markDirty();recalcTotals();"
                   style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary-light);">
                 לקויות למידה (ל"ל)
               </label>
               <div class="form-group">
                 <label>מספר כיתות ל"ל</label>
-                <input type="number" id="gi_hanam_ll_count" placeholder="0" min="0"
-                  style="max-width:120px;" oninput="markDirty();recalcTotals();">
+                <input type="number" id="gi_hanam_ll_count" placeholder="0" min="0" max="1000" step="1"
+                  style="max-width:120px;" oninput="renderHanamClassDetails('ll');markDirty();recalcTotals();">
               </div>
               <div class="form-group">
                 <label>מספר תלמידים ל"ל</label>
                 <input type="number" id="gi_hanam_ll_students" placeholder="0" min="0"
                   style="max-width:120px;" oninput="markDirty();recalcTotals();">
               </div>
+              <div id="hanam_ll_classes" class="hanam-class-details"></div>
+              <p id="hanam_ll_detail_note" class="text-muted hanam-detail-note" aria-live="polite"></p>
               <p class="text-muted" style="font-size:0.75rem;margin-top:4px;">כיתת ל"ל נספרת כתיקנית מ-7 תלמידים ומעלה</p>
             </div>
 
             <!-- כו"ח -->
             <div style="border:1.5px solid var(--border);border-radius:8px;padding:14px;background:#f8fafd;">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--primary);margin-bottom:10px;">
-                <input type="checkbox" id="gi_hanam_kvch" onchange="markDirty();recalcTotals();"
+                <input type="checkbox" id="gi_hanam_kvch" onchange="renderHanamClassDetails('kvch');markDirty();recalcTotals();"
                   style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary-light);">
                 כבדי שמיעה וחירשים (כו"ח)
               </label>
               <div class="form-group">
                 <label>מספר כיתות כו"ח</label>
-                <input type="number" id="gi_hanam_kvch_count" placeholder="0" min="0"
-                  style="max-width:120px;" oninput="markDirty();recalcTotals();">
+                <input type="number" id="gi_hanam_kvch_count" placeholder="0" min="0" max="1000" step="1"
+                  style="max-width:120px;" oninput="renderHanamClassDetails('kvch');markDirty();recalcTotals();">
               </div>
               <div class="form-group">
                 <label>מספר תלמידים כו"ח</label>
                 <input type="number" id="gi_hanam_kvch_students" placeholder="0" min="0"
                   style="max-width:120px;" oninput="markDirty();recalcTotals();">
               </div>
+              <div id="hanam_kvch_classes" class="hanam-class-details"></div>
+              <p id="hanam_kvch_detail_note" class="text-muted hanam-detail-note" aria-live="polite"></p>
               <p class="text-muted" style="font-size:0.75rem;margin-top:4px;">כיתת כו"ח נספרת כתיקנית מ-7 תלמידים ומעלה</p>
             </div>
 
             <!-- תקשורת -->
             <div style="border:1.5px solid var(--border);border-radius:8px;padding:14px;background:#f8fafd;">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--primary);margin-bottom:10px;">
-                <input type="checkbox" id="gi_hanam_tik" onchange="markDirty();recalcTotals();"
+                <input type="checkbox" id="gi_hanam_tik" onchange="renderHanamClassDetails('tik');markDirty();recalcTotals();"
                   style="width:15px;height:15px;cursor:pointer;accent-color:var(--primary-light);">
                 תקשורת
               </label>
               <div class="form-group">
                 <label>מספר כיתות תקשורת</label>
-                <input type="number" id="gi_hanam_tik_count" placeholder="0" min="0"
-                  style="max-width:120px;" oninput="markDirty();recalcTotals();">
+                <input type="number" id="gi_hanam_tik_count" placeholder="0" min="0" max="1000" step="1"
+                  style="max-width:120px;" oninput="renderHanamClassDetails('tik');markDirty();recalcTotals();">
               </div>
               <div class="form-group">
                 <label>מספר תלמידים תקשורת</label>
                 <input type="number" id="gi_hanam_tik_students" placeholder="0" min="0"
                   style="max-width:120px;" oninput="markDirty();recalcTotals();">
               </div>
+              <div id="hanam_tik_classes" class="hanam-class-details"></div>
+              <p id="hanam_tik_detail_note" class="text-muted hanam-detail-note" aria-live="polite"></p>
               <p class="text-muted" style="font-size:0.75rem;margin-top:4px;">כיתת תקשורת נספרת כתיקנית מ-5 תלמידים ומעלה</p>
             </div>
 
@@ -3299,6 +3314,68 @@ function scheduleAutoSave() {
   }, AUTOSAVE_DELAY_MS);
 }
 
+
+// Per-class details preserve legacy totals until every active class has a pupil count.
+function hanamClassCount(value) {
+  return Math.min(1000, Math.max(0, Math.floor(Number(value) || 0)));
+}
+function resizeHanamClassDetails(details, count) {
+  const rows = Array.isArray(details) ? details.map(row => ({name: String(row?.name ?? ''), students: String(row?.students ?? '')})) : [];
+  while (rows.length < hanamClassCount(count)) rows.push({name: '', students: ''});
+  return rows; // Keep surplus rows so reducing and restoring the count does not erase entries.
+}
+function summarizeHanamClasses(details, count, legacyStudents, minimum) {
+  const n = hanamClassCount(count), rows = (Array.isArray(details) ? details : []).slice(0, n);
+  const complete = rows.length === n && rows.every(row => String(row.students ?? '').trim() !== '' && Number.isInteger(Number(row.students)) && Number(row.students) >= 0);
+  if (complete) return {complete, students: rows.reduce((sum, row) => sum + Number(row.students), 0), standardClasses: rows.filter(row => Number(row.students) >= minimum).length};
+  const students = Math.max(0, parseInt(legacyStudents, 10) || 0);
+  return {complete, students, standardClasses: students >= minimum ? n : 0};
+}
+function collectHanamClassDetails(k) {
+  const category = appData.hanam?.[k];
+  if (!category) return;
+  const details = resizeHanamClassDetails(category.classDetails, 0);
+  document.querySelectorAll('#hanam_' + k + '_classes .hanam-class-row').forEach(row => {
+    details[Number(row.dataset.index)] = {name: row.querySelector('.hc-name').value, students: row.querySelector('.hc-students').value};
+  });
+  category.classDetails = details;
+}
+function renderHanamClassDetails(k, collect = true) {
+  const host = document.getElementById('hanam_' + k + '_classes');
+  if (!host) return;
+  if (collect) collectHanamClassDetails(k);
+  const category = appData.hanam[k], count = hanamClassCount(document.getElementById('gi_hanam_' + k + '_count').value);
+  category.classDetails = resizeHanamClassDetails(category.classDetails, count);
+  host.replaceChildren();
+  host.hidden = !document.getElementById('gi_hanam_' + k).checked;
+  const typeLabel = {ll:'לקויות למידה',kvch:'כבדי שמיעה וחירשים',tik:'תקשורת'}[k];
+  category.classDetails.slice(0, count).forEach((item, index) => {
+    const row = document.createElement('div');row.className='hanam-class-row';row.dataset.index=index;
+    for (const [field, title] of [['name','שם / מספר הכיתה'],['students','מספר תלמידים']]) {
+      const label=document.createElement('label'), input=document.createElement('input');
+      label.append(title + (field === 'name' ? ' ' + (index + 1) : ''));
+      input.className=field==='name'?'hc-name':'hc-students';input.type=field==='name'?'text':'number';
+      input.value=item[field];input.setAttribute('aria-label',typeLabel+' — כיתה '+(index+1)+' — '+title);
+      if(field==='students'){input.min='0';input.step='1';input.placeholder='0';}
+      else input.placeholder="לדוגמה: א׳1";
+      input.oninput=()=>{collectHanamClassDetails(k);recalcTotals();markDirty();};
+      label.append(input);row.append(label);
+    }
+    host.append(row);
+  });
+}
+function updateHanamClassSummary(k, minimum) {
+  collectHanamClassDetails(k);
+  const count = document.getElementById('gi_hanam_' + k + '_count').value;
+  const input = document.getElementById('gi_hanam_' + k + '_students');
+  const summary = summarizeHanamClasses(appData.hanam?.[k]?.classDetails, count, input.value, minimum);
+  input.readOnly = summary.complete;
+  if (summary.complete) input.value = String(summary.students);
+  const note=document.getElementById('hanam_' + k + '_detail_note');
+  if(note){note.hidden=!document.getElementById('gi_hanam_' + k).checked;note.textContent=summary.complete?'סך התלמידים מחושב אוטומטית מפירוט הכיתות.':'יש למלא מספר תלמידים בכל כיתה. עד להשלמת הפירוט נשמר הסכום הכולל הקיים.';}
+  return summary;
+}
+
 function toggleHanamSection() {
   const cb = document.getElementById('gi_hasHanam');
   const sec = document.getElementById('hanamSection');
@@ -3570,25 +3647,13 @@ function recalcTotals() {
   let totalStudents = regularTotals.totalStudents;
   let standardClasses = regularTotals.standardClasses;
 
-  // --- חנ"מ ---
   const hasHanam = !!document.getElementById('gi_hasHanam')?.checked;
-  if (hasHanam) {
-    const hanamCats = [
-      { activeId: 'gi_hanam_ll',   countId: 'gi_hanam_ll_count',   studentsId: 'gi_hanam_ll_students',   min: HANAM_LL_KVCH_MIN },
-      { activeId: 'gi_hanam_kvch', countId: 'gi_hanam_kvch_count', studentsId: 'gi_hanam_kvch_students', min: HANAM_LL_KVCH_MIN },
-      { activeId: 'gi_hanam_tik',  countId: 'gi_hanam_tik_count',  studentsId: 'gi_hanam_tik_students',  min: HANAM_TIK_MIN }
-    ];
-    hanamCats.forEach(cat => {
-      const active = !!document.getElementById(cat.activeId)?.checked;
-      if (!active) return;
-      const students = parseInt(document.getElementById(cat.studentsId)?.value, 10);
-      const classes  = parseInt(document.getElementById(cat.countId)?.value, 10);
-      if (!isNaN(students)) totalStudents += students;
-      if (!isNaN(students) && !isNaN(classes) && students >= cat.min) {
-        standardClasses += classes;
-      }
-    });
-  }
+  ['ll','kvch','tik'].forEach(k => {
+    const totals = updateHanamClassSummary(k, k === 'tik' ? HANAM_TIK_MIN : HANAM_LL_KVCH_MIN);
+    if (!hasHanam || !document.getElementById('gi_hanam_' + k)?.checked) return;
+    totalStudents += totals.students;
+    standardClasses += totals.standardClasses;
+  });
 
   const totalEl = document.getElementById('calcTotalStudents');
   const stdEl   = document.getElementById('calcStandardClasses');
@@ -3670,9 +3735,10 @@ function collectFormDataBase() {
     if (!appData.hanam || typeof appData.hanam !== 'object')
       appData.hanam = { hasHanam: false, ll: { active: false, count: '', students: '' }, kvch: { active: false, count: '', students: '' }, tik: { active: false, count: '', students: '' } };
     appData.hanam.hasHanam = hasHanamEl.checked;
-    appData.hanam.ll   = { active: !!document.getElementById('gi_hanam_ll')?.checked,   count: val('gi_hanam_ll_count'),   students: val('gi_hanam_ll_students')   };
-    appData.hanam.kvch = { active: !!document.getElementById('gi_hanam_kvch')?.checked, count: val('gi_hanam_kvch_count'), students: val('gi_hanam_kvch_students') };
-    appData.hanam.tik  = { active: !!document.getElementById('gi_hanam_tik')?.checked,  count: val('gi_hanam_tik_count'),  students: val('gi_hanam_tik_students')  };
+    ['ll','kvch','tik'].forEach(k => {
+      collectHanamClassDetails(k);
+      appData.hanam[k] = {...appData.hanam[k], active: !!document.getElementById('gi_hanam_' + k)?.checked, count: val('gi_hanam_' + k + '_count'), students: val('gi_hanam_' + k + '_students')};
+    });
   }
 
   const ss = appData.statusSnapshot;
@@ -4006,7 +4072,7 @@ function _applyLoadedData(payload) {
   const hasHanamEl = document.getElementById('gi_hasHanam');
   if (hasHanamEl) {
     hasHanamEl.checked = !!hanam.hasHanam;
-    toggleHanamSection();
+    document.getElementById('hanamSection').style.display = hasHanamEl.checked ? 'block' : 'none';
   }
   const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
   setCheck('gi_hanam_ll',   hanam.ll?.active);
@@ -4015,9 +4081,10 @@ function _applyLoadedData(payload) {
   setVal('gi_hanam_ll_count',   hanam.ll?.count   || '');
   setVal('gi_hanam_kvch_count', hanam.kvch?.count || '');
   setVal('gi_hanam_tik_count',  hanam.tik?.count  || '');
-  setVal('gi_hanam_ll_students',   hanam.ll?.students   || '');
-  setVal('gi_hanam_kvch_students', hanam.kvch?.students || '');
-  setVal('gi_hanam_tik_students',  hanam.tik?.students  || '');
+  setVal('gi_hanam_ll_students',   hanam.ll?.students   ?? '');
+  setVal('gi_hanam_kvch_students', hanam.kvch?.students ?? '');
+  setVal('gi_hanam_tik_students',  hanam.tik?.students  ?? '');
+  ['ll','kvch','tik'].forEach(k => renderHanamClassDetails(k, false));
 
   renderClassCountRows();
   setCheck('gi_manualStudents', appData.manualStudents);
@@ -9740,7 +9807,7 @@ Object.assign(window, {
   switchSection, switchArena, switchQuarter,
   markDirty, showSaveToast, confirmSaved,
   onSchoolNameInput, onArenaLabelChange, onYearInput,
-  toggleHanamSection,
+  toggleHanamSection, renderHanamClassDetails,
   addClassCountRow, removeClassCountRow, recalcTotals, toggleManualStudents,
   addStaffRow, removeStaffRow,
   addFocusArea, removeFocusArea,
