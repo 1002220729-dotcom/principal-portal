@@ -848,11 +848,12 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
           <button class="sm-tab" onclick="switchSMTab('staffAuth',this)">🔐 סיסמאות צוות</button>
         </div>
         <div id="smPanelStaff">
-          <button class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
+          <div id="staffPermStatus" role="status" aria-live="polite" style="margin-bottom:12px;color:#64748b;font-size:.85rem"></div>
+          <button id="staffPermAdd" class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
           <table class="perm-table" id="staffPermTable">
             <tbody id="staffPermTbody"></tbody>
           </table>
-          <button class="sup-save-btn" onclick="saveStaffPermissions()">💾 שמור הרשאות</button>
+          <button id="staffPermSave" class="sup-save-btn" onclick="saveStaffPermissions()">💾 שמור הרשאות</button>
         </div>
         <div id="smPanelPrincipals" style="display:none;">
           <button class="perm-add-row" onclick="addPrincipalRow()">+ הוסף מנהל</button>
@@ -2087,46 +2088,57 @@ window.smCheckPassword = function() {
 //  STAFF PERMISSIONS PANEL
 // ═══════════════════════════════════════════════════════
 let _staffRows = [];
+let _staffPermLoadId = 0, _staffPermBusy = false;
+
+function setStaffPermissionStatus(message, busy = false) {
+  _staffPermBusy = busy;
+  const status = document.getElementById('staffPermStatus');
+  if (status) status.textContent = message;
+  ['staffPermAdd','staffPermSave'].forEach(id => { const button=document.getElementById(id);if(button)button.disabled=busy; });
+}
 
 async function loadStaffPermissions() {
   const session = getPortalSession();
-  if (!session) return;
-
+  if (!session) return false;
   const school = PS.school || session.school || '';
-  const year   = PS.year   || session.year   || new Date().getFullYear().toString();
-
-  if (!school || !year) return;
-
+  const year = PS.year || session.year || '';
+  if (!school || !year) { setStaffPermissionStatus('יש לבחור בית ספר ושנת לימודים כדי לראות את ההרשאות.'); return false; }
+  const loadId = ++_staffPermLoadId;
+  setStaffPermissionStatus('טוען את אנשי הצוות וההרשאות שנשמרו…', true);
   try {
-    const [staffRes, principalsRes] = await Promise.all([
-      authFetch(`${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`, { cache:'no-store' }),
-      authFetch(`${WORKER_URL_AUTH}/api/principals/list`, { cache:'no-store' })
-    ]);
-    const staffData      = await staffRes.json();
-    const principalsData = await principalsRes.json();
-    const staffRows      = (Array.isArray(staffData) ? staffData : []).map(r => ({ ...r, _type: 'staff' }));
-    const principalRows  = (Array.isArray(principalsData) ? principalsData : []).map(r => ({ ...r, _type: 'principal' }));
-    _staffRows = [...principalRows, ...staffRows];
+    // Principal records belong to their own systemadmin-only tab. A denied
+    // principal-list request must never discard the authorized staff list.
+    const res = await authFetch(
+      `${WORKER_URL_AUTH}/api/staff/list?school=${encodeURIComponent(school)}&year=${encodeURIComponent(year)}`,
+      { cache:'no-store' });
+    if (!res.ok) throw new Error('staff-list-failed');
+    const data = await res.json();
+    if (!Array.isArray(data)) throw new Error('invalid-staff-list');
+    if (loadId !== _staffPermLoadId) return false;
+    _staffRows = data.map(row => ({ ...row, _type:'staff' }));
+    setStaffPermissionStatus(_staffRows.length ? `אנשי צוות עם הרשאות שנשמרו: ${_staffRows.length}` : 'אין עדיין הרשאות צוות שנשמרו לבית הספר ולשנה שנבחרו.');
+    renderStaffTable();
+    return true;
   } catch {
-    _staffRows = [];
+    if (loadId !== _staffPermLoadId) return false;
+    setStaffPermissionStatus('לא ניתן לטעון את ההרשאות כרגע. סגור ופתח שוב את המסך כדי לנסות מחדש.');
+    // Keep any already displayed records/drafts on a failed reload.
+    renderStaffTable();
+    return false;
   }
-  renderStaffTable();
 }
 
 async function openStaffPermissions() {
-  const session = getPortalSession();
-  if (!session) return;
+  if (!getPortalSession()) return;
   _staffRows = [];
-
-  // Open modal immediately — don't block on network
+  setStaffPermissionStatus('טוען את אנשי הצוות וההרשאות שנשמרו…', true);
   renderStaffTable();
   document.getElementById('staffPermModal').style.display = 'block';
-
-  // Then fetch existing staff + principals
   await loadStaffPermissions();
 }
 
 function closeStaffPermissions() {
+  ++_staffPermLoadId;
   document.getElementById('staffPermModal').style.display = 'none';
 }
 
@@ -2137,7 +2149,7 @@ function renderStaffTable() {
   if (_staffRows.length === 0) {
     tbody.innerHTML = `<tr><td colspan="2"
       style="text-align:center;color:#94a3b8;padding:24px;font-size:0.85rem;">
-      אין אנשי צוות — לחץ ＋ הוסף איש צוות
+      ${_staffPermBusy ? 'טוען…' : 'להוספת הרשאה לחץ ＋ הוסף איש צוות'}
     </td></tr>`;
     return;
   }
@@ -2205,6 +2217,7 @@ function setPermission(rowIdx, sectionId, value, btn) {
 }
 
 function addStaffRow() {
+  if (_staffPermBusy) return;
   const perms = {};
   SECTION_LIST.forEach(s => perms[s] = 'none');
   _staffRows.push({ email:'', name:'', roleTitle:'', permissions: perms, _type:'staff' });
@@ -2235,25 +2248,35 @@ async function deleteStaffRow(i) {
 
 async function saveStaffPermissions() {
   const session = getPortalSession();
-  if (!session) return;
-  let ok = 0, fail = 0;
-  for (const row of _staffRows) {
-    if (!row.email) continue;
-    if (row._type === 'principal' || row.role === 'principal') continue;
+  if (!session || _staffPermBusy) return;
+  const school = PS.school || session.school || '', year = PS.year || session.year || '';
+  if (!school || !year) { setStaffPermissionStatus('יש לבחור בית ספר ושנת לימודים לפני השמירה.'); return; }
+  // Read identity fields even when a keyboard save does not blur the input.
+  document.querySelectorAll('#staffPermTbody .perm-staff-row').forEach((tr, i) => {
+    const inputs=tr.querySelectorAll('.perm-input'), row=_staffRows[i];
+    if (row && inputs.length === 3) {row.email=inputs[0].value.trim();row.name=inputs[1].value;row.roleTitle=inputs[2].value;}
+  });
+  const rows = _staffRows.filter(row => row._type !== 'principal' && row.role !== 'principal');
+  if (!rows.length) { setStaffPermissionStatus('אין הרשאות חדשות או מעודכנות לשמירה.'); return; }
+  if (rows.some(row => !String(row.email || '').trim())) { setStaffPermissionStatus('יש למלא אימייל בכל שורת צוות לפני השמירה.'); return; }
+  setStaffPermissionStatus('שומר את הרשאות הצוות…', true);
+  let ok=0, fail=0;
+  for (const row of rows) {
     try {
       const res = await authFetch(`${WORKER_URL_AUTH}/api/staff-permissions`, {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          email: row.email, name: row.name, roleTitle: row.roleTitle||row.role_title||'',
-          school: PS.school||session.school||'', year: PS.year||session.year||new Date().getFullYear().toString(),
-          permissions: row.permissions,
-        }),
+        body:JSON.stringify({email:row.email,name:row.name,roleTitle:row.roleTitle||row.role_title||'',school,year,permissions:row.permissions})
       });
       if (res.ok) ok++; else fail++;
     } catch { fail++; }
   }
-  toast(`✅ ${ok} הרשאות נשמרו${fail?` · ❌ ${fail} נכשלו`:''}`, ok>0?'ok':'err');
-  closeStaffPermissions();
+  if (fail) {
+    setStaffPermissionStatus(`${ok} הרשאות נשמרו; ${fail} לא נשמרו. הפרטים נשארו במסך כדי שתוכל לנסות שוב.`);
+    toast('❌ חלק מההרשאות לא נשמרו', 'err');
+    return;
+  }
+  toast(`✅ ${ok} הרשאות נשמרו`, 'ok');
+  if (!await loadStaffPermissions()) setStaffPermissionStatus('ההרשאות נשמרו, אך רענון הרשימה נכשל. הפרטים נשארו במסך; סגור ופתח שוב כדי לבדוק את הרשימה.');
 }
 
 // SM TAB SWITCHING
