@@ -397,6 +397,16 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 .sup-modal-body{padding:24px 28px;overflow-y:auto;flex:1;}
 
 .perm-table{width:100%;border-collapse:collapse;}
+.staff-table-wrap{max-width:100%;overflow-x:auto;margin-bottom:16px;}
+.perm-staff-table{table-layout:fixed;min-width:560px;}
+.perm-staff-table td{overflow-wrap:anywhere;}
+.perm-staff-table .staff-email{display:inline-block;max-width:100%;direction:ltr;font-size:.78rem;}
+.staff-perm-summary{font-size:.72rem;color:#64748b;margin-top:4px;}
+.perm-staff-editor>td{padding:0!important;}
+.staff-perm-editor-body{padding:16px;background:#f8fafc;}
+.staff-perm-editor-title{font-size:.85rem;font-weight:700;color:var(--primary);margin-bottom:12px;}
+.staff-perm-editor-body .perm-identity label{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;font-size:.76rem;color:#64748b;}
+.staff-perm-editor-body .perm-input{width:100%;min-width:0;}
 .perm-staff-row{border-bottom:2px solid var(--border);}
 .perm-staff-row:last-child{border-bottom:none;}
 .perm-identity-cell{padding:16px 0;}
@@ -850,9 +860,13 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
         <div id="smPanelStaff">
           <div id="staffPermStatus" role="status" aria-live="polite" style="margin-bottom:12px;color:#64748b;font-size:.85rem"></div>
           <button id="staffPermAdd" class="perm-add-row" onclick="addStaffRow()">＋ הוסף איש צוות</button>
-          <table class="perm-table" id="staffPermTable">
-            <tbody id="staffPermTbody"></tbody>
-          </table>
+          <div class="staff-table-wrap">
+            <table class="sa-table perm-staff-table" id="staffPermTable" aria-label="אנשי צוות עם הרשאות דרך אימייל">
+              <colgroup><col style="width:24%"><col style="width:30%"><col style="width:16%"><col style="width:20%"><col style="width:10%"></colgroup>
+              <thead><tr><th scope="col">שם מלא</th><th scope="col">אימייל</th><th scope="col">תפקיד</th><th scope="col">הרשאות</th><th scope="col">פעולות</th></tr></thead>
+              <tbody id="staffPermTbody"></tbody>
+            </table>
+          </div>
           <button id="staffPermSave" class="sup-save-btn" onclick="saveStaffPermissions()">💾 שמור הרשאות</button>
         </div>
         <div id="smPanelPrincipals" style="display:none;">
@@ -2089,6 +2103,7 @@ window.smCheckPassword = function() {
 // ═══════════════════════════════════════════════════════
 let _staffRows = [];
 let _staffPermLoadId = 0, _staffPermBusy = false;
+let _staffPermOpenRow = null;
 
 function setStaffPermissionStatus(message, busy = false) {
   _staffPermBusy = busy;
@@ -2116,6 +2131,7 @@ async function loadStaffPermissions() {
     if (!Array.isArray(data)) throw new Error('invalid-staff-list');
     if (loadId !== _staffPermLoadId) return false;
     _staffRows = data.map(row => ({ ...row, _type:'staff' }));
+    _staffPermOpenRow = null;
     setStaffPermissionStatus(_staffRows.length ? `אנשי צוות עם הרשאות שנשמרו: ${_staffRows.length}` : 'אין עדיין הרשאות צוות שנשמרו לבית הספר ולשנה שנבחרו.');
     renderStaffTable();
     return true;
@@ -2131,6 +2147,7 @@ async function loadStaffPermissions() {
 async function openStaffPermissions() {
   if (!getPortalSession()) return;
   _staffRows = [];
+  _staffPermOpenRow = null;
   setStaffPermissionStatus('טוען את אנשי הצוות וההרשאות שנשמרו…', true);
   renderStaffTable();
   document.getElementById('staffPermModal').style.display = 'block';
@@ -2142,12 +2159,34 @@ function closeStaffPermissions() {
   document.getElementById('staffPermModal').style.display = 'none';
 }
 
+function collectStaffIdentityFields() {
+  document.querySelectorAll('#staffPermTbody .perm-staff-editor').forEach(tr => {
+    const row=_staffRows[Number(tr.dataset.staffIndex)], inputs=tr.querySelectorAll('.perm-input');
+    if (row && inputs.length===3) {row.email=inputs[0].value.trim();row.name=inputs[1].value;row.roleTitle=inputs[2].value;}
+  });
+}
+
+function staffPermissionSummary(row) {
+  const values=SECTION_LIST.map(id => row.permissions?.[id]), parts=[];
+  const view=values.filter(value=>value==='view').length, edit=values.filter(value=>value==='edit').length;
+  if (view) parts.push(`${view} צפייה`);
+  if (edit) parts.push(`${edit} עריכה`);
+  return parts.join(' · ') || 'ללא גישה';
+}
+
+function toggleStaffPermissionEditor(i) {
+  if (_staffPermBusy || !_staffRows[i]) return;
+  collectStaffIdentityFields();
+  _staffPermOpenRow = _staffPermOpenRow===i ? null : i;
+  renderStaffTable();
+}
+
 function renderStaffTable() {
   if (!Array.isArray(_staffRows)) _staffRows = [];
   const tbody = document.getElementById('staffPermTbody');
 
   if (_staffRows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="2"
+    tbody.innerHTML = `<tr><td colspan="5"
       style="text-align:center;color:#94a3b8;padding:24px;font-size:0.85rem;">
       ${_staffPermBusy ? 'טוען…' : 'להוספת הרשאה לחץ ＋ הוסף איש צוות'}
     </td></tr>`;
@@ -2156,6 +2195,17 @@ function renderStaffTable() {
 
   tbody.innerHTML = _staffRows.map((row, i) => {
     const perms = row.permissions || {};
+    const open = _staffPermOpenRow===i;
+    const summary = `<tr class="perm-staff-row" id="perm-row-${i}">
+      <td><strong>${esc(row.name || '—')}</strong></td>
+      <td><span class="staff-email" dir="ltr">${esc(row.email || '—')}</span></td>
+      <td>${esc(row.roleTitle || row.role_title || '—')}</td>
+      <td><button type="button" class="sa-btn" aria-expanded="${open}" aria-controls="staff-perm-editor-${i}"
+        onclick="toggleStaffPermissionEditor(${i})">✏️ הרשאות</button>
+        <div id="staff-perm-summary-${i}" class="staff-perm-summary">${staffPermissionSummary(row)}</div></td>
+      <td><button type="button" class="sa-btn danger" onclick="deleteStaffRow(${i})">🗑 הסר</button></td>
+    </tr>`;
+    if (!open) return summary;
 
     // Build groups HTML
     const groupsHTML = SECTION_GROUPS.map(g => `
@@ -2180,28 +2230,32 @@ function renderStaffTable() {
         </div>
       </div>`).join('');
 
-    return `
-      <tr class="perm-staff-row" id="perm-row-${i}">
-        <td class="perm-identity-cell">
+    return summary + `
+      <tr class="perm-staff-editor" data-staff-index="${i}" id="staff-perm-editor-${i}">
+        <td colspan="5"><div class="staff-perm-editor-body">
+          <div class="staff-perm-editor-title">פרטים והרשאות — ${esc(row.name || row.email || 'איש צוות חדש')}</div>
           <div class="perm-identity">
+            <label>אימייל
             <input type="email" value="${esc(row.email||'')}"
-              placeholder="אימייל"
+              placeholder="אימייל" aria-label="אימייל" dir="ltr"
               onchange="_staffRows[${i}].email=this.value"
-              class="perm-input perm-email">
+              class="perm-input perm-email"></label>
+            <label>שם מלא
             <input type="text" value="${esc(row.name||'')}"
-              placeholder="שם מלא"
+              placeholder="שם מלא" aria-label="שם מלא"
               onchange="_staffRows[${i}].name=this.value"
-              class="perm-input">
-            <input type="text" value="${esc(row.role_title||row.roleTitle||'')}"
-              placeholder="תפקיד"
+              class="perm-input"></label>
+            <label>תפקיד
+            <input type="text" value="${esc(row.roleTitle||row.role_title||'')}"
+              placeholder="תפקיד" aria-label="תפקיד"
               onchange="_staffRows[${i}].roleTitle=this.value"
-              class="perm-input">
-            <button class="perm-del" onclick="deleteStaffRow(${i})" title="הסר">🗑 הסר</button>
+              class="perm-input"></label>
           </div>
           <div class="perm-sections-grid">
             ${groupsHTML}
           </div>
-        </td>
+          <button type="button" class="sa-btn" style="margin-top:12px" onclick="toggleStaffPermissionEditor(${i})">סגור פירוט</button>
+        </div></td>
       </tr>`;
   }).join('');
 }
@@ -2214,17 +2268,23 @@ function setPermission(rowIdx, sectionId, value, btn) {
   const wrap = btn.closest('.perm-toggle-wrap');
   wrap.querySelectorAll('.perm-btn').forEach(b => b.classList.remove('perm-btn-active'));
   btn.classList.add('perm-btn-active');
+  const summary=document.getElementById(`staff-perm-summary-${rowIdx}`);
+  if (summary) summary.textContent=staffPermissionSummary(_staffRows[rowIdx]);
 }
 
 function addStaffRow() {
   if (_staffPermBusy) return;
+  collectStaffIdentityFields();
   const perms = {};
   SECTION_LIST.forEach(s => perms[s] = 'none');
   _staffRows.push({ email:'', name:'', roleTitle:'', permissions: perms, _type:'staff' });
+  _staffPermOpenRow = _staffRows.length-1;
   renderStaffTable();
 }
 
 async function deleteStaffRow(i) {
+  if (_staffPermBusy) return;
+  collectStaffIdentityFields();
   const row = _staffRows[i];
   if (!row) return;
 
@@ -2243,6 +2303,8 @@ async function deleteStaffRow(i) {
   }
 
   _staffRows.splice(i, 1);
+  if (_staffPermOpenRow===i) _staffPermOpenRow=null;
+  else if (_staffPermOpenRow>i) _staffPermOpenRow--;
   renderStaffTable();
 }
 
@@ -2252,10 +2314,7 @@ async function saveStaffPermissions() {
   const school = PS.school || session.school || '', year = PS.year || session.year || '';
   if (!school || !year) { setStaffPermissionStatus('יש לבחור בית ספר ושנת לימודים לפני השמירה.'); return; }
   // Read identity fields even when a keyboard save does not blur the input.
-  document.querySelectorAll('#staffPermTbody .perm-staff-row').forEach((tr, i) => {
-    const inputs=tr.querySelectorAll('.perm-input'), row=_staffRows[i];
-    if (row && inputs.length === 3) {row.email=inputs[0].value.trim();row.name=inputs[1].value;row.roleTitle=inputs[2].value;}
-  });
+  collectStaffIdentityFields();
   const rows = _staffRows.filter(row => row._type !== 'principal' && row.role !== 'principal');
   if (!rows.length) { setStaffPermissionStatus('אין הרשאות חדשות או מעודכנות לשמירה.'); return; }
   if (rows.some(row => !String(row.email || '').trim())) { setStaffPermissionStatus('יש למלא אימייל בכל שורת צוות לפני השמירה.'); return; }
