@@ -57,6 +57,70 @@ test('multiple weekdays, leap days and DST boundaries use calendar days without 
     ['2028-02-28', '2028-02-29', '2028-03-01']);
 });
 
+test('two, three, four and custom week intervals keep the requested weekday and exact spacing', () => {
+  const f = fixture();
+  for (const [interval, count] of [[2, 22], [3, 15], [4, 11], [6, 8]]) {
+    const dates = plain(f.context.recurringMeetingDates('2026-09-01', '2027-06-30', [2], interval));
+    assert.equal(dates.length, count); assert.equal(dates[0], '2026-09-01');
+    assert.ok(dates.every(date => new Date(date + 'T00:00:00Z').getUTCDay() === 2));
+    for (let i = 1; i < dates.length; i++) assert.equal(Date.parse(dates[i]) - Date.parse(dates[i - 1]), interval * 7 * 86400000);
+  }
+});
+
+test('selected days share active Sunday-to-Saturday weeks, including partial first weeks and year boundaries', () => {
+  const f = fixture();
+  assert.deepEqual(plain(f.context.recurringMeetingDates('2026-09-01', '2026-09-30', [2, 4], 2)),
+    ['2026-09-01', '2026-09-03', '2026-09-15', '2026-09-17', '2026-09-29']);
+  assert.deepEqual(plain(f.context.recurringMeetingDates('2026-09-03', '2026-09-30', [2], 2)),
+    ['2026-09-08', '2026-09-22']);
+  assert.deepEqual(plain(f.context.recurringMeetingDates('2026-09-03', '2026-09-30', [2, 4], 2)),
+    ['2026-09-03', '2026-09-15', '2026-09-17', '2026-09-29']);
+  assert.deepEqual(plain(f.context.recurringMeetingDates('2026-12-27', '2027-01-30', [0, 6], 2)),
+    ['2026-12-27', '2027-01-02', '2027-01-10', '2027-01-16', '2027-01-24', '2027-01-30']);
+});
+
+test('changing the frequency updates the preview and stores the interval; deletion does not shift the remaining series', () => {
+  const f = fixture(); f.draft(); f.set('meetModalInterval', '2'); f.context.updateMeetingRecurrencePreview();
+  assert.match(f.elements.get('meetRecurrencePreview').textContent, /22 פגישות/);
+  f.context.saveMeetingModal(); const before = f.events();
+  assert.equal(before.length, 22); assert.ok(before.every(event => event.recurrence.intervalWeeks === 2));
+  f.context.deleteMeeting(before[4].id);
+  const expected = before.filter(event => event.id !== before[4].id);
+  f.context.reloaded = f.messages.at(-1).payload; vm.runInContext('_applyPortalData(reloaded)', f.context);
+  assert.deepEqual(f.events(), expected);
+  f.context.openMeetingModal(before[0].id); f.set('meetModalLocation', 'חדר חדש'); f.context.saveMeetingModal();
+  assert.equal(f.events()[0].recurrence.intervalWeeks, 2);
+  assert.deepEqual(f.events().slice(1), expected.slice(1));
+});
+
+test('custom frequency validates whole positive weeks without saving invalid drafts, and resets for a new meeting', () => {
+  const f = fixture();
+  for (const invalid of [0, -1, 1.5, NaN, Infinity, '2', Number.MAX_SAFE_INTEGER + 1])
+    assert.throws(() => f.context.recurringMeetingDates('2026-09-01', '2027-06-30', [2], invalid));
+  for (const invalid of ['', '0', '-2', '2.5', 'abc']) {
+    f.draft(); f.set('meetModalInterval', 'custom'); f.set('meetModalIntervalCustom', invalid);
+    f.context.updateMeetingRecurrencePreview(); f.context.saveMeetingModal();
+    assert.deepEqual(f.events(), []); assert.match(f.elements.get('meetRecurrencePreview').textContent, /מספר שבועות שלם/);
+  }
+  assert.equal(f.messages.filter(m => m.type === 'save-request').length, 0);
+  f.set('meetModalIntervalCustom', '6'); f.context.updateMeetingRecurrencePreview();
+  assert.equal(f.elements.get('meetModalIntervalCustomWrap').hidden, false);
+  assert.match(f.elements.get('meetRecurrencePreview').textContent, /8 פגישות/); f.context.saveMeetingModal();
+  assert.equal(f.events().length, 8); assert.ok(f.events().every(event => event.recurrence.intervalWeeks === 6));
+  f.context.openMeetingModal(null, '2026-09-01'); assert.equal(f.elements.get('meetModalInterval').value, '1');
+  assert.equal(f.elements.get('meetModalIntervalCustomWrap').hidden, true);
+  f.context._applyReadOnly(true); assert.equal(f.elements.get('meetModalInterval').disabled, true);
+  assert.equal(f.elements.get('meetModalIntervalCustom').disabled, true);
+});
+
+test('existing weekly series without interval metadata remain editable without being rescheduled', () => {
+  const legacy = { id: 'legacy', title: 'סדרה קיימת', date: '2026-09-01', timeStart: '09:00', timeEnd: '10:00',
+    recurrence: { seriesId: 'old', startDate: '2026-09-01', endDate: '2027-06-30', weekdays: [2] } };
+  const f = fixture([legacy]); f.context.openMeetingModal('legacy'); f.set('meetModalLocation', 'חדר אחר'); f.context.saveMeetingModal();
+  assert.equal(f.events().length, 1); assert.equal(f.events()[0].date, legacy.date);
+  assert.deepEqual(f.events()[0].recurrence, legacy.recurrence);
+});
+
 test('invalid, inverted, empty and excessive schedules are rejected before any calendar change', () => {
   const f = fixture();
   for (const args of [ ['2026-02-30', '2026-03-10', [2]], ['', '2026-09-01', [2]],
