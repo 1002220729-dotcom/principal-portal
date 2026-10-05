@@ -117,6 +117,15 @@ body {
 .form-group textarea { resize:vertical; }
 .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
 .form-full { grid-column:1/-1; }
+.meeting-repeat-box { padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--primary-soft); }
+.meeting-repeat-box[hidden], #meetRecurrenceOptions[hidden], #meetRecurrenceOccurrence[hidden] { display:none; }
+.meeting-repeat-toggle { display:flex; align-items:center; gap:8px; color:var(--primary); font-weight:700; }
+.meeting-repeat-days { display:flex; flex-wrap:wrap; gap:8px; }
+.meeting-repeat-days label { display:flex; align-items:center; gap:5px; padding:7px 9px; background:var(--card); border:1px solid var(--border); border-radius:6px; cursor:pointer; }
+.meeting-repeat-hint { font-size:0.78rem; color:var(--text-muted); line-height:1.6; }
+#meetingModal .form-group { min-width:0; }
+#meetingModal input[type="date"], #meetingModal input[type="time"] { width:100%; min-width:0; }
+@media(max-width:480px) { #meetingModal .form-grid { grid-template-columns:minmax(0,1fr); } }
 .btn { padding:7px 16px; border-radius:var(--radius); font-family:var(--font); font-size:0.82rem; font-weight:700; cursor:pointer; border:none; transition:all .15s; }
 .btn:hover { opacity:.88; }
 .btn-save    { background:var(--primary); color:#fff; }
@@ -525,8 +534,8 @@ body.readonly-mode #meetingModal textarea {
           <textarea rows="2" id="meetModalTitleInput" placeholder="ישיבת צוות / סיור הנהלה..."></textarea>
         </div>
         <div class="form-group">
-          <label>תאריך *</label>
-          <input type="date" id="meetModalDate">
+          <label for="meetModalDate" id="meetModalDateLabel">תאריך *</label>
+          <input type="date" id="meetModalDate" onchange="updateMeetingRecurrencePreview()">
         </div>
         <div class="form-group">
           <label>סוג</label>
@@ -546,6 +555,32 @@ body.readonly-mode #meetingModal textarea {
           <label>שעת סיום</label>
           <input type="time" id="meetModalTimeEnd">
         </div>
+        <div id="meetRecurrenceCreateControls" class="form-group form-full meeting-repeat-box">
+          <label class="meeting-repeat-toggle" for="meetModalRepeat">
+            <input type="checkbox" id="meetModalRepeat" onchange="updateMeetingRecurrencePreview()"> פגישה חוזרת מדי שבוע
+          </label>
+          <div id="meetRecurrenceOptions" hidden>
+            <div class="form-group" style="margin:10px 0">
+              <label for="meetModalRepeatUntil">עד תאריך (כולל) *</label>
+              <input type="date" id="meetModalRepeatUntil" onchange="updateMeetingRecurrencePreview()">
+            </div>
+            <fieldset style="border:0;margin-bottom:8px">
+              <legend style="font-size:0.8rem;font-weight:700;margin-bottom:8px">ימי הפגישות *</legend>
+              <div id="meetRecurrenceDays" class="meeting-repeat-days">
+                <label><input type="checkbox" value="0" onchange="updateMeetingRecurrencePreview()">יום א׳</label>
+                <label><input type="checkbox" value="1" onchange="updateMeetingRecurrencePreview()">יום ב׳</label>
+                <label><input type="checkbox" value="2" onchange="updateMeetingRecurrencePreview()">יום ג׳</label>
+                <label><input type="checkbox" value="3" onchange="updateMeetingRecurrencePreview()">יום ד׳</label>
+                <label><input type="checkbox" value="4" onchange="updateMeetingRecurrencePreview()">יום ה׳</label>
+                <label><input type="checkbox" value="5" onchange="updateMeetingRecurrencePreview()">יום ו׳</label>
+                <label><input type="checkbox" value="6" onchange="updateMeetingRecurrencePreview()">שבת</label>
+              </div>
+            </fieldset>
+            <p id="meetRecurrencePreview" class="meeting-repeat-hint" role="status" aria-live="polite"></p>
+            <p class="meeting-repeat-hint">שעות ההתחלה והסיום יחולו על כל הפגישות. ניתן לערוך או למחוק כל פגישה בנפרד, למשל בזמן חופשה.</p>
+          </div>
+        </div>
+        <p id="meetRecurrenceOccurrence" class="form-full meeting-repeat-hint" hidden>פגישה זו היא חלק מסדרה. עריכה או מחיקה כאן יחולו רק על פגישה זו.</p>
         <div class="form-group">
           <label>עדיפות</label>
           <select id="meetModalPriority">
@@ -1340,6 +1375,53 @@ function renderMeetingByPeriod() {
 // ════════════════════════════════════════════════════════════
 // ── MODAL ──
 // ════════════════════════════════════════════════════════════
+// Calendar dates use UTC only for day arithmetic; meeting hours stay local strings.
+// Materialized occurrences are never regenerated on load, so deleting one is durable.
+function recurringMeetingDates(startDate, endDate, weekdays) {
+  function parse(value) {
+    if (!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(value || '')) throw new Error('נא לבחור תאריכי התחלה וסיום תקינים');
+    const date = new Date(value + 'T00:00:00Z');
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0,10) !== value)
+      throw new Error('נא לבחור תאריכי התחלה וסיום תקינים');
+    return date;
+  }
+  const first = parse(startDate), last = parse(endDate);
+  if (last < first) throw new Error('תאריך הסיום חייב להיות בתאריך ההתחלה או אחריו');
+  if (last - first > 366 * 5 * 86400000) throw new Error('ניתן ליצור סדרה לטווח של עד חמש שנים');
+  if (!Array.isArray(weekdays) || !weekdays.length || weekdays.some(d => !Number.isInteger(d) || d < 0 || d > 6))
+    throw new Error('נא לבחור לפחות יום אחד בשבוע');
+  const selected = new Set(weekdays), dates = [];
+  for (const day = new Date(first); day <= last; day.setUTCDate(day.getUTCDate() + 1)) {
+    if (selected.has(day.getUTCDay())) dates.push(day.toISOString().slice(0,10));
+  }
+  if (!dates.length) throw new Error('אין פגישות בימים שנבחרו בטווח התאריכים הזה');
+  if (dates.length > 1000) throw new Error('ניתן ליצור עד 1,000 פגישות בסדרה; בחר טווח קצר יותר');
+  return dates;
+}
+
+function meetingRecurrenceWeekdays() {
+  return Array.from(document.querySelectorAll('#meetRecurrenceDays input:checked'), el => Number(el.value));
+}
+
+function updateMeetingRecurrencePreview() {
+  const options = document.getElementById('meetRecurrenceOptions');
+  if (!options) return;
+  const repeating = !document.getElementById('meetModalId').value && document.getElementById('meetModalRepeat').checked;
+  options.hidden = !repeating;
+  document.getElementById('meetModalDateLabel').textContent = repeating ? 'מתאריך (כולל) *' : 'תאריך *';
+  const save = document.querySelector('#meetingModal .btn-save');
+  if (save) save.textContent = '💾 שמור';
+  if (!repeating) return;
+  const preview = document.getElementById('meetRecurrencePreview');
+  try {
+    const dates = recurringMeetingDates(document.getElementById('meetModalDate').value,
+      document.getElementById('meetModalRepeatUntil').value, meetingRecurrenceWeekdays());
+    preview.textContent = dates.length === 1 ? `תיווצר פגישה אחת בתאריך ${formatDate(dates[0])}.` :
+      `ייווצרו ${dates.length} פגישות, מ־${formatDate(dates[0])} עד ${formatDate(dates.at(-1))}.`;
+    if (save) save.textContent = dates.length === 1 ? '💾 צור פגישה' : `💾 צור ${dates.length} פגישות`;
+  } catch (error) { preview.textContent = error.message; }
+}
+
 function openMeetingModal(id, dateStr) {
   // יצירת פגישה חדשה חסומה לגמרי במצב צפייה בלבד; עריכת פגישה קיימת
   // עדיין נפתחת כדי לאפשר צפייה בפרטים, אבל בתצוגה מושבתת (ראה למטה).
@@ -1365,6 +1447,16 @@ function openMeetingModal(id, dateStr) {
   document.getElementById('meetModalSummary').value      = evt?.summary    || '';
   document.getElementById('meetModalTitle').textContent  = id ? 'עריכת פגישה' : 'פגישה חדשה';
   document.getElementById('meetModalDeleteBtn').style.display = id ? 'block' : 'none';
+  const repeat = document.getElementById('meetModalRepeat');
+  if (repeat) {
+    repeat.checked = false;
+    document.getElementById('meetModalRepeatUntil').value = document.getElementById('meetModalDate').value;
+    const day = new Date(document.getElementById('meetModalDate').value + 'T00:00:00Z').getUTCDay();
+    document.querySelectorAll('#meetRecurrenceDays input').forEach(el => { el.checked = Number(el.value) === day; });
+    document.getElementById('meetRecurrenceCreateControls').hidden = !!id || _isReadOnly;
+    document.getElementById('meetRecurrenceOccurrence').hidden = !evt?.recurrence;
+    updateMeetingRecurrencePreview();
+  }
 
   const modal = document.getElementById('meetingModal');
   modal.style.display = 'flex';
@@ -1385,12 +1477,16 @@ function applyMeetingModalReadOnlyState(readOnly) {
   const fieldIds = [
     'meetModalTitleInput','meetModalDate','meetModalTimeStart','meetModalTimeEnd',
     'meetModalType','meetModalPriority','meetModalStatus','meetModalLocation',
-    'meetModalAttendees','meetModalColor','meetModalAgenda','meetModalSummary'
+    'meetModalAttendees','meetModalColor','meetModalAgenda','meetModalSummary',
+    'meetModalRepeat','meetModalRepeatUntil'
   ];
   fieldIds.forEach(fid => {
     const el = document.getElementById(fid);
     if (el) el.disabled = !!readOnly;
   });
+  document.querySelectorAll('#meetRecurrenceDays input').forEach(el => { el.disabled = !!readOnly; });
+  const repeatControls = document.getElementById('meetRecurrenceCreateControls');
+  if (repeatControls) repeatControls.hidden = !!activeId || !!readOnly;
   const saveBtn   = document.querySelector('#meetingModal .btn-save');
   const deleteBtn = document.getElementById('meetModalDeleteBtn');
   if (saveBtn)   saveBtn.style.display   = readOnly ? 'none' : '';
@@ -1412,6 +1508,7 @@ function closeMeetingModal() {
 
 function saveMeetingModal() {
   if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
+  if (_inPortal && !_dataLoadedFromServer) { showToast('נתוני היומן עדיין בטעינה; נסה שוב בעוד רגע', 'error'); return; }
   const id    = document.getElementById('meetModalId').value;
   if (allCalendarMeetings().some(e=>e.id === id && e.isFromGoogle)) return;
   const title = document.getElementById('meetModalTitleInput').value.trim();
@@ -1419,6 +1516,21 @@ function saveMeetingModal() {
 
   if (!title) { showToast('נא להזין כותרת', 'error'); return; }
   if (!date)  { showToast('נא לבחור תאריך', 'error'); return; }
+
+  const repeating = !id && !!document.getElementById('meetModalRepeat')?.checked;
+  let dates = [date], recurrence;
+  if (repeating) {
+    const timeStart = document.getElementById('meetModalTimeStart').value;
+    const timeEnd = document.getElementById('meetModalTimeEnd').value;
+    if (!safeMeetingTime(timeStart) || !safeMeetingTime(timeEnd) || timeEnd <= timeStart) {
+      showToast('נא לבחור שעת התחלה וסיום; שעת הסיום חייבת להיות אחרי שעת ההתחלה', 'error'); return;
+    }
+    const endDate = document.getElementById('meetModalRepeatUntil').value;
+    const weekdays = meetingRecurrenceWeekdays();
+    try { dates = recurringMeetingDates(date, endDate, weekdays); }
+    catch (error) { showToast(error.message, 'error'); return; }
+    recurrence = { seriesId: newId(), startDate: date, endDate, weekdays };
+  }
 
   const evt = {
     id:        id || newId(),
@@ -1448,24 +1560,27 @@ function saveMeetingModal() {
       evt.isFromGantt         = appData.meetings.events[idx].isFromGantt;
       evt.linkedPeriodId      = appData.meetings.events[idx].linkedPeriodId;
       evt.linkedGanttEventId  = appData.meetings.events[idx].linkedGanttEventId;
+      if (appData.meetings.events[idx].recurrence) evt.recurrence = appData.meetings.events[idx].recurrence;
       appData.meetings.events[idx] = evt;
     }
   } else {
-    appData.meetings.events.push(evt);
+    appData.meetings.events.push(...dates.map(occurrenceDate => ({ ...evt, id: recurrence ? recurrence.seriesId + '_' + occurrenceDate : evt.id, date: occurrenceDate,
+      ...(recurrence ? { recurrence: { ...recurrence, weekdays: [...recurrence.weekdays] } } : {}) })));
   }
 
   markDirty();
   closeMeetingModal();
   renderMeetingsCalendar();
   saveToPortal();
-  showToast(id ? 'הפגישה עודכנה ✓' : 'הפגישה נוספה ✓', 'success');
+  showToast(id ? 'הפגישה עודכנה ✓' : repeating ? `${dates.length} פגישות נוספו ✓` : 'הפגישה נוספה ✓', 'success');
 }
 
 function deleteMeeting(id) {
   if (_isReadOnly) { showToast('אין לך הרשאת עריכה ביומן זה', 'error'); return; }
   if (!id) return;
   if (allCalendarMeetings().some(e=>e.id === id && e.isFromGoogle)) return;
-  if (!confirm('למחוק פגישה זו?')) return;
+  const occurrence = (appData.meetings.events || []).find(e => e.id === id);
+  if (!confirm(occurrence?.recurrence ? 'למחוק רק פגישה זו? שאר הפגישות בסדרה יישארו ביומן.' : 'למחוק פגישה זו?')) return;
   appData.meetings.events = (appData.meetings.events || []).filter(e => e.id !== id);
   markDirty();
   closeMeetingModal();
@@ -1479,6 +1594,7 @@ function duplicateMeeting(id) {
   const src = (appData.meetings.events || []).find(e => e.id === id);
   if (!src) return;
   const dup = { ...src, id: newId(), isFromGantt: false, title: 'עותק — ' + src.title };
+  delete dup.recurrence;
   appData.meetings.events.push(dup);
   markDirty();
   renderMeetingsCalendar();
