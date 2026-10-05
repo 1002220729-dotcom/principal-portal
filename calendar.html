@@ -118,7 +118,7 @@ body {
 .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; }
 .form-full { grid-column:1/-1; }
 .meeting-repeat-box { padding:12px; border:1px solid var(--border); border-radius:var(--radius); background:var(--primary-soft); }
-.meeting-repeat-box[hidden], #meetRecurrenceOptions[hidden], #meetRecurrenceOccurrence[hidden] { display:none; }
+.meeting-repeat-box[hidden], #meetRecurrenceOptions[hidden], #meetRecurrenceOccurrence[hidden], #meetModalIntervalCustomWrap[hidden] { display:none; }
 .meeting-repeat-toggle { display:flex; align-items:center; gap:8px; color:var(--primary); font-weight:700; }
 .meeting-repeat-days { display:flex; flex-wrap:wrap; gap:8px; }
 .meeting-repeat-days label { display:flex; align-items:center; gap:5px; padding:7px 9px; background:var(--card); border:1px solid var(--border); border-radius:6px; cursor:pointer; }
@@ -557,13 +557,28 @@ body.readonly-mode #meetingModal textarea {
         </div>
         <div id="meetRecurrenceCreateControls" class="form-group form-full meeting-repeat-box">
           <label class="meeting-repeat-toggle" for="meetModalRepeat">
-            <input type="checkbox" id="meetModalRepeat" onchange="updateMeetingRecurrencePreview()"> פגישה חוזרת מדי שבוע
+            <input type="checkbox" id="meetModalRepeat" onchange="updateMeetingRecurrencePreview()"> פגישה חוזרת
           </label>
           <div id="meetRecurrenceOptions" hidden>
             <div class="form-group" style="margin:10px 0">
               <label for="meetModalRepeatUntil">עד תאריך (כולל) *</label>
               <input type="date" id="meetModalRepeatUntil" onchange="updateMeetingRecurrencePreview()">
             </div>
+            <div class="form-group" style="margin:10px 0">
+              <label for="meetModalInterval">תדירות הפגישות *</label>
+              <select id="meetModalInterval" onchange="updateMeetingRecurrencePreview()">
+                <option value="1">כל שבוע</option>
+                <option value="2">כל שבועיים (לסירוגין)</option>
+                <option value="3">כל שלושה שבועות</option>
+                <option value="4">כל ארבעה שבועות</option>
+                <option value="custom">מרווח אחר</option>
+              </select>
+            </div>
+            <div id="meetModalIntervalCustomWrap" class="form-group" style="margin:10px 0" hidden>
+              <label for="meetModalIntervalCustom">כל כמה שבועות? *</label>
+              <input type="number" id="meetModalIntervalCustom" min="1" step="1" value="5" inputmode="numeric" oninput="updateMeetingRecurrencePreview()">
+            </div>
+            <p class="meeting-repeat-hint">המרווח נספר מהשבוע של הפגישה הראשונה בטווח, בימים א׳–שבת.</p>
             <fieldset style="border:0;margin-bottom:8px">
               <legend style="font-size:0.8rem;font-weight:700;margin-bottom:8px">ימי הפגישות *</legend>
               <div id="meetRecurrenceDays" class="meeting-repeat-days">
@@ -1377,7 +1392,7 @@ function renderMeetingByPeriod() {
 // ════════════════════════════════════════════════════════════
 // Calendar dates use UTC only for day arithmetic; meeting hours stay local strings.
 // Materialized occurrences are never regenerated on load, so deleting one is durable.
-function recurringMeetingDates(startDate, endDate, weekdays) {
+function recurringMeetingDates(startDate, endDate, weekdays, intervalWeeks = 1) {
   function parse(value) {
     if (!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(value || '')) throw new Error('נא לבחור תאריכי התחלה וסיום תקינים');
     const date = new Date(value + 'T00:00:00Z');
@@ -1390,9 +1405,16 @@ function recurringMeetingDates(startDate, endDate, weekdays) {
   if (last - first > 366 * 5 * 86400000) throw new Error('ניתן ליצור סדרה לטווח של עד חמש שנים');
   if (!Array.isArray(weekdays) || !weekdays.length || weekdays.some(d => !Number.isInteger(d) || d < 0 || d > 6))
     throw new Error('נא לבחור לפחות יום אחד בשבוע');
+  if (!Number.isSafeInteger(intervalWeeks) || intervalWeeks < 1)
+    throw new Error('נא לבחור מרווח של מספר שבועות שלם, 1 ומעלה');
   const selected = new Set(weekdays), dates = [];
+  let anchorWeek;
   for (const day = new Date(first); day <= last; day.setUTCDate(day.getUTCDate() + 1)) {
-    if (selected.has(day.getUTCDay())) dates.push(day.toISOString().slice(0,10));
+    if (!selected.has(day.getUTCDay())) continue;
+    // Anchor to the first eligible meeting's Sunday, including a partial first week.
+    if (anchorWeek === undefined) anchorWeek = day.getTime() - day.getUTCDay() * 86400000;
+    const weeksFromAnchor = Math.floor((day.getTime() - anchorWeek) / (7 * 86400000));
+    if (weeksFromAnchor % intervalWeeks === 0) dates.push(day.toISOString().slice(0,10));
   }
   if (!dates.length) throw new Error('אין פגישות בימים שנבחרו בטווח התאריכים הזה');
   if (dates.length > 1000) throw new Error('ניתן ליצור עד 1,000 פגישות בסדרה; בחר טווח קצר יותר');
@@ -1403,11 +1425,18 @@ function meetingRecurrenceWeekdays() {
   return Array.from(document.querySelectorAll('#meetRecurrenceDays input:checked'), el => Number(el.value));
 }
 
+function meetingRecurrenceInterval() {
+  const selected = document.getElementById('meetModalInterval')?.value || '1';
+  return Number(selected === 'custom' ? document.getElementById('meetModalIntervalCustom')?.value : selected);
+}
+
 function updateMeetingRecurrencePreview() {
   const options = document.getElementById('meetRecurrenceOptions');
   if (!options) return;
   const repeating = !document.getElementById('meetModalId').value && document.getElementById('meetModalRepeat').checked;
   options.hidden = !repeating;
+  const custom = document.getElementById('meetModalIntervalCustomWrap');
+  if (custom) custom.hidden = document.getElementById('meetModalInterval').value !== 'custom';
   document.getElementById('meetModalDateLabel').textContent = repeating ? 'מתאריך (כולל) *' : 'תאריך *';
   const save = document.querySelector('#meetingModal .btn-save');
   if (save) save.textContent = '💾 שמור';
@@ -1415,7 +1444,7 @@ function updateMeetingRecurrencePreview() {
   const preview = document.getElementById('meetRecurrencePreview');
   try {
     const dates = recurringMeetingDates(document.getElementById('meetModalDate').value,
-      document.getElementById('meetModalRepeatUntil').value, meetingRecurrenceWeekdays());
+      document.getElementById('meetModalRepeatUntil').value, meetingRecurrenceWeekdays(), meetingRecurrenceInterval());
     preview.textContent = dates.length === 1 ? `תיווצר פגישה אחת בתאריך ${formatDate(dates[0])}.` :
       `ייווצרו ${dates.length} פגישות, מ־${formatDate(dates[0])} עד ${formatDate(dates.at(-1))}.`;
     if (save) save.textContent = dates.length === 1 ? '💾 צור פגישה' : `💾 צור ${dates.length} פגישות`;
@@ -1450,6 +1479,10 @@ function openMeetingModal(id, dateStr) {
   const repeat = document.getElementById('meetModalRepeat');
   if (repeat) {
     repeat.checked = false;
+    const interval = document.getElementById('meetModalInterval');
+    if (interval) interval.value = '1';
+    const customInterval = document.getElementById('meetModalIntervalCustom');
+    if (customInterval) customInterval.value = '5';
     document.getElementById('meetModalRepeatUntil').value = document.getElementById('meetModalDate').value;
     const day = new Date(document.getElementById('meetModalDate').value + 'T00:00:00Z').getUTCDay();
     document.querySelectorAll('#meetRecurrenceDays input').forEach(el => { el.checked = Number(el.value) === day; });
@@ -1478,7 +1511,7 @@ function applyMeetingModalReadOnlyState(readOnly) {
     'meetModalTitleInput','meetModalDate','meetModalTimeStart','meetModalTimeEnd',
     'meetModalType','meetModalPriority','meetModalStatus','meetModalLocation',
     'meetModalAttendees','meetModalColor','meetModalAgenda','meetModalSummary',
-    'meetModalRepeat','meetModalRepeatUntil'
+    'meetModalRepeat','meetModalRepeatUntil','meetModalInterval','meetModalIntervalCustom'
   ];
   fieldIds.forEach(fid => {
     const el = document.getElementById(fid);
@@ -1527,9 +1560,10 @@ function saveMeetingModal() {
     }
     const endDate = document.getElementById('meetModalRepeatUntil').value;
     const weekdays = meetingRecurrenceWeekdays();
-    try { dates = recurringMeetingDates(date, endDate, weekdays); }
+    const intervalWeeks = meetingRecurrenceInterval();
+    try { dates = recurringMeetingDates(date, endDate, weekdays, intervalWeeks); }
     catch (error) { showToast(error.message, 'error'); return; }
-    recurrence = { seriesId: newId(), startDate: date, endDate, weekdays };
+    recurrence = { seriesId: newId(), startDate: date, endDate, weekdays, intervalWeeks };
   }
 
   const evt = {
