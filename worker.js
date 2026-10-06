@@ -1596,9 +1596,10 @@ export default {
           const saved = await env.DB.prepare(`INSERT INTO portal_data(type,school,year,payload,updated_at)
             VALUES(?,?,?,?,?) ON CONFLICT(type,school,year) DO UPDATE
             SET payload=${protectedPayload}, updated_at=excluded.updated_at
-            WHERE length(${protectedPayload}) <= 5000000`)
-            .bind(cleanType, cleanSchool, cleanYear, payloadStr, now).run();
-          if (saved.meta?.changes !== 1) return err('calendar payload too large', 400, cors);
+            WHERE length(${protectedPayload}) <= 5000000 RETURNING type`)
+            .bind(cleanType, cleanSchool, cleanYear, payloadStr, now).first();
+          // D1 also counts outbox trigger writes; use the saved row itself.
+          if (!saved) return err('calendar payload too large', 400, cors);
         } else await env.DB.prepare(`
           INSERT INTO portal_data (type, school, year, payload, updated_at)
           VALUES (?, ?, ?, ?, ?)

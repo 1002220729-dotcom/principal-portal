@@ -3,6 +3,8 @@
 // Deploy only after the additive migration and runtime secrets are installed.
 export const CALENDAR_PREFIX = '/api/private-google-calendar';
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned.readonly';
+export const CALENDAR_WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned';
+import { outboundIdentity, outboundStatus, enableOutbound, pauseOutbound, syncOutbound } from './google-calendar-outbound-worker.js';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const WINDOW_MS = 10 * 60 * 1000;
@@ -148,12 +150,33 @@ async function identity(fetcher, accessToken, owner) {
       typeof value.sub !== 'string' || !value.sub || value.sub.length > 255) fail(403, 'account_mismatch');
   return value.sub;
 }
-function requireScope(tokens) {
-  if (!String(tokens.scope || '').split(' ').includes(CALENDAR_SCOPE)) fail(409, 'calendar_permission_missing');
+function requireScope(tokens, write = false) {
+  const scopes = String(tokens.scope || '').split(' ');
+  if (write ? !scopes.includes(CALENDAR_WRITE_SCOPE) : !scopes.includes(CALENDAR_SCOPE) && !scopes.includes(CALENDAR_WRITE_SCOPE))
+    fail(409, write ? 'calendar_write_permission_missing' : 'calendar_permission_missing');
 }
 async function getConnection(env, owner) {
   return env.DB.prepare('SELECT owner, google_sub, refresh_cipher, version FROM private_google_calendar_connections WHERE owner = ?')
     .bind(owner).first();
+}
+const outboundEnabled = env => env.GOOGLE_CALENDAR_OUTBOUND_ENABLED === 'true';
+async function canWrite(env, owner, connection) {
+  return outboundEnabled(env) && !!connection && !!await env.DB.prepare('SELECT owner FROM google_calendar_write_grants WHERE owner=? AND connection_version=?')
+    .bind(owner, connection.version).first();
+}
+async function accessFor(env, config, connection, fetcher, write = false) {
+  if (!connection) fail(409, 'not_connected');
+  if (write && !await canWrite(env, config.owner, connection)) fail(409, 'calendar_write_permission_missing');
+  const refresh = await unseal(env, connection.refresh_cipher, 'refresh:' + config.owner);
+  const tokens = await exchange(fetcher, env, { grant_type:'refresh_token', refresh_token:refresh });
+  if (tokens.scope) requireScope(tokens, write);
+  if (await identity(fetcher, tokens.access_token, config.owner) !== connection.google_sub) fail(403, 'account_mismatch');
+  return tokens.access_token;
+}
+function outboundHelpers(env, config, fetcher) {
+  return {fail,getConnection:()=>getConnection(env,config.owner),
+    access:(connection,write)=>accessFor(env,config,connection,fetcher,write),
+    googleFetch:(url,options)=>googleFetch(fetcher,url,options),boundedJson};
 }
 const CALLBACK_STAGES = new Set(['state', 'state_claim', 'state_validation', 'session', 'code',
   'decrypt', 'token', 'scope', 'identity', 'refresh_token', 'session_recheck', 'encrypt', 'save', 'save_result']);
@@ -212,7 +235,8 @@ async function callback(request, env, config, fetcher) {
     const tokens = await exchange(fetcher, env, { code, code_verifier: verifier,
       grant_type: 'authorization_code', redirect_uri: config.callback });
     stage = 'scope';
-    requireScope(tokens);
+    const writeRequested = outboundEnabled(env) && !!await env.DB.prepare('SELECT state_hash FROM google_calendar_write_states WHERE state_hash=?').bind(stateHash).first();
+    requireScope(tokens, writeRequested);
     stage = 'identity';
     const sub = await identity(fetcher, tokens.access_token, config.owner);
     stage = 'refresh_token';
@@ -223,6 +247,7 @@ async function callback(request, env, config, fetcher) {
     const encrypted = await seal(env, tokens.refresh_token, 'refresh:' + config.owner);
     stage = 'save';
     const now = new Date().toISOString();
+    const version = crypto.randomUUID();
     const saved = await env.DB.prepare(`INSERT INTO private_google_calendar_connections (owner, google_sub, refresh_cipher, version, connected_at)
       SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM private_google_calendar_states
         WHERE state_hash = ? AND owner = ? AND claimed_at IS NOT NULL AND expires_at > ?)
@@ -230,13 +255,22 @@ async function callback(request, env, config, fetcher) {
         AND role IN ('principal', 'systemadmin') AND revoked_at IS NULL AND expires_at > ? AND last_seen_at > ?)
       ON CONFLICT(owner) DO UPDATE SET google_sub = excluded.google_sub,
       refresh_cipher = excluded.refresh_cipher, version = excluded.version, connected_at = excluded.connected_at`)
-      .bind(config.owner, sub, encrypted, crypto.randomUUID(), now, stateHash, config.owner, now,
+      .bind(config.owner, sub, encrypted, version, now, stateHash, config.owner, now,
         pending.session_hash, config.owner, now, new Date(Date.now() - IDLE_MS).toISOString()).run();
     stage = 'save_result';
     if (saved.meta?.changes !== 1) fail(409, 'connection_changed');
+    if (outboundEnabled(env)) {
+      await env.DB.prepare(`INSERT INTO google_calendar_write_grants(owner,connection_version)
+        SELECT ?,? WHERE EXISTS(SELECT 1 FROM private_google_calendar_connections WHERE owner=? AND version=?)
+        AND ?=1 ON CONFLICT(owner) DO UPDATE SET connection_version=excluded.connection_version`)
+        .bind(config.owner,version,config.owner,version,writeRequested?1:0).run();
+      // A read-only reconnect must stop background writes immediately.
+      if (!writeRequested) await env.DB.prepare('DELETE FROM google_calendar_write_grants WHERE owner=? AND connection_version<>?')
+        .bind(config.owner,version).run();
+    }
     return returnToPortal(config, 'connected', session);
   } catch (error) {
-    const outcome = error instanceof CalendarError && ['account_mismatch', 'calendar_permission_missing'].includes(error.code)
+    const outcome = error instanceof CalendarError && ['account_mismatch', 'calendar_permission_missing', 'calendar_write_permission_missing'].includes(error.code)
       ? error.code : 'failed';
     // Never log callback URLs, codes, tokens, private event data, or upstream errors.
     return returnToPortal(config, outcome, session,
@@ -245,6 +279,9 @@ async function callback(request, env, config, fetcher) {
     if (claimed && stateHash) {
       try { await env.DB.prepare('DELETE FROM private_google_calendar_states WHERE state_hash = ?').bind(stateHash).run(); }
       catch { /* Claimed states cannot be replayed and expire without granting access. */ }
+      if (outboundEnabled(env)) {
+        try { await env.DB.prepare('DELETE FROM google_calendar_write_states WHERE state_hash=?').bind(stateHash).run(); } catch { /* Expired state has no authority. */ }
+      }
     }
   }
 }
@@ -300,7 +337,7 @@ async function events(request, env, session, config, fetcher, options = {}) {
     const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events');
     url.search = new URLSearchParams({ timeMin: range.start, timeMax: range.end,
       singleEvents: 'true', showDeleted: 'false', orderBy: 'startTime', maxResults: '100', timeZone: 'Asia/Jerusalem',
-      fields: 'nextPageToken,items(id,status,summary,location,start,end,htmlLink)', ...(next ? { pageToken: next } : {}) }).toString();
+      fields: 'nextPageToken,items(id,status,summary,location,start,end,htmlLink,extendedProperties)', ...(next ? { pageToken: next } : {}) }).toString();
     const response = await googleFetch(fetcher, url.href, { headers: { Authorization: 'Bearer ' + tokens.access_token } });
     const data = await boundedJson(response);
     if (response.status === 401) fail(409, 'reconnect_required');
@@ -311,6 +348,14 @@ async function events(request, env, session, config, fetcher, options = {}) {
     if (options.shared && data.nextPageToken !== undefined && typeof data.nextPageToken !== 'string')
       fail(502, 'incomplete_google_snapshot');
     for (const item of data.items || []) {
+      // The portal's own exported copy is already rendered as a native meeting.
+      // Suppress only this school/year's verified mirror; other contexts remain visible.
+      if (options.shared && outboundEnabled(env) && item?.extendedProperties?.private?.principalPortalSource === 'portal') {
+        const marker = item.extendedProperties.private.principalPortalContext;
+        const context = (await outboundIdentity(config,session,'')).context;
+        if (marker === context && await env.DB.prepare(`SELECT google_id FROM google_calendar_outbound_events
+          WHERE owner=? AND school=? AND year=? AND google_id=?`).bind(config.owner,session.school,session.year,item.id).first()) continue;
+      }
       const event = options.shared ? completeSharedEvent(item) : cleanEvent(item);
       if (!event?.id) continue;
       if (options.shared && found.has(event.id) && JSON.stringify(found.get(event.id)) !== JSON.stringify(event))
@@ -404,13 +449,15 @@ async function syncShared(request, env, session, config, fetcher) {
         AND EXISTS (SELECT 1 FROM private_google_calendar_connections WHERE owner=? AND version=?)
         AND EXISTS (SELECT 1 FROM staffsessions WHERE token_hash=? AND username=? AND school=? AND year=?
           AND role IN ('principal','systemadmin') AND revoked_at IS NULL AND expires_at > ? AND last_seen_at > ?)
-      ON CONFLICT(type,school,year) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at`)
+      ON CONFLICT(type,school,year) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at RETURNING school,year`)
     .bind(target.school, target.year, initial, config.owner, monthPath, storedSnapshot,
       target.school, target.year, now, monthPath+'.revision', previousRevision,
       monthPath+'.startedAt', monthPath+'.startedAt', startedAt, config.owner, SHARED_MONTH_LIMIT, SHARED_SIZE_LIMIT,
       config.owner, connection.version, session.tokenHash, config.owner, target.school, target.year,
-      now, new Date(Date.now()-IDLE_MS).toISOString()).run();
-  if (saved.meta?.changes !== 1) fail(409, 'shared_sync_conflict');
+      now, new Date(Date.now()-IDLE_MS).toISOString()).first();
+  // D1 changes includes trigger writes; the returned calendar row is the CAS
+  // acknowledgement even when its outbox revision also changed.
+  if (!saved) fail(409, 'shared_sync_conflict');
   return {ok:true, month, ...target, snapshot};
 }
 
@@ -429,16 +476,33 @@ export async function handlePrivateGoogleCalendar(request, env, fetcher = fetch)
     const session = await sessionFor(request, env, config.owner);
     if (path === CALENDAR_PREFIX + '/status' && request.method === 'GET') {
       if (!configured(env)) return json({ available: false, connected: false, sharedEnabled:false }, 200, origin);
-      return json({ available: true, connected: !!(await getConnection(env, config.owner)), email: config.owner,
-        sharedEnabled:env.GOOGLE_CALENDAR_SHARED_ENABLED === 'true' }, 200, origin);
+      const connection=await getConnection(env, config.owner);
+      return json({ available:true,connected:!!connection,email:config.owner,
+        sharedEnabled:env.GOOGLE_CALENDAR_SHARED_ENABLED === 'true',outboundAvailable:outboundEnabled(env),
+        writeAuthorized:await canWrite(env,config.owner,connection) },200,origin);
     }
     if (!configured(env)) fail(503, 'not_configured');
     if (path === CALENDAR_PREFIX + '/sync-shared' && request.method === 'POST')
       return json(await syncShared(request, env, session, config, fetcher), 200, origin);
+    if (['/outbound-status','/outbound-enable','/outbound-sync','/outbound-stop'].some(route=>path===CALENDAR_PREFIX+route) && request.method==='POST') {
+      if (!outboundEnabled(env)) fail(503,'outbound_calendar_disabled');
+      if (request.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase()!=='application/json') fail(415,'json_required');
+      const target=sharedTarget(await boundedJson(request,4096),session),connection=await getConnection(env,config.owner);
+      if(path.endsWith('/outbound-status')) return json(await outboundStatus(env,config,target,connection,fail),200,origin);
+      if(path.endsWith('/outbound-enable')) return json(await enableOutbound(env,config,target,connection,fail),200,origin);
+      if(path.endsWith('/outbound-stop')) return json(await pauseOutbound(env,config,target),200,origin);
+      const recheck=async()=>sharedTarget(target,await sessionByHash(env,session.tokenHash,config.owner));
+      return json(await syncOutbound(env,config,target,outboundHelpers(env,config,fetcher),{recheck}),200,origin);
+    }
     if (path === CALENDAR_PREFIX + '/connect' && request.method === 'POST') {
       if (!request.headers.get('Content-Type')?.startsWith('application/json')) fail(415, 'json_required');
+      const mode = new URL(request.url).searchParams.get('mode');
+      if (mode !== null && !['read','write'].includes(mode)) fail(400,'invalid_connect_mode');
+      const writeRequested = mode === 'write';
+      if (writeRequested && !outboundEnabled(env)) fail(503,'outbound_calendar_disabled');
       const now = new Date().toISOString();
       await env.DB.prepare('DELETE FROM private_google_calendar_states WHERE expires_at <= ?').bind(now).run();
+      if (outboundEnabled(env)) await env.DB.prepare('DELETE FROM google_calendar_write_states WHERE state_hash NOT IN (SELECT state_hash FROM private_google_calendar_states)').run();
       const recent = await env.DB.prepare(`SELECT COUNT(*) AS count FROM private_google_calendar_states WHERE owner = ?`)
         .bind(config.owner).first();
       if (Number(recent?.count || 0) >= 5) fail(429, 'too_many_connections');
@@ -446,14 +510,20 @@ export async function handlePrivateGoogleCalendar(request, env, fetcher = fetch)
       await env.DB.prepare(`INSERT INTO private_google_calendar_states
         (state_hash, owner, session_hash, verifier_cipher, expires_at) VALUES (?, ?, ?, ?, ?)`)
         .bind(stateHash, config.owner, session.tokenHash, await seal(env, verifier, 'state:' + stateHash), new Date(Date.now() + WINDOW_MS).toISOString()).run();
+      if (writeRequested) await env.DB.prepare('INSERT INTO google_calendar_write_states(state_hash) VALUES(?)').bind(stateHash).run();
       const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       url.search = new URLSearchParams({ client_id: env.GOOGLE_CALENDAR_CLIENT_ID, redirect_uri: config.callback,
-        response_type: 'code', scope: 'openid email ' + CALENDAR_SCOPE, access_type: 'offline',
+        response_type: 'code', scope: 'openid email ' + (writeRequested ? CALENDAR_WRITE_SCOPE : CALENDAR_SCOPE), access_type: 'offline',
         prompt: 'consent', include_granted_scopes: 'false', login_hint: config.owner,
         state, code_challenge: base64url(await digest(verifier)), code_challenge_method: 'S256' }).toString();
       return json({ authorizationUrl: url.href }, 200, origin);
     }
     if (path === CALENDAR_PREFIX + '/connection' && request.method === 'DELETE') {
+      if (outboundEnabled(env)) await env.DB.batch([
+        env.DB.prepare('DELETE FROM google_calendar_write_grants WHERE owner=?').bind(config.owner),
+        env.DB.prepare('UPDATE google_calendar_outbound_targets SET enabled=0,lease_token=NULL,lease_until=NULL WHERE owner=?').bind(config.owner),
+        env.DB.prepare('DELETE FROM google_calendar_write_states WHERE state_hash IN (SELECT state_hash FROM private_google_calendar_states WHERE owner=?)').bind(config.owner),
+      ]);
       // Local unlink only: do not revoke other Google grants used by this project.
       await env.DB.batch([
         env.DB.prepare('DELETE FROM private_google_calendar_states WHERE owner = ?').bind(config.owner),
@@ -466,5 +536,31 @@ export async function handlePrivateGoogleCalendar(request, env, fetcher = fetch)
   } catch (error) {
     return json({ error: error instanceof CalendarError ? error.code : 'calendar_unavailable' },
       error instanceof CalendarError ? error.status : 503, origin);
+  }
+}
+
+// Background work uses only previously enabled contexts and the fixed owner.
+// It is independent of browser lifetime; failed batches keep their dirty revision.
+export async function runGoogleCalendarOutbox(env, fetcher = fetch) {
+  if (!outboundEnabled(env) || !configured(env)) return;
+  const allowed=['https://principal-api.1002220729.workers.dev','https://principal-api-staging.1002220729.workers.dev'];
+  if (!allowed.includes(env.GOOGLE_CALENDAR_OUTBOUND_API_ORIGIN)) return;
+  const config=environment(new Request(env.GOOGLE_CALENDAR_OUTBOUND_API_ORIGIN+'/'),env);
+  const targets=(await env.DB.prepare(`SELECT school,year FROM google_calendar_outbound_targets
+    WHERE owner=? AND enabled=1 AND revision>synced_revision AND (retry_at IS NULL OR retry_at<=?)
+    ORDER BY last_synced_at LIMIT 2`).bind(config.owner,new Date().toISOString()).all()).results;
+  for(const target of targets) {
+    // A principal removed from this school loses background access too. The
+    // owner's real system-admin record, where applicable, remains authoritative.
+    const access=await env.DB.prepare('SELECT email FROM principals WHERE email=? AND school=?').bind(config.owner,target.school).first();
+    const admin=await env.DB.prepare('SELECT email FROM admins WHERE email=?').bind(config.owner).first();
+    if(!access&&!admin)continue;
+    const recheck=async()=> {
+      const current=await env.DB.prepare('SELECT email FROM principals WHERE email=? AND school=?').bind(config.owner,target.school).first();
+      const currentAdmin=await env.DB.prepare('SELECT email FROM admins WHERE email=?').bind(config.owner).first();
+      if(!current&&!currentAdmin)fail(403,'private_calendar_forbidden');
+    };
+    try { await syncOutbound(env,config,target,outboundHelpers(env,config,fetcher),{recheck,limit:10}); }
+    catch { /* Fixed error label and retry time are persisted; never log event data. */ }
   }
 }
