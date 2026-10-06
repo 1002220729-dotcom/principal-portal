@@ -12,7 +12,7 @@ const end = html.indexOf('\n});', start) + 5;
 const parentHandler = html.slice(start, end);
 const clientId = html.match(/const GOOGLE_CLIENT_ID\s*=\s*'([^']+)'/)[1];
 const childScript = readFileSync(new URL('./private-google-calendar.js', import.meta.url), 'utf8');
-const childStart = childScript.indexOf("find('connect').addEventListener('click', async () => {");
+const childStart = childScript.indexOf("async function connectGoogle(mode='read') {");
 const childConnect = childScript.slice(childStart, childScript.indexOf("  find('disconnect').addEventListener", childStart));
 
 function fixture({ staging = true, portal, token: initialToken = 'session-a', response } = {}) {
@@ -61,6 +61,17 @@ test('production and staging connect through their authenticated parent and exac
   const calendarTag = html.match(/<iframe id="calendarFrame"[^>]+>/)[0];
   assert.doesNotMatch(calendarTag, /allow-top-navigation/);
   assert.doesNotMatch(childScript, /parentWindow\.location\.assign/);
+});
+
+test('write intent selects only the owned-events scope and read intent cannot silently expand it',async()=>{
+  for(const staging of [false,true]) {
+    const f=fixture({staging,response:valid=>{const url=new URL(valid);url.searchParams.set('scope','openid email https://www.googleapis.com/auth/calendar.events.owned');return Response.json({authorizationUrl:url.href});}});
+    await f.send({data:{type:'private-google-calendar-connect',requestId:'write:1',mode:'write'}});
+    assert.equal(f.requests[0].url,f.worker+'/api/private-google-calendar/connect?mode=write');assert.equal(f.redirects.length,1);
+    const rejected=fixture({staging,response:valid=>{const url=new URL(valid);url.searchParams.set('scope','openid email https://www.googleapis.com/auth/calendar.events.owned');return Response.json({authorizationUrl:url.href});}});
+    await rejected.send();assert.equal(rejected.redirects.length,0);
+    const missing=fixture({staging});await missing.send({data:{type:'private-google-calendar-connect',requestId:'write:2',mode:'write'}});assert.equal(missing.redirects.length,0);
+  }
 });
 
 test('hostile origin, wrong iframe, unknown window and missing session cannot initiate OAuth', async () => {
@@ -165,6 +176,7 @@ test('child sends only connect intent and accepts only its correlated parent res
     setTimeout: fn => { timers.set(1, fn); return 1; }, clearTimeout: id => timers.delete(id),
   };
   vm.runInNewContext(childConnect, context);
+  click=()=>context.connectGoogle();
   let complete = false;
   const pending = click().then(() => { complete = true; });
   assert.deepEqual(Object.keys(posted[0].data).sort(), ['requestId', 'type']);

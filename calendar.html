@@ -1874,7 +1874,7 @@ window.addEventListener('message', e => {
   }
   if (msg.type === 'load-data')                             { _applyPortalData(msg.payload); return; }
   if (msg.type === 'trigger-save' || msg.type === 'request-data') { saveToPortal(); return; }
-  if (msg.type === 'save-confirm')                          { showToast(msg.message || '\u2705 \u05e0\u05e9\u05de\u05e8'); return; }
+  if (msg.type === 'save-confirm') { showToast(msg.message || '\u2705 \u05e0\u05e9\u05de\u05e8'); document.dispatchEvent(new CustomEvent('calendar-saved')); return; }
   if (msg.type === 'school-data-update') {
     const changed = (msg.schoolName && msg.schoolName !== _portalSchool) || (msg.year && msg.year !== _portalYear);
     if (msg.schoolName) _portalSchool = msg.schoolName;

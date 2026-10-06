@@ -343,7 +343,7 @@ test('UI keeps tokens/private fallback outside shared saves; only shared server 
   const source=readFileSync(new URL('./private-google-calendar.js',import.meta.url),'utf8').replace(/^\s*\/\/.*$/gm,'');
   assert.doesNotMatch(source,/localStorage\.|sessionStorage\.|appData\.|PS\.|saveToPortal\(/);
   assert.equal((source.match(/postMessage\(/g)||[]).length,1);
-  assert.match(source,/parentWindow\.postMessage\(\{ type:'private-google-calendar-connect', requestId \}, location\.origin\)/);
+  assert.match(source,/parentWindow\.postMessage\(\{ type:'private-google-calendar-connect', requestId, \.\.\.\(mode==='write'\?\{mode:'write'\}:\{\}\) \}, location\.origin\)/);
   assert.doesNotMatch(source,/parentWindow\.location\.assign/);
   assert.match(source,/title\.textContent = event\.title/);
   assert.match(source,/@media print\{#privateGoogleCalendar\{display:none!important\}\}/);

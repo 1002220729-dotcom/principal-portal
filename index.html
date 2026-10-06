@@ -3100,6 +3100,8 @@ window.addEventListener('message', async (e) => {
           !/^[a-z0-9:]{1,80}$/.test(e.data.requestId) ||
           !['https://principal-portal.pages.dev', 'https://staging.principal-portal.pages.dev'].includes(PORTAL_ORIGIN)) break;
       const requestId = e.data.requestId;
+      const writeMode=e.data.mode==='write';
+      if(e.data.mode!==undefined && !['read','write'].includes(e.data.mode))break;
       const connectToken = getSessionToken();
       const stillCurrent = () => getSessionToken() === connectToken &&
         document.getElementById('calendarFrame')?.contentWindow === calendarWin;
@@ -3112,7 +3114,7 @@ window.addEventListener('message', async (e) => {
       const timeout = setTimeout(() => abort.abort(), 30000);
       try {
         // Fetch in the top-level page: no child-supplied destination or token.
-        const response = await authFetch(`${WORKER_URL_AUTH}/api/private-google-calendar/connect`, {
+        const response = await authFetch(`${WORKER_URL_AUTH}/api/private-google-calendar/connect${writeMode?'?mode=write':''}`, {
           method:'POST', body:'{}', cache:'no-store', credentials:'omit', signal:abort.signal,
         });
         const data = await response.json();
@@ -3128,6 +3130,7 @@ window.addEventListener('message', async (e) => {
             url.username || url.password || url.hash || parameter('client_id') !== GOOGLE_CLIENT_ID ||
             parameter('redirect_uri') !== `${WORKER_URL_AUTH}/api/private-google-calendar/callback` ||
             parameter('response_type') !== 'code' || parameter('code_challenge_method') !== 'S256' ||
+            parameter('scope') !== 'openid email https://www.googleapis.com/auth/calendar.events.owned'+(writeMode?'':'.readonly') ||
             !/^[a-f0-9]{64}$/.test(parameter('state') || '') ||
             !/^[A-Za-z0-9_-]{43}$/.test(parameter('code_challenge') || '')) throw new Error('invalid_redirect');
         // This message handler runs in the unsandboxed parent. Keep the iframe

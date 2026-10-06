@@ -34,7 +34,9 @@ async function fixture({row=true}={}) {
   let beforePublish, google=async()=>({items:[sample()]});
   const DB={prepare(sql){
     const statement=sqlite.prepare(sql);let args=[];
-    return {bind(...values){args=values;return this;},async first(){return statement.get(...args)||null;},
+    return {bind(...values){args=values;return this;},async first(){
+      if(sql.startsWith('WITH current') && beforePublish){const hook=beforePublish;beforePublish=null;await hook();}
+      return statement.get(...args)||null;},
       async all(){return {results:statement.all(...args)};},async run(){
         if(sql.startsWith('WITH current') && beforePublish){const hook=beforePublish;beforePublish=null;await hook();}
         writes.push(sql);return {meta:statement.run(...args)};

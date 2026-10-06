@@ -8,6 +8,8 @@
     "enabled": false
   },
   "vars": {
+    "GOOGLE_CALENDAR_OUTBOUND_ENABLED": "true",
+    "GOOGLE_CALENDAR_OUTBOUND_API_ORIGIN": "https://principal-api.1002220729.workers.dev",
     "GOOGLE_CALENDAR_ENABLED": "true",
     "GOOGLE_CALENDAR_SHARED_ENABLED": "true",
     "GOOGLE_CALENDAR_DIAGNOSTICS": "false",
@@ -38,6 +40,8 @@
         "enabled": false
       },
       "vars": {
+        "GOOGLE_CALENDAR_OUTBOUND_ENABLED": "true",
+        "GOOGLE_CALENDAR_OUTBOUND_API_ORIGIN": "https://principal-api-staging.1002220729.workers.dev",
         "GOOGLE_CALENDAR_ENABLED": "true",
         "GOOGLE_CALENDAR_SHARED_ENABLED": "true",
         "GOOGLE_CALENDAR_DIAGNOSTICS": "false",
@@ -57,7 +61,9 @@
           "binding": "SESSIONS_KV",
           "id": "25cfddf274eb4cdc8fe24239b54144c7"
         }
-      ]
+      ],
+      "triggers": { "crons": ["* * * * *"] }
     }
-  }
+  },
+  "triggers": { "crons": ["* * * * *"] }
 }
