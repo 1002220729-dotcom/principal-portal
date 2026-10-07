@@ -1001,6 +1001,36 @@ ${clonedElement.outerHTML}
             populations: { title: 'אוכלוסיות מיוחדות', icon: 'fas fa-users' }
         };
 
+        // Population class persistence and deletion helpers (also exercised by regression tests).
+        const DEFAULT_POPULATION_GRADES = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'יא', 'יב'];
+        const populationGradesFromData = (data) => {
+            // Legacy backups contain no list; an explicitly empty list must stay empty.
+            const saved = Array.isArray(data?.classes) ? data.classes : DEFAULT_POPULATION_GRADES;
+            return DEFAULT_POPULATION_GRADES.filter(grade => saved.includes(grade));
+        };
+        const withoutPopulationClasses = (data, classKeys) => Object.fromEntries(
+            Object.entries(data || {}).filter(([key]) => !classKeys.some(classKey => key.startsWith(classKey + '-')))
+        );
+        const deletePopulationGrade = (state, grade) => {
+            const classKeys = [grade, ...(state.classStructure[grade] || []).map(name => grade + name)];
+            const classStructure = { ...state.classStructure };
+            delete classStructure[grade];
+            return {
+                ...state,
+                classes: state.classes.filter(value => value !== grade),
+                classStructure,
+                populationsData: withoutPopulationClasses(state.populationsData, classKeys),
+                studentNotes: withoutPopulationClasses(state.studentNotes, classKeys)
+            };
+        };
+        const deletePopulationClass = (state, grade, className) => ({
+            ...state,
+            classStructure: { ...state.classStructure, [grade]: (state.classStructure[grade] || []).filter(name => name !== className) },
+            populationsData: withoutPopulationClasses(state.populationsData, [grade + className]),
+            studentNotes: withoutPopulationClasses(state.studentNotes, [grade + className])
+        });
+        // End population class helpers.
+
         const MTSSMapperAdvanced = () => {
             const [activeArena, setActiveArena] = useState('learning');
             const [schoolName, setSchoolName] = useState('');
@@ -1075,7 +1105,25 @@ ${clonedElement.outerHTML}
                 return false;
             };
 
-            const classes = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'יא', 'יב'];
+            const [classes, setClasses] = useState(() => [...DEFAULT_POPULATION_GRADES]);
+            const skipNextAutoSaveRef = React.useRef(true);
+            const loadPopulationGrades = (data) => {
+                const loaded = populationGradesFromData(data);
+                setClasses(loaded);
+                setSelectedClass(loaded[0] || '');
+                setSelectedClassNumber('כל השכבה');
+                setExpandedGrades({});
+                setShowAddClassDialog(false);
+                setShowEditNoteDialog(false);
+            };
+            useEffect(() => {
+                if (!classes.includes(selectedClass)) {
+                    setSelectedClass(classes[0] || '');
+                    setSelectedClassNumber('כל השכבה');
+                } else if (selectedClassNumber !== 'כל השכבה' && !(classStructure[selectedClass] || []).includes(selectedClassNumber)) {
+                    setSelectedClassNumber('כל השכבה');
+                }
+            }, [classes, classStructure, selectedClass, selectedClassNumber]);
 
             // --- LocalStorage Functions ---
             const getCurrentState = () => ({
@@ -1085,12 +1133,14 @@ ${clonedElement.outerHTML}
                 populationsData,
                 studentNotes,
                 classStructure,
+                classes,
                 lastSaved: new Date().toISOString(),
                 docType: 'mtss'
             });
 
             const applyLoadedData = (data) => {
                 if (!data) return;
+                loadPopulationGrades(data);
                 if (data.schoolName !== undefined) setSchoolName(data.schoolName);
                 if (data.items) setItems({
                     learning: data.items.learning || [],
@@ -1120,6 +1170,7 @@ ${clonedElement.outerHTML}
                     const saved = localStorage.getItem('mtss-mapper-data');
                     if (saved) {
                         const data = JSON.parse(saved);
+                        loadPopulationGrades(data);
                         if (data.schoolName) setSchoolName(data.schoolName);
                         const loadedItems = data.items || {};
                         setItems({
@@ -1150,6 +1201,8 @@ ${clonedElement.outerHTML}
                 const handleLoadData = (e) => {
                     const data = e.detail;
                     if (!data) return;
+                    skipNextAutoSaveRef.current = true;
+                    loadPopulationGrades(data);
                     if (data.schoolName !== undefined) setSchoolName(data.schoolName);
                     if (data.items) setItems({
                         learning: data.items.learning || [],
@@ -1162,6 +1215,7 @@ ${clonedElement.outerHTML}
                 };
 
                 const handleReset = () => {
+                    loadPopulationGrades(null);
                     setSchoolName('');
                     setItems({ learning: [], support: [], staffSupport: [] });
                     setPopulationsData({});
@@ -1220,11 +1274,15 @@ ${clonedElement.outerHTML}
             }, []);
 
             // Auto-save whenever data changes
-            // *** תיקון: אל תשמור אם עדיין בתהליך טעינה מה-portal ***
+            // Skip the loaded snapshot once, then save every edit, including edits
+            // made during the bridge's two-second loading window.
             useEffect(() => {
-                if (window.__mtss_loading_from_portal) return;
+                if (skipNextAutoSaveRef.current) {
+                    skipNextAutoSaveRef.current = false;
+                    return;
+                }
                 saveToLocalStorage();
-            }, [items, populationsData, studentNotes, classStructure, schoolName]);
+            }, [items, populationsData, studentNotes, classStructure, classes, schoolName]);
 
             // Chart instances storage
             const chartInstancesRef = React.useRef({});
@@ -1878,6 +1936,7 @@ ${clonedElement.outerHTML}
             // לוגיקת אוכלוסיות
             const addStudentToCategory = () => {
                 if (blockIfReadOnly('populations')) return;
+                if (!classes.includes(selectedClass)) return alert('יש להוסיף שכבה לפני שיבוץ תלמידים');
                 if (!studentInput.trim()) return alert('יש להזין שם תלמיד');
                 const classKey = selectedClassNumber === 'כל השכבה' ? selectedClass : `${selectedClass}${selectedClassNumber}`;
                 const key = `${classKey}-${selectedCategory}`;
@@ -1951,7 +2010,9 @@ ${clonedElement.outerHTML}
 
             const addClassToGrade = () => {
                 if (blockIfReadOnly('populations')) return;
+                if (!classes.includes(addClassGrade)) return;
                 if (!newClassName.trim()) return alert('יש להזין שם/מספר כיתה');
+                if ((classStructure[addClassGrade] || []).includes(newClassName.trim())) return alert('כיתה זו כבר קיימת בשכבה');
                 setClassStructure(prev => ({
                     ...prev,
                     [addClassGrade]: [...(prev[addClassGrade] || []), newClassName.trim()]
@@ -1960,23 +2021,36 @@ ${clonedElement.outerHTML}
                 setShowAddClassDialog(false);
             };
 
+            const addPopulationGrade = (grade) => {
+                if (blockIfReadOnly('populations')) return;
+                if (!DEFAULT_POPULATION_GRADES.includes(grade) || classes.includes(grade)) return;
+                setClasses(populationGradesFromData({ classes: [...classes, grade] }));
+                setClassStructure(prev => ({ ...prev, [grade]: [] }));
+                setSelectedClass(grade);
+                setSelectedClassNumber('כל השכבה');
+            };
+
+            const removePopulationGrade = (grade) => {
+                if (blockIfReadOnly('populations')) return;
+                if (!confirm(`האם למחוק את שכבה ${grade} ואת כל הנתונים שלה? פעולה זו אינה הפיכה!`)) return;
+                const next = deletePopulationGrade({ classes, classStructure, populationsData, studentNotes }, grade);
+                setClasses(next.classes);
+                setClassStructure(next.classStructure);
+                setPopulationsData(next.populationsData);
+                setStudentNotes(next.studentNotes);
+                setExpandedGrades(prev => { const copy = { ...prev }; delete copy[grade]; return copy; });
+                setShowAddClassDialog(false);
+                setShowEditNoteDialog(false);
+            };
+
             const removeClassFromGrade = (grade, className) => {
                 if (blockIfReadOnly('populations')) return;
-                if (confirm(`האם למחוק את כיתה ${grade}${className}?`)) {
-                    setClassStructure(prev => ({
-                        ...prev,
-                        [grade]: prev[grade].filter(c => c !== className)
-                    }));
-                    // Also remove all students from this class
-                    const classKey = `${grade}${className}`;
-                    const newPopData = { ...populationsData };
-                    Object.keys(newPopData).forEach(key => {
-                        if (key.startsWith(classKey + '-')) {
-                            delete newPopData[key];
-                        }
-                    });
-                    setPopulationsData(newPopData);
-                }
+                if (!confirm(`האם למחוק את כיתה ${grade}${className}?`)) return;
+                const next = deletePopulationClass({ classes, classStructure, populationsData, studentNotes }, grade, className);
+                setClassStructure(next.classStructure);
+                setPopulationsData(next.populationsData);
+                setStudentNotes(next.studentNotes);
+                setShowEditNoteDialog(false);
             };
 
             const getTotalForClass = (className) => {
@@ -2053,7 +2127,8 @@ ${clonedElement.outerHTML}
                     items,
                     populationsData,
                     studentNotes,
-                    classStructure
+                    classStructure,
+                    classes
                 };
                 const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
                 const a = document.createElement('a');
@@ -2077,6 +2152,7 @@ ${clonedElement.outerHTML}
                 reader.onload = (e) => {
                     try {
                         const imported = JSON.parse(e.target.result);
+                        loadPopulationGrades(imported);
 
                         // Validate structure and ensure all arenas exist
                         if (imported.items) {
@@ -2154,10 +2230,12 @@ ${clonedElement.outerHTML}
                     populationsData: {},
                     studentNotes: {},
                     classStructure: {},
-                    schoolNames: []
+                    schoolNames: [],
+                    classes: []
                 };
 
                 files.forEach(({ fileName, data }) => {
+                    preview.classes = populationGradesFromData({ classes: [...preview.classes, ...populationGradesFromData(data)] });
                     // Merge items
                     if (data.items) {
                         if (data.items.learning) preview.learning.push(...data.items.learning);
@@ -2206,6 +2284,7 @@ ${clonedElement.outerHTML}
                     return;
                 }
                 if (!mergePreview) return;
+                setClasses(populationGradesFromData({ classes: [...classes, ...mergePreview.classes] }));
 
                 // Merge items
                 setItems({
@@ -2251,6 +2330,7 @@ ${clonedElement.outerHTML}
                     return;
                 }
                 if (confirm('⚠️ האם אתה בטוח שברצונך למחוק את כל הנתונים? פעולה זו אינה הפיכה!')) {
+                    loadPopulationGrades(null);
                     setItems({ learning: [], support: [], staffSupport: [] });
                     setPopulationsData({});
                     setStudentNotes({});
@@ -4030,6 +4110,7 @@ ${clonedElement.outerHTML}
                                                     <div className="w-28">
                                                         <label className="text-xs text-slate-400 mb-1.5 block">שכבה</label>
                                                         <select
+                                                            aria-label="שכבה"
                                                             value={selectedClass}
                                                             onChange={e => {
                                                                 setSelectedClass(e.target.value);
@@ -4043,6 +4124,7 @@ ${clonedElement.outerHTML}
                                                     <div className="w-40">
                                                         <label className="text-xs text-slate-400 mb-1.5 block">כיתה</label>
                                                         <select
+                                                            aria-label="כיתה"
                                                             value={selectedClassNumber}
                                                             onChange={e => setSelectedClassNumber(e.target.value)}
                                                             className="w-full glass-input rounded-xl px-4 py-2.5"
@@ -4074,7 +4156,7 @@ ${clonedElement.outerHTML}
                                                     </div>
                                                     <button
                                                         onClick={addStudentToCategory}
-                                                        disabled={!selectedCategory || !studentInput || arenaIsReadOnly('populations')}
+                                                        disabled={!classes.includes(selectedClass) || !selectedCategory || !studentInput || arenaIsReadOnly('populations')}
                                                         className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-cyan-900/20 transition-all"
                                                     >
                                                         הוסף
@@ -4082,6 +4164,24 @@ ${clonedElement.outerHTML}
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {classes.length < DEFAULT_POPULATION_GRADES.length && (
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                <select
+                                                    aria-label="הוסף שכבה"
+                                                    value=""
+                                                    onChange={e => addPopulationGrade(e.target.value)}
+                                                    disabled={arenaIsReadOnly('populations')}
+                                                    className="glass-input rounded-xl px-4 py-2.5 disabled:opacity-50"
+                                                >
+                                                    <option value="" className="bg-slate-900">הוסף שכבה…</option>
+                                                    {DEFAULT_POPULATION_GRADES.filter(grade => !classes.includes(grade)).map(grade => (
+                                                        <option key={grade} value={grade} className="bg-slate-900">שכבה {grade}</option>
+                                                    ))}
+                                                </select>
+                                                {classes.length === 0 && <p className="text-slate-400">אין שכבות במיפוי. הוסף שכבה כדי להתחיל.</p>}
+                                            </div>
+                                        )}
 
                                         {/* The Matrix Table */}
                                         <div className="glass-panel rounded-2xl overflow-hidden border border-slate-700/50">
@@ -4137,35 +4237,16 @@ ${clonedElement.outerHTML}
                                                                                         setShowAddClassDialog(true);
                                                                                     }}
                                                                                     className="w-6 h-6 rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center text-xs"
+                                                                                    disabled={arenaIsReadOnly('populations')}
+                                                                                    aria-label={`הוסף כיתה לשכבה ${cls}`}
                                                                                     title="הוסף כיתה"
                                                                                 >
                                                                                     +
                                                                                 </button>
                                                                                 <button
-                                                                                    onClick={() => {
-                                                                                        if (confirm(`האם למחוק את שכבה ${cls} ואת כל הנתונים שלה? פעולה זו אינה הפיכה!`)) {
-                                                                                            // Remove all data for this grade and its subclasses
-                                                                                            const newPopData = { ...populationsData };
-                                                                                            Object.keys(newPopData).forEach(key => {
-                                                                                                if (key.startsWith(cls + '-')) {
-                                                                                                    delete newPopData[key];
-                                                                                                }
-                                                                                            });
-                                                                                            // Also remove subclasses data
-                                                                                            if (classStructure[cls]) {
-                                                                                                classStructure[cls].forEach(subClass => {
-                                                                                                    Object.keys(newPopData).forEach(key => {
-                                                                                                        if (key.startsWith(`${cls}${subClass}-`)) {
-                                                                                                            delete newPopData[key];
-                                                                                                        }
-                                                                                                    });
-                                                                                                });
-                                                                                            }
-                                                                                            setPopulationsData(newPopData);
-                                                                                            // Clear subclasses structure
-                                                                                            setClassStructure(prev => ({ ...prev, [cls]: [] }));
-                                                                                        }
-                                                                                    }}
+                                                                                    onClick={() => removePopulationGrade(cls)}
+                                                                                    disabled={arenaIsReadOnly('populations')}
+                                                                                    aria-label={`מחק שכבה ${cls}`}
                                                                                     className="w-6 h-6 rounded bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center text-xs"
                                                                                     title="מחק שכבה"
                                                                                 >
@@ -4246,6 +4327,8 @@ ${clonedElement.outerHTML}
                                                                                     <button
                                                                                         onClick={() => removeClassFromGrade(cls, className)}
                                                                                         className="w-5 h-5 rounded bg-rose-600/50 hover:bg-rose-500 text-white flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                        disabled={arenaIsReadOnly('populations')}
+                                                                                        aria-label={`מחק כיתה ${cls}${className}`}
                                                                                         title="מחק כיתה"
                                                                                     >
                                                                                         ×
