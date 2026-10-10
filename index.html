@@ -562,7 +562,7 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 
     <!-- STAFF PASSWORD LOGIN — shown when staff role selected -->
     <div id="loginPasswordSection" style="display:none;">
-      <div class="login-role-label">כניסה עם שם משתמש וסיסמא</div>
+      <div class="login-role-label">כניסה כבעל/ת תפקיד</div>
 
       <!-- Toggle between Google and Password -->
       <div style="display:flex;gap:8px;margin-bottom:16px;justify-content:center;">
@@ -733,6 +733,9 @@ iframe{flex:1;border:none;width:100%;display:block;min-height:0;}
 
   <!-- CONTENT -->
   <div id="contentArea">
+    <div id="staffAccessNotice" role="status" style="display:none;padding:24px;text-align:center;">
+      ההתחברות הושלמה, אך עדיין לא הוגדרו לחשבון שלך עמודים זמינים. יש לפנות למנהל/ת בית הספר לעדכון ההרשאות.
+    </div>
 
     <div class="frame-wrapper active" id="wrapPlan">
       <div class="frame-bar bar-plan">
@@ -1273,6 +1276,10 @@ function resetGoogleButton(container) {
 
 function renderGoogleLoginButton(container, attempt = 0) {
   if (!container || container.dataset.googleButtonRendered === 'true') return;
+  // Render only the visible login method. A hidden button has no usable
+  // width and must not be marked ready before the user opens its tab.
+  const availableWidth = Math.floor(container.getBoundingClientRect().width);
+  if (!container.isConnected || availableWidth <= 0) return;
 
   if (!initializeGoogleIdentity()) {
     if (attempt < 20) {
@@ -1289,7 +1296,7 @@ function renderGoogleLoginButton(container, attempt = 0) {
     theme: 'outline',
     size: 'large',
     locale: 'he',
-    width: 290,
+    width: Math.min(290, availableWidth),
     click_listener: onGoogleLoginClick,
   });
   container.dataset.googleButtonRendered = 'true';
@@ -1507,19 +1514,14 @@ function selectRole(role, btn) {
     document.getElementById('loginGoogleSection').style.display   = 'none';
     document.getElementById('roleButtons').style.display = 'none';
     document.getElementById('loginRoleLabel').textContent = '';
-    // Default to password tab for staff, but also render Google button for alt tab
-    switchLoginMethod('password', document.getElementById('tabPassword'));
-    setTimeout(() => {
-      renderGoogleLoginButton(altContainer);
-    }, 250);
+    // Google is shown before rendering; password remains an explicit choice.
+    switchLoginMethod('google', document.getElementById('tabGoogle'));
     return;
   }
 
-  setTimeout(() => {
-    renderGoogleLoginButton(btnContainer);
-    document.getElementById('loginGoogleSection').style.display = 'block';
-    document.getElementById('roleButtons').style.display = 'none';
-  }, 250);
+  document.getElementById('loginGoogleSection').style.display = 'block';
+  document.getElementById('roleButtons').style.display = 'none';
+  renderGoogleLoginButton(btnContainer);
 }
 
 function backToRoles() {
@@ -1648,6 +1650,7 @@ function showLoginError(msg) {
 //  APPLY ROLE UI
 // ═══════════════════════════════════════════════════════
 function applyRoleUI(role, session) {
+  document.getElementById('staffAccessNotice').style.display = 'none';
   if (!role || !session) {
     // No session — show login
     document.getElementById('loginScreen').style.display = 'flex';
@@ -1780,6 +1783,11 @@ window.__activeCustomLinkId = null;
 window.__customLinksCache = [];
 
 async function loadCustomLinks() {
+  if (!canLoadPortalResource(CUSTOM_LINKS_TYPE)) {
+    window.__customLinksCache = [];
+    renderCustomLinks();
+    return;
+  }
   try {
     const school = PS.school || '';
     const year   = PS.year   || '';
@@ -1909,12 +1917,58 @@ function applyStaffSectionPerms(perms) {
   // ה-load של ה-iframe עצמו (שמבטיח שהסקריפט הפנימי כבר רץ ונרשם) —
   // בדיוק כמו התבנית הקיימת שמשמשת עבור set-readonly ב-loadAllIframes.
   const planFrameEl = document.getElementById('planFrame');
-  const sendPerms = () => {
-    const w = planFrameEl?.contentWindow;
-    if (w) w.postMessage({ type:'set-section-permissions', permissions: perms },PORTAL_ORIGIN);
-  };
+  const sendPerms = () => sendStaffPlanContext(planFrameEl?.contentWindow);
   sendPerms();
   if (planFrameEl) planFrameEl.addEventListener('load', sendPerms, { once: true });
+  openStaffStartPage(perms);
+}
+
+// The permission editor grants plan sections (s0, s_hours, etc.), not a
+// synthetic "plan" permission. Inventory/budget also live in this wrapper;
+// the server still independently checks every resource request.
+function getStaffFramePermission(perms, frame) {
+  const levels = {none:0, view:1, edit:2, admin:3};
+  const keys = frame === 'plan'
+    ? SECTION_LIST.filter(id => !PORTAL_FRAMES.includes(id))
+    : [frame];
+  return keys.reduce((level, key) => (levels[perms[key]] || 0) > levels[level] ? perms[key] : level, 'none');
+}
+
+// Match the server's resource gates when scheduling background loads.
+// The server remains authoritative; this avoids expected 403 alerts for
+// unrelated modules immediately after a successful staff login.
+function canLoadPortalResource(type) {
+  const session = getPortalSession();
+  if (!session) return false;
+  if (['principal','systemadmin'].includes(session.portalRole)) return true;
+  if (session.portalRole !== 'staffmember') return false;
+  const keys = type === 'plan'
+    ? SECTION_LIST.filter(id => !PORTAL_FRAMES.includes(id) && !['sinventory','sbudget'].includes(id))
+    : ['gantt','mtss','calendar'].includes(type) ? [type] : [];
+  return keys.some(key => ['view','edit','admin'].includes(session.permissions?.[key]));
+}
+
+function openStaffStartPage(perms) {
+  const allowed = Array.from(document.querySelectorAll('#sideNav .nav-item[data-target]')).filter(btn => {
+    const key = btn.dataset.section || btn.dataset.perm;
+    return ['view','edit','admin'].includes(perms[key]);
+  });
+  const notice = document.getElementById('staffAccessNotice');
+  if (notice) notice.style.display = allowed.length ? 'none' : 'block';
+  const selected = allowed.find(btn => btn.classList.contains('active') && btn.dataset.target === PS.activeFrame)
+    || allowed.find(btn => btn.dataset.target === PS.activeFrame) || allowed[0];
+  if (selected) navClick(selected);
+}
+
+function sendStaffPlanContext(win) {
+  const session = getPortalSession();
+  if (!win || session?.portalRole !== 'staffmember') return;
+  const perms = session.permissions || {};
+  win.postMessage({ type:'set-section-permissions', permissions:perms },PORTAL_ORIGIN);
+  const section = PS._requestedPlanSection;
+  if (section && ['view','edit','admin'].includes(perms[section])) {
+    win.postMessage({ type:'switch-section', section },PORTAL_ORIGIN);
+  }
 }
 
 function showAdminNav(show) {
@@ -1933,7 +1987,7 @@ function loadAllIframes(perms) {
   Object.entries(frames).forEach(([name, src]) => {
     const frameEl = document.getElementById(name + 'Frame');
     if (!frameEl) return;
-    const p = perms ? (perms[name] || 'none') : 'edit';
+    const p = perms ? getStaffFramePermission(perms, name) : 'edit';
     PS._framePerms[name] = p; // נשמר לשימוש ב-iframe-ready handler (ראו הערה על PS._framePerms)
     if (p === 'none') return;
     if (!frameEl.src || frameEl.src === 'about:blank') frameEl.src = src;
@@ -1963,6 +2017,7 @@ function loadAllIframes(perms) {
 // PS._framePerms וב-loadAllIframes.
 function sendFrameReadOnlyIfNeeded(docType, win) {
   if (!win) return;
+  if (docType === 'plan') sendStaffPlanContext(win);
   if (PS._framePerms && PS._framePerms[docType] === 'view') {
     win.postMessage({ type:'set-readonly', readonly:true, docType },PORTAL_ORIGIN);
   }
@@ -2048,6 +2103,13 @@ function bindUI() {
 window.selectRole            = selectRole;
 window.backToRoles           = backToRoles;
 window.handleGoogleCredential= handleGoogleCredential;
+// Recover when Google's library loads after the initial retry window, while
+// keeping one Identity initialization and rendering only the visible method.
+window.onGoogleLibraryLoad = () => {
+  if (!_pendingRole) return;
+  const id = _pendingRole === 'staffmember' ? 'loginGoogleBtnAlt' : 'loginGoogleBtn';
+  renderGoogleLoginButton(document.getElementById(id));
+};
 window.portalLogout          = portalLogout;
 window.smBadgeClick          = smBadgeClick;
 window.smBadgeClickSM        = smBadgeClick;
@@ -2893,6 +2955,7 @@ function navClick(btn) {
   const target  = btn.dataset.target;
   const section = btn.dataset.section;
   const tab     = btn.dataset.tab;
+  if (target === 'plan' && section) PS._requestedPlanSection = section;
 
   document.querySelectorAll('#sideNav .nav-item').forEach(b =>
     b.classList.remove('active','active-teal','active-purple'));
@@ -3523,6 +3586,7 @@ async function loadPortalDataAndNotifyFrames() {
   let calendarLoadedEmpty = false;
 
   async function dbLoad(type) {
+    if (!canLoadPortalResource(type)) return null;
     const t0 = performance.now();
     try {
       const res = await authFetch(
@@ -3667,7 +3731,7 @@ function reloadFrameData() {
   const ganttWin   = document.getElementById('ganttFrame')?.contentWindow;
   const mtssWin    = document.getElementById('mtssFrame')?.contentWindow;
   const calWin     = document.getElementById('calendarFrame')?.contentWindow;
-  if ((PS.school || PS.year) && ganttWin) {
+  if ((PS.school || PS.year) && ganttWin && canLoadPortalResource('gantt')) {
     authFetch(`${WORKER_URL_AUTH}/api/data?type=gantt&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => r.json()).then(sg => {
         if (sg) { PS.ganttData = sg; ganttWin.postMessage({ type: 'load-data', payload: sg },PORTAL_ORIGIN); }
@@ -3678,14 +3742,14 @@ function reloadFrameData() {
 
   // טעינה מחדש של יומן ומורים
   const teachersFrameElR = document.getElementById('teachersFrame');
-  if ((PS.school || PS.year) && PS.calendarReady && calWin) {
+  if ((PS.school || PS.year) && PS.calendarReady && calWin && canLoadPortalResource('calendar')) {
     authFetch(`${WORKER_URL_AUTH}/api/data?type=calendar&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => {if(!r.ok)throw new Error('calendar_load_failed');return r.json();}).then(sc => {
         if(sc===null)sc={school:PS.school,year:PS.year,meetings:{events:[],settings:{}}};
         if (sc) { PS.calendarData = sc; calWin.postMessage({ type: 'load-data', payload: sc },PORTAL_ORIGIN); }
       }).catch(() => {});
   }
-  if (PS.teachersReady && teachersFrameElR?.contentWindow) {
+  if (PS.teachersReady && teachersFrameElR?.contentWindow && canLoadPortalResource('teachers')) {
     authFetch(`${WORKER_URL_AUTH}/api/data?type=teachers&school=${encodeURIComponent(PS.school||'')}&year=${encodeURIComponent(PS.year||'')}`, { cache: 'no-store' })
       .then(r => r.json()).then(st => {
         if (st) { PS.teachersData = st; teachersFrameElR.contentWindow.postMessage({ type: 'load-data', payload: st },PORTAL_ORIGIN); }
