@@ -5,7 +5,9 @@ import { readFileSync } from 'node:fs';
 
 const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = html.match(/async function loadPortalDataAndNotifyFrames\([^]*?\n\}/)?.[0];
+const resourceGate = html.match(/function canLoadPortalResource\([^]*?\n\}/)?.[0];
 assert.ok(source);
+assert.ok(resourceGate);
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function fixture(calendarResponse) {
@@ -16,7 +18,7 @@ function fixture(calendarResponse) {
   const frame = {contentWindow:{postMessage:(message, origin)=>messages.push({message, origin})}};
   const context = vm.createContext({ PS:state,
     PORTAL_ORIGIN:'https://principal-portal.pages.dev', WORKER_URL_AUTH:'https://api.example.test',
-    getSessionToken:()=>token, performance:{now:()=>0}, console:{log(){}},
+    getSessionToken:()=>token, getPortalSession:()=>({portalRole:'principal'}), performance:{now:()=>0}, console:{log(){}},
     document:{getElementById:id=>id === 'calendarFrame' ? frame : null},
     updateBadges(){}, updateStatus(){}, sendFrameReadOnlyIfNeeded(){},
     async authFetch(url, options) {
@@ -25,7 +27,7 @@ function fixture(calendarResponse) {
       return {ok:true, text:async()=> 'null'};
     }
   });
-  vm.runInContext(source, context);
+  vm.runInContext(resourceGate + '\n' + source, context);
   return {state,messages,requests,run:()=>context.loadPortalDataAndNotifyFrames(),changeSession:()=>{token='new-session';}};
 }
 

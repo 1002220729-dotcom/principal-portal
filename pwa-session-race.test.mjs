@@ -37,7 +37,7 @@ function harness(child = false) {
   if (child) vm.runInContext(shared, context);
   else vm.runInContext([
     'getPortalSession', 'setPortalSession', 'clearPortalSession', 'getSessionToken',
-    'authFetch', 'expirePortalSession', 'showLoginError', 'setLoginStatus',
+    'authFetch', 'expirePortalSession', 'showLoginError', 'setLoginStatus', 'canLoadPortalResource',
   ].map(source).join('\n'), context);
   const login = token => store.set('portalRoleSession', JSON.stringify({ token, portalRole: 'principal' }));
   const current = () => JSON.parse(store.get('portalRoleSession') ?? 'null');
